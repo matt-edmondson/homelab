@@ -167,6 +167,7 @@ metadata:
   name: prometheus-data
   namespace: prometheus
 spec:
+  storageClassName: longhorn
   accessModes:
     - ReadWriteOnce
   resources:
