@@ -128,4 +128,7 @@ else
   bash "$SCRIPT_DIR/applications/baget-deployment.sh"
 fi
 
+log "Deploying Prometheus"
+bash "$SCRIPT_DIR/applications/prometheus-deployment.sh"
+
 log "Deployment complete"
