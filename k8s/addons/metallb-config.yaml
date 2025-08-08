@@ -5,15 +5,26 @@ metadata:
   namespace: metallb-system
 spec:
   addresses:
-    - 192.168.1.240-192.168.1.250
+    - 192.168.0.240-192.168.0.250
 ---
-apiVersion: metallb.io/v1beta1
-kind: L2Advertisement
+apiVersion: metallb.io/v1beta2
+kind: BGPPeer
 metadata:
-  name: default-l2
+  name: udm
+  namespace: metallb-system
+spec:
+  myASN: 65002        # MetalLB speakers (cluster ASN)
+  peerASN: 65001      # UDM Pro ASN
+  peerAddress: 192.168.0.1
+  # Optional:
+  # bfdProfile: default
+  # nodeSelectors: []
+---
+apiVersion: metallb.io/v1beta2
+kind: BGPAdvertisement
+metadata:
+  name: default-adv
   namespace: metallb-system
 spec:
   ipAddressPools:
     - default-pool
-
-
