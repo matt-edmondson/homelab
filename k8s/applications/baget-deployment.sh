@@ -43,10 +43,11 @@ fi
 kubectl apply -f "$SCRIPT_DIR/baget-deployment.yaml"
 
 # If we had a prior IP, pin it so NGINX upstream stays stable
-if [ -n "$EXISTING_LB_IP" ]; then
-  echo "Reusing existing LoadBalancer IP: $EXISTING_LB_IP"
-  kubectl -n baget patch service baget-service -p "{\"spec\":{\"loadBalancerIP\":\"$EXISTING_LB_IP\"}}" >/dev/null || true
-fi
+#if [ -n "$EXISTING_LB_IP" ]; then
+#  echo "Reusing existing LoadBalancer IP: $EXISTING_LB_IP"
+#  kubectl -n baget patch service baget-service -p "{\"spec\":{\"loadBalancerIP\":\"$EXISTING_LB_IP\"}}" >/dev/null || true
+#fi
+
 cat <<YAML | kubectl -n baget apply -f -
 apiVersion: v1
 kind: Secret
