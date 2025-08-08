@@ -119,6 +119,8 @@ metadata:
   namespace: baget
   labels:
     app: baget
+  annotations:
+    metallb.universe.tf/address-pool: baget-pool
 spec:
   selector:
     app: baget
@@ -126,4 +128,4 @@ spec:
   - protocol: TCP
     port: 80
     targetPort: 80
-  type: ClusterIP
+  type: LoadBalancer
