@@ -4,7 +4,7 @@ kind: Kustomization
 resources:
   - https://raw.githubusercontent.com/longhorn/longhorn/v1.6.2/deploy/longhorn.yaml
 
-patchesStrategicMerge:
-  - service-lb.yaml
+patches:
+  - path: service-lb.yaml
 
 
