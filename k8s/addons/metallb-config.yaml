@@ -20,7 +20,7 @@ spec:
   # bfdProfile: default
   # nodeSelectors: []
 ---
-apiVersion: metallb.io/v1beta2
+apiVersion: metallb.io/v1beta1
 kind: BGPAdvertisement
 metadata:
   name: default-adv
