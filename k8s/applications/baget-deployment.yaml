@@ -119,8 +119,6 @@ metadata:
   namespace: baget
   labels:
     app: baget
-  annotations:
-    metallb.universe.tf/address-pool: baget-pool
 spec:
   selector:
     app: baget
