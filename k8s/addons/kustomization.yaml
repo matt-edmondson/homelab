@@ -5,8 +5,8 @@ resources:
   # MetalLB (native manifests)
   - https://raw.githubusercontent.com/metallb/metallb/v0.14.5/config/manifests/metallb-native.yaml
 
-  # Longhorn (CRDs + controllers; adjust version if needed)
-  - https://raw.githubusercontent.com/longhorn/longhorn/v1.6.2/deploy/longhorn.yaml
+  # Longhorn (via local overlay to apply LB patch)
+  - longhorn
 
   # Kubernetes Dashboard
   - kubernetes-dashboard

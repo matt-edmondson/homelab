@@ -120,6 +120,17 @@ if kubectl get ns kubernetes-dashboard >/dev/null 2>&1; then
   fi
 fi
 
+# 2d) Wait for Longhorn frontend and report LB address
+log "Waiting for Longhorn UI LoadBalancer address (via MetalLB)"
+wait_for_namespace longhorn-system 600
+wait_for_pods_ready longhorn-system 900
+LONGHORN_ADDR=$(get_service_external_address longhorn-system longhorn-frontend 600 || true)
+if [ -n "${LONGHORN_ADDR:-}" ]; then
+  log "Longhorn UI available at: http://${LONGHORN_ADDR}/"
+else
+  log "Longhorn UI LoadBalancer address not assigned yet."
+fi
+
 # 3) Deploy applications
 log "Deploying BaGet application"
 if [ -n "${BAGET_API_KEY:-}" ]; then
