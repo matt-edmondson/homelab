@@ -19,7 +19,22 @@ generate_random_key() {
 
 BAGET_API_KEY="${BAGET_API_KEY:-$(generate_random_key)}"
 
+# Reuse existing external IP if present
+EXISTING_LB_IP=""
+if kubectl -n baget get svc baget-service >/dev/null 2>&1; then
+  EXISTING_LB_IP=$(kubectl -n baget get svc baget-service -o jsonpath='{.spec.loadBalancerIP}' 2>/dev/null || true)
+  if [ -z "$EXISTING_LB_IP" ]; then
+    EXISTING_LB_IP=$(kubectl -n baget get svc baget-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+  fi
+fi
+
 kubectl apply -f "$SCRIPT_DIR/baget-deployment.yaml"
+
+# If we had a prior IP, pin it so NGINX upstream stays stable
+if [ -n "$EXISTING_LB_IP" ]; then
+  echo "Reusing existing LoadBalancer IP: $EXISTING_LB_IP"
+  kubectl -n baget patch service baget-service -p "{\"spec\":{\"loadBalancerIP\":\"$EXISTING_LB_IP\"}}" >/dev/null || true
+fi
 kubectl -n baget delete secret baget-secrets --ignore-not-found
 kubectl -n baget create secret generic baget-secrets --from-literal=ApiKey="$BAGET_API_KEY"
 kubectl -n baget rollout restart deploy/baget
