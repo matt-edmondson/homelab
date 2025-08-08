@@ -1,0 +1,152 @@
+# Namespace for Baget
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: baget
+---
+# ConfigMap for Baget configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: baget-config
+  namespace: baget
+data:
+  appsettings.json: |
+    {
+      "Database": {
+        "Type": "Sqlite",
+        "ConnectionString": "Data Source=/app/data/baget.db"
+      },
+      "Storage": {
+        "Type": "FileSystem",
+        "Path": "/app/data/packages"
+      },
+      "Search": {
+        "Type": "Database"
+      },
+      "Mirror": {
+        "Enabled": false
+      },
+      "PackageDeletionBehavior": "Unlist",
+      "AllowPackageOverwrites": false,
+      "ApiKey": ""
+    }
+---
+# PersistentVolumeClaim for Baget data
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: baget-data
+  namespace: baget
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+# Deployment for Baget
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: baget
+  namespace: baget
+  labels:
+    app: baget
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: baget
+  template:
+    metadata:
+      labels:
+        app: baget
+    spec:
+      containers:
+      - name: baget
+        image: loicsharma/baget:latest
+        ports:
+        - containerPort: 80
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          value: "Production"
+        - name: ASPNETCORE_URLS
+          value: "http://+:80"
+        volumeMounts:
+        - name: baget-data
+          mountPath: /app/data
+        - name: baget-config
+          mountPath: /app/appsettings.json
+          subPath: appsettings.json
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: baget-data
+        persistentVolumeClaim:
+          claimName: baget-data
+      - name: baget-config
+        configMap:
+          name: baget-config
+---
+# Service for Baget
+apiVersion: v1
+kind: Service
+metadata:
+  name: baget-service
+  namespace: baget
+  labels:
+    app: baget
+spec:
+  selector:
+    app: baget
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+  type: ClusterIP
+---
+# Ingress for Baget (optional - configure based on your ingress controller)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: baget-ingress
+  namespace: baget
+  annotations:
+    # Uncomment and modify based on your ingress controller
+    # nginx.ingress.kubernetes.io/rewrite-target: /
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  rules:
+  - host: baget.yourdomain.com  # Replace with your domain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: baget-service
+            port:
+              number: 80
+  # Uncomment for TLS
+  # tls:
+  # - hosts:
+  #   - baget.yourdomain.com
+  #   secretName: baget-tls
