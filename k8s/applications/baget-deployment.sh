@@ -17,7 +17,19 @@ generate_random_key() {
   fi
 }
 
-BAGET_API_KEY="${BAGET_API_KEY:-$(generate_random_key)}"
+# Reuse existing API key if present, unless overridden via BAGET_API_KEY
+EXISTING_API_KEY=""
+if kubectl -n baget get secret baget-secrets >/dev/null 2>&1; then
+  EXISTING_API_KEY=$(kubectl -n baget get secret baget-secrets -o jsonpath='{.data.ApiKey}' 2>/dev/null | base64 -d 2>/dev/null | tr -d '\n' || true)
+fi
+
+if [ -n "${BAGET_API_KEY:-}" ]; then
+  EFFECTIVE_API_KEY="$BAGET_API_KEY"
+elif [ -n "$EXISTING_API_KEY" ]; then
+  EFFECTIVE_API_KEY="$EXISTING_API_KEY"
+else
+  EFFECTIVE_API_KEY="$(generate_random_key)"
+fi
 
 # Reuse existing external IP if present
 EXISTING_LB_IP=""
@@ -35,10 +47,17 @@ if [ -n "$EXISTING_LB_IP" ]; then
   echo "Reusing existing LoadBalancer IP: $EXISTING_LB_IP"
   kubectl -n baget patch service baget-service -p "{\"spec\":{\"loadBalancerIP\":\"$EXISTING_LB_IP\"}}" >/dev/null || true
 fi
-kubectl -n baget delete secret baget-secrets --ignore-not-found
-kubectl -n baget create secret generic baget-secrets --from-literal=ApiKey="$BAGET_API_KEY"
+cat <<YAML | kubectl -n baget apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: baget-secrets
+type: Opaque
+stringData:
+  ApiKey: "$EFFECTIVE_API_KEY"
+YAML
 kubectl -n baget rollout restart deploy/baget
-echo "BaGet ApiKey: $BAGET_API_KEY"
+echo "BaGet ApiKey: $EFFECTIVE_API_KEY"
 
 echo "Waiting for external IP from MetalLB..."
 for i in {1..60}; do
