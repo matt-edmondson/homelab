@@ -73,6 +73,11 @@ spec:
           value: "Production"
         - name: ASPNETCORE_URLS
           value: "http://+:80"
+        - name: ApiKey
+          valueFrom:
+            secretKeyRef:
+              name: baget-secrets
+              key: ApiKey
         volumeMounts:
         - name: baget-data
           mountPath: /app/data
@@ -122,31 +127,3 @@ spec:
     port: 80
     targetPort: 80
   type: ClusterIP
----
-# Ingress for Baget (optional - configure based on your ingress controller)
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: baget-ingress
-  namespace: baget
-  annotations:
-    # Uncomment and modify based on your ingress controller
-    # nginx.ingress.kubernetes.io/rewrite-target: /
-    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
-spec:
-  rules:
-  - host: baget.yourdomain.com  # Replace with your domain
-    http:
-      paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: baget-service
-            port:
-              number: 80
-  # Uncomment for TLS
-  # tls:
-  # - hosts:
-  #   - baget.yourdomain.com
-  #   secretName: baget-tls
