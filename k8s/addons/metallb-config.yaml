@@ -7,6 +7,19 @@ spec:
   addresses:
     - 192.168.1.10-192.168.1.250
 ---
+apiVersion: metallb.io/v1beta1
+kind: BFDProfile
+metadata:
+  name: fast-failover
+  namespace: metallb-system
+spec:
+  receiveInterval: 300
+  transmitInterval: 300
+  detectMultiplier: 3
+  echoMode: true
+  passiveMode: false
+  minimumTtl: 254
+---
 apiVersion: metallb.io/v1beta2
 kind: BGPPeer
 metadata:
@@ -16,6 +29,7 @@ spec:
   myASN: 65002        # MetalLB speakers (cluster ASN)
   peerASN: 65001      # UDM Pro ASN
   peerAddress: 192.168.0.1
+  bfdProfile: fast-failover
 ---
 apiVersion: metallb.io/v1beta1
 kind: BGPAdvertisement
