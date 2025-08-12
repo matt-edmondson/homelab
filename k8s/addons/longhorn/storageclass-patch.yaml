@@ -10,6 +10,5 @@ parameters:
   numberOfReplicas: "2"
   staleReplicaTimeout: "30"
   fsType: "ext4"
-  mkfsParams: "-F"
 
 
