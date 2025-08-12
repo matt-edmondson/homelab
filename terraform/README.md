@@ -7,6 +7,7 @@ This Terraform configuration sets up a complete Kubernetes homelab environment w
 - **Prometheus & Grafana** - Complete monitoring and visualization stack
 - **Baget** - NuGet package server
 - **AlertManager** - Alert management (part of Prometheus stack)
+- **Metrics Server** - Resource metrics for `kubectl top` and Horizontal Pod Autoscaler (HPA)
 
 ## Architecture Overview
 

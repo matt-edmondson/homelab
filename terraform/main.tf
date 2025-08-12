@@ -47,6 +47,32 @@ resource "kubernetes_namespace" "baget" {
   }
 }
 
+# Metrics Server Installation
+resource "helm_release" "metrics_server" {
+  count = var.metrics_server_enabled ? 1 : 0
+  
+  name       = "metrics-server"
+  repository = "https://kubernetes-sigs.github.io/metrics-server/"
+  chart      = "metrics-server"
+  version    = "3.12.1"
+  namespace  = "kube-system"
+
+  set {
+    name  = "args"
+    value = "{--cert-dir=/tmp,--secure-port=4443,--kubelet-preferred-address-types=InternalIP\\,ExternalIP\\,Hostname,--kubelet-use-node-status-port,--metric-resolution=15s,--kubelet-insecure-tls}"
+  }
+
+  set {
+    name  = "metrics.enabled"
+    value = "false"
+  }
+
+  set {
+    name  = "serviceMonitor.enabled"
+    value = "false"
+  }
+}
+
 # MetalLB Installation
 resource "helm_release" "metallb" {
   name       = "metallb"

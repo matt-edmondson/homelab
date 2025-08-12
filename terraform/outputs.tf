@@ -1,3 +1,28 @@
+output "metrics_server" {
+  description = "Metrics Server configuration and usage information"
+  value = var.metrics_server_enabled ? {
+    enabled = true
+    message = "Metrics Server is installed and configured for your homelab"
+    usage = [
+      "Test resource metrics:",
+      "  kubectl top nodes",
+      "  kubectl top pods --all-namespaces",
+      "",
+      "Ready for Horizontal Pod Autoscaler (HPA) when needed",
+      "Kubernetes Dashboard will show resource usage graphs"
+    ]
+    configuration = {
+      chart_version = "3.12.1"
+      namespace     = "kube-system"
+      kubelet_tls   = "insecure (--kubelet-insecure-tls) - suitable for homelab"
+    }
+  } : {
+    enabled = false
+    message = "Metrics Server is disabled. Enable it by setting metrics_server_enabled = true"
+    note    = "Without metrics-server, 'kubectl top' commands won't work and HPA is unavailable"
+  }
+}
+
 output "metallb_ip_pool" {
   description = "IP address pool configured for MetalLB"
   value       = var.metallb_ip_range
@@ -100,5 +125,73 @@ output "storage_info" {
     baget_storage       = var.baget_storage_size
     prometheus_storage  = var.prometheus_storage_size
     grafana_storage     = var.grafana_storage_size
+  }
+}
+
+output "pihole_integration" {
+  description = "Pi-hole DNS integration information"
+  value = var.pihole_enabled ? {
+    enabled             = true
+    pihole_host        = var.pihole_host
+    domain             = var.homelab_domain
+    deployment_name    = "pihole-dns-sync"
+    namespace          = "kube-system"
+    authentication     = var.pihole_webpassword != "" ? "enabled" : "disabled"
+    
+    # DNS names that will be created (dynamically generated from service mappings)
+    dns_records = {
+      for service, hostname in var.pihole_service_mappings : 
+      hostname => "${hostname}.${var.homelab_domain}"
+    }
+    
+    # Monitoring commands
+    monitoring_commands = [
+      "# Check Pi-hole sync pod status:",
+      "kubectl get pods -n kube-system -l app.kubernetes.io/name=pihole-dns-sync",
+      "",
+      "# View sync logs:",
+      "kubectl logs -n kube-system -l app.kubernetes.io/name=pihole-dns-sync -f",
+      "",
+      "# Check service status:",
+      "kubectl describe deployment -n kube-system pihole-dns-sync"
+    ]
+    
+    # Test commands (dynamically generated)
+    test_commands = concat([
+      "# Test Pi-hole API connection:",
+      "curl -s http://${var.pihole_host}/admin/api.php?status",
+      "",
+      "# Test DNS resolution for your configured services:"
+    ], [
+      for service, hostname in var.pihole_service_mappings :
+      "nslookup ${hostname}.${var.homelab_domain} ${var.pihole_host}"
+    ])
+    
+    # Usage information (dynamically generated)
+    usage = concat([
+      "The Pi-hole sync runs automatically in your Kubernetes cluster.",
+      "It will continuously monitor LoadBalancer services and update Pi-hole DNS records.",
+      "No manual intervention required - everything is automated!",
+      "",
+      "Your configured services will be available at:"
+    ], [
+      for service, hostname in var.pihole_service_mappings :
+      "- http://${hostname}.${var.homelab_domain}"
+    ], [
+      "",
+      "Note: Actual ports depend on your service configurations.",
+      "Use 'kubectl get services --all-namespaces | grep LoadBalancer' to see port mappings."
+    ])
+  } : {
+    enabled = false
+    message = "Enable Pi-hole integration by setting pihole_enabled = true in terraform.tfvars"
+    setup_required = [
+      "1. Set pihole_enabled = true",
+      "2. Set pihole_host to your Pi-hole IP address", 
+      "3. Set pihole_webpassword to your Pi-hole admin password (leave empty if no auth required)",
+      "4. Configure pihole_service_mappings with your LoadBalancer services",
+      "5. Use ./nginx-sync/find-services.sh to discover your services",
+      "6. Run: terraform apply"
+    ]
   }
 }

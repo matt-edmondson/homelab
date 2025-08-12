@@ -55,6 +55,12 @@ variable "cluster_domain" {
   default     = "cluster.local"
 }
 
+variable "homelab_domain" {
+  description = "Domain name for homelab services (used with Pi-hole integration)"
+  type        = string
+  default     = "homelab.local"
+}
+
 # Application Configuration
 variable "baget_storage_size" {
   description = "Storage size for Baget data"
@@ -128,6 +134,38 @@ variable "prometheus_stack_chart_version" {
   description = "Version of kube-prometheus-stack Helm chart"
   type        = string
   default     = "57.2.0"
+}
+
+# Pi-hole Integration
+variable "pihole_enabled" {
+  description = "Enable Pi-hole DNS integration for LoadBalancer services"
+  type        = bool
+  default     = false
+}
+
+variable "pihole_host" {
+  description = "Pi-hole server hostname or IP address"
+  type        = string
+  default     = "192.168.0.100"
+}
+
+variable "pihole_webpassword" {
+  description = "Pi-hole web admin password (for API authentication)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "pihole_service_mappings" {
+  description = "Map of Kubernetes services to DNS hostnames for Pi-hole integration. Format: 'namespace/service-name' = 'hostname'"
+  type        = map(string)
+  default     = {}
+}
+
+variable "metrics_server_enabled" {
+  description = "Enable metrics-server installation for kubectl top and HPA functionality"
+  type        = bool
+  default     = true
 }
 
 # Tags and Labels

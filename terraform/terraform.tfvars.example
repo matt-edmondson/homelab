@@ -9,6 +9,7 @@ metallb_ip_range = ["192.168.1.10-192.168.1.250"]
 metallb_asn      = 65002  # Kubernetes cluster ASN
 router_asn       = 65001  # Router ASN (UDM Pro)
 router_ip        = "192.168.0.1"  # Router IP for BGP peering
+homelab_domain   = "homelab.local"  # Domain for DNS records
 
 # Security Configuration
 baget_api_key           = "your-very-secure-api-key-here-generate-a-random-one"
@@ -31,6 +32,28 @@ baget_cpu_limit      = "500m"
 metallb_chart_version          = "0.14.5"
 longhorn_chart_version         = "1.6.2"
 prometheus_stack_chart_version = "57.2.0"
+
+# Metrics Server (recommended for kubectl top and HPA)
+metrics_server_enabled = true
+
+# Pi-hole Integration (recommended)
+pihole_enabled     = true
+pihole_host        = "192.168.0.100"  # Your Pi-hole IP
+pihole_webpassword = "your-pihole-web-password"  # Leave empty "" if no auth required
+
+# Service to hostname mappings for Pi-hole DNS
+# Format: "namespace/service-name" = "hostname" (will create hostname.homelab.local)
+# You MUST configure this based on your actual LoadBalancer services
+# Use the find-services.sh script to discover your services: ./nginx-sync/find-services.sh
+pihole_service_mappings = {
+  # Example mappings - replace with your actual services:
+  # "monitoring/prometheus-stack-kube-prom-prometheus" = "prometheus"
+  # "monitoring/prometheus-stack-grafana"             = "grafana"
+  # "baget/baget-service"                            = "nuget"
+  # "longhorn-system/longhorn-frontend-lb"           = "longhorn"
+  # "my-namespace/my-service"                        = "myapp"
+  # "default/api-service"                           = "api"
+}
 
 # Labels
 common_labels = {
