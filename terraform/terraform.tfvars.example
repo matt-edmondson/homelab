@@ -1,0 +1,40 @@
+# Copy this file to terraform.tfvars and customize for your environment
+# cp terraform.tfvars.example terraform.tfvars
+
+# Kubernetes Configuration
+kubeconfig_path = "~/.kube/config"
+
+# Network Configuration
+metallb_ip_range = ["192.168.1.10-192.168.1.250"]
+metallb_asn      = 65002  # Kubernetes cluster ASN
+router_asn       = 65001  # Router ASN (UDM Pro)
+router_ip        = "192.168.0.1"  # Router IP for BGP peering
+
+# Security Configuration
+baget_api_key           = "your-very-secure-api-key-here-generate-a-random-one"
+grafana_admin_password  = "your-secure-grafana-password"
+
+# Storage Configuration
+longhorn_replica_count     = 2
+baget_storage_size        = "10Gi"
+prometheus_storage_size   = "20Gi"
+grafana_storage_size      = "10Gi"
+alertmanager_storage_size = "5Gi"
+
+# Resource Configuration
+baget_memory_request = "256Mi"
+baget_memory_limit   = "512Mi"
+baget_cpu_request    = "250m"
+baget_cpu_limit      = "500m"
+
+# Chart Versions (update as needed)
+metallb_chart_version          = "0.14.5"
+longhorn_chart_version         = "1.6.2"
+prometheus_stack_chart_version = "57.2.0"
+
+# Labels
+common_labels = {
+  "managed-by"  = "terraform"
+  "environment" = "homelab"
+  "cluster"     = "main"
+}
