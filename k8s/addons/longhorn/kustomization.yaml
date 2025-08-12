@@ -3,9 +3,9 @@ kind: Kustomization
 
 resources:
   - https://raw.githubusercontent.com/longhorn/longhorn/v1.6.2/deploy/longhorn.yaml
-  - storageclass.yaml
 
 patches:
   - path: service-lb.yaml
+  - path: storageclass-patch.yaml
 
 
