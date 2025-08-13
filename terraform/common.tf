@@ -62,15 +62,31 @@ resource "helm_release" "metrics_server" {
 
   set = [
     {
-      name  = "args"
-      value = "{--cert-dir=/tmp,--secure-port=4443,--kubelet-preferred-address-types=InternalIP\\,ExternalIP\\,Hostname,--kubelet-use-node-status-port,--metric-resolution=15s,--kubelet-insecure-tls}"
+      name  = "args[0]"
+      value = "--cert-dir=/tmp"
     },
     {
-      name  = "metrics.enabled"
-      value = "true"
+      name  = "args[1]"
+      value = "--secure-port=4443"
     },
     {
-      name  = "serviceMonitor.enabled"
+      name  = "args[2]"
+      value = "--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname"
+    },
+    {
+      name  = "args[3]"
+      value = "--kubelet-use-node-status-port"
+    },
+    {
+      name  = "args[4]"
+      value = "--metric-resolution=15s"
+    },
+    {
+      name  = "args[5]"
+      value = "--kubelet-insecure-tls"
+    },
+    {
+      name  = "apiService.create"
       value = "true"
     }
   ]

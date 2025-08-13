@@ -44,7 +44,10 @@ resource "helm_release" "longhorn" {
     }
   ]
 
-  depends_on = [kubernetes_namespace.longhorn_system]
+  depends_on = [
+    kubernetes_namespace.longhorn_system,
+    helm_release.metrics_server
+  ]
 }
 
 # Longhorn StorageClass (set as default)
