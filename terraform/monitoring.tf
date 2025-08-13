@@ -1,3 +1,61 @@
+# =============================================================================
+# Prometheus & Grafana Monitoring Stack - Self-Contained Module
+# =============================================================================
+
+# Variables
+variable "prometheus_stack_chart_version" {
+  description = "Version of kube-prometheus-stack Helm chart"
+  type        = string
+  default     = "57.2.0"
+}
+
+variable "prometheus_storage_size" {
+  description = "Storage size for Prometheus data"
+  type        = string
+  default     = "20Gi"
+}
+
+variable "prometheus_retention" {
+  description = "Data retention period for Prometheus"
+  type        = string
+  default     = "15d"
+}
+
+variable "grafana_admin_password" {
+  description = "Admin password for Grafana"
+  type        = string
+  sensitive   = true
+  default     = "admin123"
+}
+
+variable "grafana_storage_size" {
+  description = "Storage size for Grafana data"
+  type        = string
+  default     = "10Gi"
+}
+
+variable "alertmanager_storage_size" {
+  description = "Storage size for AlertManager data"
+  type        = string
+  default     = "5Gi"
+}
+
+variable "enable_storage_dashboards" {
+  description = "Enable storage system dashboards (e.g., Longhorn)"
+  type        = bool
+  default     = true
+}
+
+# Namespace
+resource "kubernetes_namespace" "monitoring" {
+  metadata {
+    name = "monitoring"
+    labels = merge(var.common_labels, {
+      "app.kubernetes.io/name" = "monitoring"
+    })
+  }
+}
+
 # Prometheus & Grafana Stack using kube-prometheus-stack
 resource "helm_release" "prometheus_stack" {
   name       = "prometheus-stack"
@@ -13,7 +71,7 @@ resource "helm_release" "prometheus_stack" {
           storageSpec = {
             volumeClaimTemplate = {
               spec = {
-                storageClassName = "longhorn"
+                # Uses default storage class
                 accessModes      = ["ReadWriteOnce"]
                 resources = {
                   requests = {
@@ -26,18 +84,18 @@ resource "helm_release" "prometheus_stack" {
           retention = var.prometheus_retention
         }
         service = {
-          type = "LoadBalancer"
+          type = "LoadBalancer"  # kube-vip will assign DHCP IP
         }
       }
       grafana = {
         adminPassword = var.grafana_admin_password
         persistence = {
-          enabled          = true
-          storageClassName = "longhorn"
-          size             = var.grafana_storage_size
+          enabled = true
+          # Uses default storage class
+          size    = var.grafana_storage_size
         }
         service = {
-          type = "LoadBalancer"
+          type = "LoadBalancer"  # kube-vip will assign DHCP IP
         }
         dashboardProviders = {
           "dashboardproviders.yaml" = {
@@ -56,7 +114,7 @@ resource "helm_release" "prometheus_stack" {
           }
         }
         dashboards = {
-          default = {
+          default = merge({
             "kubernetes-cluster-monitoring" = {
               gnetId     = 7249
               datasource = "Prometheus"
@@ -65,11 +123,12 @@ resource "helm_release" "prometheus_stack" {
               gnetId     = 1860
               datasource = "Prometheus"
             }
-            "longhorn" = {
-              gnetId     = 13032
+          }, var.enable_storage_dashboards ? {
+            "storage-system" = {
+              gnetId     = 13032  # Generic storage dashboard (works with Longhorn, etc.)
               datasource = "Prometheus"
             }
-          }
+          } : {})
         }
       }
       alertmanager = {
@@ -77,7 +136,7 @@ resource "helm_release" "prometheus_stack" {
           storage = {
             volumeClaimTemplate = {
               spec = {
-                storageClassName = "longhorn"
+                # Uses default storage class
                 accessModes      = ["ReadWriteOnce"]
                 resources = {
                   requests = {
@@ -92,5 +151,36 @@ resource "helm_release" "prometheus_stack" {
     })
   ]
 
-  depends_on = [kubernetes_storage_class.longhorn]
+  depends_on = [kubernetes_namespace.monitoring]
+}
+
+# Outputs
+output "monitoring_info" {
+  description = "Monitoring stack information"
+  value = {
+    namespace          = kubernetes_namespace.monitoring.metadata[0].name
+    chart_version      = var.prometheus_stack_chart_version
+    prometheus_storage = var.prometheus_storage_size
+    grafana_storage    = var.grafana_storage_size
+    retention_period   = var.prometheus_retention
+    
+    services = {
+      prometheus = "${helm_release.prometheus_stack.name}-kube-prom-prometheus"
+      grafana    = "${helm_release.prometheus_stack.name}-grafana"
+    }
+    
+    access = {
+      prometheus = "Access Prometheus at: http://<dhcp-assigned-ip>:9090"
+      grafana    = "Access Grafana at: http://<dhcp-assigned-ip> (admin/${var.grafana_admin_password})"
+    }
+    
+    commands = {
+      check_pods     = "kubectl get pods -n ${kubernetes_namespace.monitoring.metadata[0].name}"
+      check_services = "kubectl get svc -n ${kubernetes_namespace.monitoring.metadata[0].name}"
+      get_grafana_ip = "kubectl get svc -n ${kubernetes_namespace.monitoring.metadata[0].name} ${helm_release.prometheus_stack.name}-grafana -o jsonpath='{.status.loadBalancer.ingress[0].ip}'"
+      get_prometheus_ip = "kubectl get svc -n ${kubernetes_namespace.monitoring.metadata[0].name} ${helm_release.prometheus_stack.name}-kube-prom-prometheus -o jsonpath='{.status.loadBalancer.ingress[0].ip}'"
+    }
+  }
+  
+  sensitive = true  # Contains password
 }

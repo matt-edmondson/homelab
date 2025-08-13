@@ -4,12 +4,9 @@
 # Kubernetes Configuration
 kubeconfig_path = "~/.kube/config"
 
-# Network Configuration
-metallb_ip_range = ["192.168.1.10-192.168.1.250"]
-metallb_asn      = 65002  # Kubernetes cluster ASN
-router_asn       = 65001  # Router ASN (UDM Pro)
-router_ip        = "192.168.0.1"  # Router IP for BGP peering
-homelab_domain   = "homelab.local"  # Domain for DNS records
+# kube-vip Configuration (DHCP LoadBalancer)
+kube_vip_version   = "v0.6.4"    # kube-vip container version
+kube_vip_interface = "eth0"      # Network interface (usually eth0, ens160, or enp0s3)
 
 # Security Configuration
 baget_api_key           = "your-very-secure-api-key-here-generate-a-random-one"
@@ -29,31 +26,17 @@ baget_cpu_request    = "250m"
 baget_cpu_limit      = "500m"
 
 # Chart Versions (update as needed)
-metallb_chart_version          = "0.14.5"
 longhorn_chart_version         = "1.6.2"
 prometheus_stack_chart_version = "57.2.0"
 
 # Metrics Server (recommended for kubectl top and HPA)
 metrics_server_enabled = true
 
-# Pi-hole Integration (recommended)
-pihole_enabled     = true
-pihole_host        = "192.168.0.100"  # Your Pi-hole IP
-pihole_webpassword = "your-pihole-web-password"  # Leave empty "" if no auth required
+# Router DNS Setup (after deployment):
+# 1. Deploy your services and check router DHCP client list for assigned IPs
+# 2. Pin/reserve those IPs in router DHCP settings
+# 3. Add DNS A records on router: grafana.k8s.home -> pinned_ip
 
-# Service to hostname mappings for Pi-hole DNS
-# Format: "namespace/service-name" = "hostname" (will create hostname.homelab.local)
-# You MUST configure this based on your actual LoadBalancer services
-# Use the find-services.sh script to discover your services: ./nginx-sync/find-services.sh
-pihole_service_mappings = {
-  # Example mappings - replace with your actual services:
-  # "monitoring/prometheus-stack-kube-prom-prometheus" = "prometheus"
-  # "monitoring/prometheus-stack-grafana"             = "grafana"
-  # "baget/baget-service"                            = "nuget"
-  # "longhorn-system/longhorn-frontend-lb"           = "longhorn"
-  # "my-namespace/my-service"                        = "myapp"
-  # "default/api-service"                           = "api"
-}
 
 # Labels
 common_labels = {

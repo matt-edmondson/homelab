@@ -1,3 +1,55 @@
+# =============================================================================
+# Baget NuGet Server - Self-Contained Module  
+# =============================================================================
+
+# Variables
+variable "baget_api_key" {
+  description = "API key for Baget NuGet server (generate a secure random key)"
+  type        = string
+  sensitive   = true
+  default     = "your-secure-api-key-here"
+}
+
+variable "baget_storage_size" {
+  description = "Storage size for Baget data"
+  type        = string
+  default     = "10Gi"
+}
+
+variable "baget_memory_request" {
+  description = "Memory request for Baget container"
+  type        = string
+  default     = "256Mi"
+}
+
+variable "baget_memory_limit" {
+  description = "Memory limit for Baget container"
+  type        = string
+  default     = "512Mi"
+}
+
+variable "baget_cpu_request" {
+  description = "CPU request for Baget container"
+  type        = string
+  default     = "250m"
+}
+
+variable "baget_cpu_limit" {
+  description = "CPU limit for Baget container"
+  type        = string
+  default     = "500m"
+}
+
+# Namespace
+resource "kubernetes_namespace" "baget" {
+  metadata {
+    name = "baget"
+    labels = merge(var.common_labels, {
+      "app.kubernetes.io/name" = "baget"
+    })
+  }
+}
+
 # Baget Secret for API Key
 resource "kubernetes_secret" "baget_secrets" {
   metadata {
@@ -39,12 +91,12 @@ resource "kubernetes_config_map" "baget_config" {
       }
       PackageDeletionBehavior = "Unlist"
       AllowPackageOverwrites  = false
-      ApiKey                  = ""
+      ApiKey                  = ""  # Set via environment variable
     })
   }
 }
 
-# Baget PVC
+# Baget Persistent Volume Claim
 resource "kubernetes_persistent_volume_claim" "baget_data" {
   metadata {
     name      = "baget-data"
@@ -54,15 +106,12 @@ resource "kubernetes_persistent_volume_claim" "baget_data" {
   
   spec {
     access_modes = ["ReadWriteOnce"]
-    storage_class_name = "longhorn"
     resources {
       requests = {
         storage = var.baget_storage_size
       }
     }
   }
-  
-  depends_on = [kubernetes_storage_class.longhorn]
 }
 
 # Baget Deployment
@@ -100,13 +149,13 @@ resource "kubernetes_deployment" "baget" {
           }
           
           env {
-            name  = "ASPNETCORE_ENVIRONMENT"
-            value = "Production"
+            name  = "ASPNETCORE_URLS"
+            value = "http://+:80"
           }
           
           env {
-            name  = "ASPNETCORE_URLS"
-            value = "http://+:80"
+            name  = "ASPNETCORE_ENVIRONMENT"
+            value = "Production"
           }
           
           env {
@@ -178,7 +227,7 @@ resource "kubernetes_deployment" "baget" {
   }
 }
 
-# Baget Service
+# Baget LoadBalancer Service (gets DHCP IP from kube-vip)
 resource "kubernetes_service" "baget" {
   metadata {
     name      = "baget-service"
@@ -201,4 +250,37 @@ resource "kubernetes_service" "baget" {
     
     type = "LoadBalancer"
   }
+}
+
+# Outputs
+output "baget_info" {
+  description = "Baget NuGet server information"
+  value = {
+    namespace     = kubernetes_namespace.baget.metadata[0].name
+    service_name  = kubernetes_service.baget.metadata[0].name
+    storage_size  = var.baget_storage_size
+    ip_address    = try(
+      kubernetes_service.baget.status[0].load_balancer[0].ingress[0].ip,
+      "pending (will be assigned by router DHCP)"
+    )
+    
+    access = {
+      web_ui = "Access Baget at: http://<dhcp-assigned-ip>"
+      nuget_url = "http://<dhcp-assigned-ip>/v3/index.json"
+    }
+    
+    usage = {
+      add_source = "dotnet nuget add source http://<dhcp-assigned-ip>/v3/index.json -n \"Homelab Baget\""
+      push_package = "dotnet nuget push package.nupkg -s http://<dhcp-assigned-ip>/v3/index.json -k <your-api-key>"
+    }
+    
+    commands = {
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.baget.metadata[0].name}"
+      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.baget.metadata[0].name}"
+      get_ip     = "kubectl get svc -n ${kubernetes_namespace.baget.metadata[0].name} baget-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}'"
+      logs       = "kubectl logs -n ${kubernetes_namespace.baget.metadata[0].name} -l app=baget -f"
+    }
+  }
+  
+  sensitive = true  # Contains API key info
 }
