@@ -6,7 +6,7 @@
 variable "kube_vip_version" {
   description = "kube-vip container image version"
   type        = string
-  default     = "v0.6.4"
+  default     = "v1.0.0"
 }
 
 variable "kube_vip_interface" {

@@ -6,7 +6,7 @@
 variable "prometheus_stack_chart_version" {
   description = "Version of kube-prometheus-stack Helm chart"
   type        = string
-  default     = "57.2.0"
+  default     = "76.3.0"
 }
 
 variable "prometheus_storage_size" {

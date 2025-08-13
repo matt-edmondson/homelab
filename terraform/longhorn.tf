@@ -6,7 +6,7 @@
 variable "longhorn_chart_version" {
   description = "Version of Longhorn Helm chart"
   type        = string
-  default     = "1.6.2"
+  default     = "1.9.1"
 }
 
 variable "longhorn_replica_count" {
