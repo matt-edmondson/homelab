@@ -60,35 +60,33 @@ resource "helm_release" "metrics_server" {
   version    = "3.13.0"
   namespace  = "kube-system"
 
-  set = [
-    {
-      name  = "args[0]"
-      value = "--cert-dir=/tmp"
-    },
-    {
-      name  = "args[1]"
-      value = "--secure-port=4443"
-    },
-    {
-      name  = "args[2]"
-      value = "--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname"
-    },
-    {
-      name  = "args[3]"
-      value = "--kubelet-use-node-status-port"
-    },
-    {
-      name  = "args[4]"
-      value = "--metric-resolution=15s"
-    },
-    {
-      name  = "args[5]"
-      value = "--kubelet-insecure-tls"
-    },
-    {
-      name  = "apiService.create"
-      value = "true"
-    }
+  values = [
+    yamlencode({
+      # Essential settings for metrics-server to work in homelab
+      apiService = {
+        create = true
+      }
+      
+      # Additional arguments for homelab/development environments
+      extraArgs = [
+        "--kubelet-insecure-tls",
+        "--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname",
+        "--kubelet-use-node-status-port",
+        "--metric-resolution=15s"
+      ]
+      
+      # Resource limits
+      resources = {
+        requests = {
+          cpu = "100m"
+          memory = "200Mi"
+        }
+        limits = {
+          cpu = "500m"
+          memory = "500Mi"
+        }
+      }
+    })
   ]
 }
 

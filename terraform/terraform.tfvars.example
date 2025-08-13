@@ -26,16 +26,28 @@ baget_cpu_request    = "250m"
 baget_cpu_limit      = "500m"
 
 # Chart Versions (update as needed)
-longhorn_chart_version         = "1.6.2"
-prometheus_stack_chart_version = "57.2.0"
+longhorn_chart_version            = "1.6.2"
+prometheus_stack_chart_version    = "57.2.0"
+kubernetes_dashboard_chart_version = "7.13.0"
 
 # Metrics Server (recommended for kubectl top and HPA)
 metrics_server_enabled = true
 
+# Kubernetes Dashboard Configuration (homelab-optimized)
+dashboard_enable_skip_login      = true     # Skip login button (convenient for homelab)
+dashboard_enable_insecure_login  = true     # Allow HTTP access (less secure but convenient)
+dashboard_session_lifetime       = 43200    # Session timeout in seconds (12 hours)
+dashboard_auto_generate_certificates = true # Auto-generate TLS certificates
+
 # Router DNS Setup (after deployment):
 # 1. Deploy your services and check router DHCP client list for assigned IPs
-# 2. Pin/reserve those IPs in router DHCP settings
-# 3. Add DNS A records on router: grafana.k8s.home -> pinned_ip
+# 2. Pin/reserve those IPs in router DHCP settings  
+# 3. Add DNS A records on router: 
+#    - grafana.k8s.home -> grafana_ip
+#    - dashboard.k8s.home -> dashboard_ip
+#    - longhorn-ui.k8s.home -> longhorn_ip
+#    - prometheus.k8s.home -> prometheus_ip
+#    - baget.k8s.home -> baget_ip
 
 
 # Labels
