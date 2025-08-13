@@ -81,13 +81,20 @@ help: ## Show this help message
 init: ## Initialize Terraform
 	terraform init
 
-plan: check-vars ## Plan Terraform deployment
+plan: check-vars check-init ## Plan Terraform deployment
 	terraform plan
 
-apply: check-vars ## Apply Terraform configuration
+check-init: ## Check if Terraform is initialized
+ifeq ($(OS),Windows_NT)
+	@if not exist .terraform\providers (echo Error: Terraform not initialized. Run 'make init' first. && exit /b 1)
+else
+	@if [ ! -d ".terraform/providers" ]; then echo "Error: Terraform not initialized. Run 'make init' first."; exit 1; fi
+endif
+
+apply: check-vars check-init ## Apply Terraform configuration
 	terraform apply
 
-destroy: check-vars ## Destroy Terraform infrastructure
+destroy: check-vars check-init ## Destroy Terraform infrastructure
 	terraform destroy
 
 validate: ## Validate Terraform configuration
@@ -194,7 +201,7 @@ list-components: ## List all infrastructure components and their files
 	@echo "Use 'make plan-<component>' or 'make apply-<component>' for targeted operations"
 
 # Component-specific Planning
-plan-networking: check-vars ## Plan networking components (MetalLB, Metrics Server)
+plan-networking: check-vars check-init ## Plan networking components (MetalLB, Metrics Server)
 	@echo "Planning networking components..."
 	terraform plan \
 		-target=helm_release.metallb \
@@ -204,19 +211,19 @@ plan-networking: check-vars ## Plan networking components (MetalLB, Metrics Serv
 		-target=kubernetes_manifest.metallb_bgp_advertisement \
 		-target=helm_release.metrics_server
 
-plan-storage: check-vars ## Plan storage components (Longhorn)
+plan-storage: check-vars check-init ## Plan storage components (Longhorn)
 	@echo "Planning storage components..."
 	terraform plan \
 		-target=helm_release.longhorn \
 		-target=kubernetes_storage_class.longhorn \
 		-target=kubernetes_service.longhorn_frontend_lb
 
-plan-monitoring: check-vars ## Plan monitoring components (Prometheus, Grafana)
+plan-monitoring: check-vars check-init ## Plan monitoring components (Prometheus, Grafana)
 	@echo "Planning monitoring components..."
 	terraform plan \
 		-target=helm_release.prometheus_stack
 
-plan-applications: check-vars ## Plan application components (Baget)
+plan-applications: check-vars check-init ## Plan application components (Baget)
 	@echo "Planning application components..."
 	terraform plan \
 		-target=kubernetes_secret.baget_secrets \
@@ -225,7 +232,7 @@ plan-applications: check-vars ## Plan application components (Baget)
 		-target=kubernetes_deployment.baget \
 		-target=kubernetes_service.baget
 
-plan-dns: check-vars ## Plan DNS components (Pi-hole sync)
+plan-dns: check-vars check-init ## Plan DNS components (Pi-hole sync)
 	@echo "Planning DNS components..."
 	terraform plan \
 		-target=kubernetes_service_account.pihole_dns_sync \
@@ -237,7 +244,7 @@ plan-dns: check-vars ## Plan DNS components (Pi-hole sync)
 		-target=kubernetes_service.pihole_dns_sync
 
 # Component-specific Deployment
-apply-networking: check-vars ## Deploy networking components (MetalLB, Metrics Server)
+apply-networking: check-vars check-init ## Deploy networking components (MetalLB, Metrics Server)
 	@echo "Deploying networking components..."
 	terraform apply \
 		-target=helm_release.metallb \
@@ -247,19 +254,19 @@ apply-networking: check-vars ## Deploy networking components (MetalLB, Metrics S
 		-target=kubernetes_manifest.metallb_bgp_advertisement \
 		-target=helm_release.metrics_server
 
-apply-storage: check-vars ## Deploy storage components (Longhorn)
+apply-storage: check-vars check-init ## Deploy storage components (Longhorn)
 	@echo "Deploying storage components..."
 	terraform apply \
 		-target=helm_release.longhorn \
 		-target=kubernetes_storage_class.longhorn \
 		-target=kubernetes_service.longhorn_frontend_lb
 
-apply-monitoring: check-vars ## Deploy monitoring components (Prometheus, Grafana)
+apply-monitoring: check-vars check-init ## Deploy monitoring components (Prometheus, Grafana)
 	@echo "Deploying monitoring components..."
 	terraform apply \
 		-target=helm_release.prometheus_stack
 
-apply-applications: check-vars ## Deploy application components (Baget)
+apply-applications: check-vars check-init ## Deploy application components (Baget)
 	@echo "Deploying application components..."
 	terraform apply \
 		-target=kubernetes_secret.baget_secrets \
@@ -268,7 +275,7 @@ apply-applications: check-vars ## Deploy application components (Baget)
 		-target=kubernetes_deployment.baget \
 		-target=kubernetes_service.baget
 
-apply-dns: check-vars ## Deploy DNS components (Pi-hole sync)
+apply-dns: check-vars check-init ## Deploy DNS components (Pi-hole sync)
 	@echo "Deploying DNS components..."
 	terraform apply \
 		-target=kubernetes_service_account.pihole_dns_sync \
@@ -364,31 +371,59 @@ debug-dns: ## Debug DNS components (Pi-hole sync)
 # Component-specific Status
 status-networking: ## Show networking component status
 	@echo "=== Networking Status ==="
+ifeq ($(OS),Windows_NT)
+	@kubectl get pods -n metallb-system 2>nul || echo "MetalLB not deployed"
+	@kubectl get pods -n kube-system -l app.kubernetes.io/name=metrics-server 2>nul || echo "Metrics Server not deployed"
+	@kubectl get bgppeers,ipaddresspools -n metallb-system 2>nul || echo "MetalLB config not found"
+else
 	@kubectl get pods -n metallb-system 2>/dev/null || echo "MetalLB not deployed"
 	@kubectl get pods -n kube-system -l app.kubernetes.io/name=metrics-server 2>/dev/null || echo "Metrics Server not deployed"
 	@kubectl get bgppeers,ipaddresspools -n metallb-system 2>/dev/null || echo "MetalLB config not found"
+endif
 
 status-storage: ## Show storage component status
 	@echo "=== Storage Status ==="
+ifeq ($(OS),Windows_NT)
+	@kubectl get pods -n longhorn-system 2>nul || echo "Longhorn not deployed"
+	@kubectl get storageclass longhorn 2>nul || echo "Longhorn StorageClass not found"
+	@kubectl get svc -n longhorn-system longhorn-frontend-lb 2>nul || echo "Longhorn UI service not found"
+else
 	@kubectl get pods -n longhorn-system 2>/dev/null || echo "Longhorn not deployed"
 	@kubectl get storageclass longhorn 2>/dev/null || echo "Longhorn StorageClass not found"
 	@kubectl get svc -n longhorn-system longhorn-frontend-lb 2>/dev/null || echo "Longhorn UI service not found"
+endif
 
 status-monitoring: ## Show monitoring component status
 	@echo "=== Monitoring Status ==="
+ifeq ($(OS),Windows_NT)
+	@kubectl get pods -n monitoring 2>nul || echo "Monitoring not deployed"
+	@kubectl get svc -n monitoring 2>nul | findstr LoadBalancer || echo "No monitoring LoadBalancer services found"
+else
 	@kubectl get pods -n monitoring 2>/dev/null || echo "Monitoring not deployed"
 	@kubectl get svc -n monitoring | grep LoadBalancer 2>/dev/null || echo "No monitoring LoadBalancer services found"
+endif
 
 status-applications: ## Show application component status
 	@echo "=== Applications Status ==="
+ifeq ($(OS),Windows_NT)
+	@kubectl get pods -n baget 2>nul || echo "Baget not deployed"
+	@kubectl get svc -n baget baget-service 2>nul || echo "Baget service not found"
+else
 	@kubectl get pods -n baget 2>/dev/null || echo "Baget not deployed"
 	@kubectl get svc -n baget baget-service 2>/dev/null || echo "Baget service not found"
+endif
 
 status-dns: ## Show DNS component status
 	@echo "=== DNS Status ==="
+ifeq ($(OS),Windows_NT)
+	@kubectl get pods -n kube-system -l app.kubernetes.io/name=pihole-dns-sync 2>nul || echo "Pi-hole sync not deployed"
+	@echo "Recent Pi-hole sync activity:"
+	@kubectl logs -n kube-system -l app.kubernetes.io/name=pihole-dns-sync --tail=5 2>nul || echo "No recent activity"
+else
 	@kubectl get pods -n kube-system -l app.kubernetes.io/name=pihole-dns-sync 2>/dev/null || echo "Pi-hole sync not deployed"
 	@echo "Recent Pi-hole sync activity:"
 	@kubectl logs -n kube-system -l app.kubernetes.io/name=pihole-dns-sync --tail=5 2>/dev/null || echo "No recent activity"
+endif
 
 logs: ## Show logs for all deployed applications
 	@echo "=== All Component Logs ==="
