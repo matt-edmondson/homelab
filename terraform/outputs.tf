@@ -16,10 +16,17 @@ output "metrics_server" {
       namespace     = "kube-system"
       kubelet_tls   = "insecure (--kubelet-insecure-tls) - suitable for homelab"
     }
+    note = ""
   } : {
     enabled = false
     message = "Metrics Server is disabled. Enable it by setting metrics_server_enabled = true"
-    note    = "Without metrics-server, 'kubectl top' commands won't work and HPA is unavailable"
+    usage = []
+    configuration = {
+      chart_version = ""
+      namespace     = ""
+      kubelet_tls   = ""
+    }
+    note = "Without metrics-server, 'kubectl top' commands won't work and HPA is unavailable"
   }
 }
 
@@ -79,6 +86,7 @@ output "baget_service" {
 
 output "application_urls" {
   description = "URLs for accessing applications (will show LoadBalancer IPs after deployment)"
+  sensitive   = true
   value = {
     longhorn_ui = "Access Longhorn UI at: http://<longhorn-frontend-lb-ip>"
     prometheus  = "Access Prometheus at: http://<prometheus-lb-ip>:9090"
@@ -137,6 +145,7 @@ output "pihole_integration" {
     deployment_name    = "pihole-dns-sync"
     namespace          = "kube-system"
     authentication     = var.pihole_webpassword != "" ? "enabled" : "disabled"
+    message            = "Pi-hole integration is enabled and configured"
     
     # DNS names that will be created (dynamically generated from service mappings)
     dns_records = {
@@ -182,9 +191,20 @@ output "pihole_integration" {
       "Note: Actual ports depend on your service configurations.",
       "Use 'kubectl get services --all-namespaces | grep LoadBalancer' to see port mappings."
     ])
+    
+    setup_required = []
   } : {
-    enabled = false
-    message = "Enable Pi-hole integration by setting pihole_enabled = true in terraform.tfvars"
+    enabled             = false
+    pihole_host        = ""
+    domain             = ""
+    deployment_name    = ""
+    namespace          = ""
+    authentication     = "disabled"
+    message            = "Enable Pi-hole integration by setting pihole_enabled = true in terraform.tfvars"
+    dns_records        = {}
+    monitoring_commands = []
+    test_commands      = []
+    usage              = []
     setup_required = [
       "1. Set pihole_enabled = true",
       "2. Set pihole_host to your Pi-hole IP address", 
