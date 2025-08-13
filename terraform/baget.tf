@@ -116,6 +116,14 @@ resource "kubernetes_persistent_volume_claim" "baget_data" {
 
 # Baget Deployment
 resource "kubernetes_deployment" "baget" {
+  # Ensure storage, secrets, and config are ready
+  depends_on = [
+    kubernetes_persistent_volume_claim.baget_data,
+    kubernetes_secret.baget_secrets,
+    kubernetes_config_map.baget_config,
+    helm_release.longhorn  # Ensure storage backend is available
+  ]
+
   metadata {
     name      = "baget"
     namespace = kubernetes_namespace.baget.metadata[0].name
@@ -229,6 +237,11 @@ resource "kubernetes_deployment" "baget" {
 
 # Baget LoadBalancer Service (gets DHCP IP from kube-vip)
 resource "kubernetes_service" "baget" {
+  depends_on = [
+    kubernetes_deployment.baget,
+    kubernetes_daemonset.kube_vip  # Ensure LoadBalancer support is available
+  ]
+
   metadata {
     name      = "baget-service"
     namespace = kubernetes_namespace.baget.metadata[0].name

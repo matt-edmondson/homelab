@@ -151,7 +151,11 @@ resource "helm_release" "prometheus_stack" {
     })
   ]
 
-  depends_on = [kubernetes_namespace.monitoring]
+  depends_on = [
+    kubernetes_namespace.monitoring,
+    helm_release.longhorn,  # Ensure storage is available for PVCs
+    kubernetes_daemonset.kube_vip  # Ensure LoadBalancer support is available
+  ]
 }
 
 # Outputs

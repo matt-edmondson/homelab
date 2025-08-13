@@ -101,42 +101,17 @@ resource "kubernetes_cluster_role_binding" "kube_vip" {
   }
 }
 
-# kube-vip ConfigMap
-resource "kubernetes_config_map" "kube_vip" {
-  metadata {
-    name      = "kubevip"
-    namespace = "kube-system"
-    labels = merge(var.common_labels, {
-      "app.kubernetes.io/name" = "kube-vip"
-    })
-  }
-
-  data = {
-    "config.yaml" = <<-EOT
-      localPeers: []
-      vip: ""
-      gratuitousARP: true
-      singleNode: false
-      startAsLeader: false
-      interface: "${var.kube_vip_interface}"
-      servicesInterface: "${var.kube_vip_interface}"
-      enableControlPane: false
-      enableServices: true
-      enableLoadBalancer: true
-      enableServicesElection: false
-      dhcp: true
-      dhcpInterfaceName: "${var.kube_vip_interface}"
-      leaderElection: true
-      leaseDuration: 15
-      renewDeadline: 10
-      retryPeriod: 2
-      logLevel: "4"
-    EOT
-  }
-}
+# kube-vip uses command-line arguments instead of config file
 
 # kube-vip DaemonSet
 resource "kubernetes_daemonset" "kube_vip" {
+  # Explicit dependencies to ensure proper creation order
+  depends_on = [
+    kubernetes_service_account.kube_vip,
+    kubernetes_cluster_role.kube_vip,
+    kubernetes_cluster_role_binding.kube_vip
+  ]
+
   metadata {
     name      = "kube-vip-ds"
     namespace = "kube-system"
@@ -163,6 +138,7 @@ resource "kubernetes_daemonset" "kube_vip" {
       spec {
         service_account_name = kubernetes_service_account.kube_vip.metadata[0].name
         host_network         = true
+        host_pid             = true
         
         toleration {
           effect = "NoSchedule"
@@ -180,101 +156,27 @@ resource "kubernetes_daemonset" "kube_vip" {
           
           args = [
             "manager",
-            "--config=/etc/kube-vip/config.yaml"
+            "--interface=${var.kube_vip_interface}",
+            "--serviceInterface=${var.kube_vip_interface}",
+            "--services",
+            "--enableLoadBalancer",
+            "--arp", 
+            "--ddns",
+            "--leaderElection",
+            "--leaseDuration=15",
+            "--leaseRenewDuration=10",
+            "--leaseRetry=2",
+            "--log=5",
+            "--prometheusHTTPServer=:2112"
           ]
-
-          env {
-            name  = "vip_arp"
-            value = "true"
-          }
-
-          env {
-            name  = "port"
-            value = "6443"
-          }
-
-          env {
-            name  = "vip_interface"
-            value = var.kube_vip_interface
-          }
-
-          env {
-            name  = "vip_cidr"
-            value = "32"
-          }
-
-          env {
-            name  = "dns_mode"
-            value = "first"
-          }
-
-          env {
-            name  = "cp_enable"
-            value = "false"
-          }
-
-          env {
-            name  = "cp_namespace"
-            value = "kube-system"
-          }
-
-          env {
-            name  = "svc_enable"
-            value = "true"
-          }
-
-          env {
-            name  = "svc_leasename"
-            value = "plndr-svcs-lock"
-          }
-
-          env {
-            name  = "vip_leaderelection"
-            value = "true"
-          }
-
-          env {
-            name  = "vip_leasename"
-            value = "plndr-cp-lock"
-          }
-
-          env {
-            name  = "vip_leaseduration"
-            value = "15"
-          }
-
-          env {
-            name  = "vip_renewdeadline"
-            value = "10"
-          }
-
-          env {
-            name  = "vip_retryperiod"
-            value = "2"
-          }
-
-          env {
-            name  = "address"
-            value = "0.0.0.0"
-          }
-
-          env {
-            name  = "prometheus_server"
-            value = ":2112"
-          }
 
           image_pull_policy = "Always"
 
           security_context {
+            privileged = true
             capabilities {
-              add = ["NET_ADMIN", "NET_RAW"]
+              add = ["NET_ADMIN", "NET_RAW", "SYS_TIME"]
             }
-          }
-
-          volume_mount {
-            mount_path = "/etc/kube-vip"
-            name       = "config"
-            read_only  = true
           }
 
           resources {
@@ -289,15 +191,16 @@ resource "kubernetes_daemonset" "kube_vip" {
           }
 
           liveness_probe {
-            failure_threshold = 3
+            failure_threshold = 5
             http_get {
               host = "localhost"
               path = "/metrics"
               port = 2112
             }
-            period_seconds    = 10
-            success_threshold = 1
-            timeout_seconds   = 5
+            initial_delay_seconds = 30
+            period_seconds        = 30
+            success_threshold     = 1
+            timeout_seconds       = 10
           }
 
           readiness_probe {
@@ -307,18 +210,14 @@ resource "kubernetes_daemonset" "kube_vip" {
               path = "/metrics"
               port = 2112
             }
-            period_seconds    = 10
-            success_threshold = 1
-            timeout_seconds   = 5
+            initial_delay_seconds = 10
+            period_seconds        = 15
+            success_threshold     = 1
+            timeout_seconds       = 10
           }
         }
 
-        volume {
-          name = "config"
-          config_map {
-            name = kubernetes_config_map.kube_vip.metadata[0].name
-          }
-        }
+        # No config volume needed - using command line args
 
         node_selector = {
           "kubernetes.io/os" = "linux"

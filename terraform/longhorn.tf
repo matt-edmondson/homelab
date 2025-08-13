@@ -93,7 +93,10 @@ resource "kubernetes_service" "longhorn_frontend_lb" {
     }
   }
   
-  depends_on = [helm_release.longhorn]
+  depends_on = [
+    helm_release.longhorn,
+    kubernetes_daemonset.kube_vip  # Ensure LoadBalancer support is available
+  ]
 }
 
 # Outputs
