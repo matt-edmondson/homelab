@@ -138,6 +138,7 @@ output "storage_info" {
 
 output "pihole_integration" {
   description = "Pi-hole DNS integration information"
+  sensitive   = true
   value = var.pihole_enabled ? {
     enabled             = true
     pihole_host        = var.pihole_host

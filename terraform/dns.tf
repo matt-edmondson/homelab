@@ -567,7 +567,7 @@ resource "kubernetes_deployment" "pihole_dns_sync" {
           name = "scripts"
           config_map {
             name = kubernetes_config_map.pihole_sync_script[0].metadata[0].name
-            default_mode = 0755
+            default_mode = "0755"
           }
         }
 
