@@ -33,15 +33,16 @@ resource "helm_release" "longhorn" {
   version    = var.longhorn_chart_version
   namespace  = kubernetes_namespace.longhorn_system.metadata[0].name
 
-  set {
-    name  = "defaultSettings.defaultReplicaCount"
-    value = var.longhorn_replica_count
-  }
-
-  set {
-    name  = "defaultSettings.staleReplicaTimeout"
-    value = "30"
-  }
+  set = [
+    {
+      name  = "defaultSettings.defaultReplicaCount"
+      value = var.longhorn_replica_count
+    },
+    {
+      name  = "defaultSettings.staleReplicaTimeout"
+      value = "30"
+    }
+  ]
 
   depends_on = [kubernetes_namespace.longhorn_system]
 }

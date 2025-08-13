@@ -132,9 +132,28 @@ force-clean: ## Force cleanup of all resources (use when destroy fails)
 	@kubectl delete namespace longhorn-system monitoring baget --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "Namespaces already deleted or deletion completed"
 	@echo "Step 11: Clean up any remaining Helm releases..."
 	@helm uninstall longhorn -n longhorn-system --ignore-not-found 2>/dev/null || echo "No Helm releases to clean up"
-	@echo "Step 12: Final verification..."
+	@echo "Step 12: Clean up Prometheus/monitoring CRDs..."
+	@kubectl delete crd alertmanagerconfigs.monitoring.coreos.com --ignore-not-found=true
+	@kubectl delete crd alertmanagers.monitoring.coreos.com --ignore-not-found=true
+	@kubectl delete crd podmonitors.monitoring.coreos.com --ignore-not-found=true
+	@kubectl delete crd probes.monitoring.coreos.com --ignore-not-found=true
+	@kubectl delete crd prometheusagents.monitoring.coreos.com --ignore-not-found=true
+	@kubectl delete crd prometheuses.monitoring.coreos.com --ignore-not-found=true
+	@kubectl delete crd prometheusrules.monitoring.coreos.com --ignore-not-found=true
+	@kubectl delete crd scrapeconfigs.monitoring.coreos.com --ignore-not-found=true
+	@kubectl delete crd servicemonitors.monitoring.coreos.com --ignore-not-found=true
+	@kubectl delete crd thanosrulers.monitoring.coreos.com --ignore-not-found=true
+	@echo "Step 13: Clean up leftover Prometheus services..."
+	@kubectl delete service -n kube-system prometheus-stack-kube-prom-coredns --ignore-not-found=true
+	@kubectl delete service -n kube-system prometheus-stack-kube-prom-kube-controller-manager --ignore-not-found=true
+	@kubectl delete service -n kube-system prometheus-stack-kube-prom-kube-etcd --ignore-not-found=true
+	@kubectl delete service -n kube-system prometheus-stack-kube-prom-kube-proxy --ignore-not-found=true
+	@kubectl delete service -n kube-system prometheus-stack-kube-prom-kube-scheduler --ignore-not-found=true
+	@kubectl delete service -n kube-system prometheus-stack-kube-prom-kubelet --ignore-not-found=true
+	@echo "Step 14: Final verification..."
 	@kubectl get pods -n longhorn-system --ignore-not-found=true 2>nul || echo "✓ longhorn-system namespace is clean"
 	@kubectl get crd 2>nul | findstr /i "longhorn" >nul && echo "⚠ Some Longhorn CRDs still present" || echo "✓ Longhorn CRDs cleaned up"
+	@kubectl get crd 2>nul | findstr /i "monitoring.coreos.com" >nul && echo "⚠ Some Prometheus CRDs still present" || echo "✓ Prometheus CRDs cleaned up"
 	@echo "✅ Comprehensive cleanup completed!"
 
 destroy-clean: force-clean ## Alias for force-clean

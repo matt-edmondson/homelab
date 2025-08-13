@@ -45,7 +45,7 @@ provider "kubernetes" {
 }
 
 provider "helm" {
-  kubernetes {
+  kubernetes = {
     config_path = var.kubeconfig_path
   }
 }
@@ -60,20 +60,20 @@ resource "helm_release" "metrics_server" {
   version    = "3.13.0"
   namespace  = "kube-system"
 
-  set {
-    name  = "args"
-    value = "{--cert-dir=/tmp,--secure-port=4443,--kubelet-preferred-address-types=InternalIP\\,ExternalIP\\,Hostname,--kubelet-use-node-status-port,--metric-resolution=15s,--kubelet-insecure-tls}"
-  }
-
-  set {
-    name  = "metrics.enabled"
-    value = "true"
-  }
-
-  set {
-    name  = "serviceMonitor.enabled"
-    value = "true"
-  }
+  set = [
+    {
+      name  = "args"
+      value = "{--cert-dir=/tmp,--secure-port=4443,--kubelet-preferred-address-types=InternalIP\\,ExternalIP\\,Hostname,--kubelet-use-node-status-port,--metric-resolution=15s,--kubelet-insecure-tls}"
+    },
+    {
+      name  = "metrics.enabled"
+      value = "true"
+    },
+    {
+      name  = "serviceMonitor.enabled"
+      value = "true"
+    }
+  ]
 }
 
 # Common Outputs
