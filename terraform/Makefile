@@ -124,19 +124,46 @@ force-clean: ## Force cleanup of all resources (use when destroy fails)
 	@echo "  Uninstalling kubernetes-dashboard..."
 	@helm uninstall kubernetes-dashboard -n kubernetes-dashboard --ignore-not-found 2>/dev/null || echo "  No kubernetes-dashboard Helm release"
 	@echo "  All Helm releases uninstalled"
-	@echo "Step 4: Running terraform destroy..."
+	@echo "Step 4: CRITICAL - Clean up webhooks and CRDs BEFORE terraform destroy..."
+	@echo "  Cleaning Longhorn webhooks..."
+	@kubectl delete validatingwebhookconfigurations longhorn-webhook-validator longhorn-admission-webhook --ignore-not-found=true 2>/dev/null || echo "  No longhorn webhook validators"
+	@kubectl delete mutatingwebhookconfigurations longhorn-webhook-mutator longhorn-conversion-webhook --ignore-not-found=true 2>/dev/null || echo "  No longhorn webhook mutators"
+	@echo "  Cleaning Prometheus webhooks..."
+	@kubectl delete validatingwebhookconfigurations prometheus-stack-kube-prom-admission --ignore-not-found=true 2>/dev/null || echo "  No prometheus webhook validators"
+	@kubectl delete mutatingwebhookconfigurations prometheus-stack-kube-prom-admission --ignore-not-found=true 2>/dev/null || echo "  No prometheus webhook mutators"
+	@echo "  Cleaning Kubernetes Dashboard webhooks..."
+	@kubectl delete validatingwebhookconfigurations kubernetes-dashboard-webhook --ignore-not-found=true 2>/dev/null || echo "  No dashboard webhook validators"
+	@kubectl delete mutatingwebhookconfigurations kubernetes-dashboard-webhook --ignore-not-found=true 2>/dev/null || echo "  No dashboard webhook mutators"
+	@echo "  Cleaning up Longhorn CRDs (prevents terraform destroy from hanging)..."
+	@kubectl delete crd -l app.kubernetes.io/name=longhorn --ignore-not-found=true 2>/dev/null || echo "  Longhorn CRDs with label not found, continuing..."
+	@kubectl delete crd backingimagedatasources.longhorn.io backingimagemanagers.longhorn.io backingimages.longhorn.io backupbackingimages.longhorn.io backups.longhorn.io backuptargets.longhorn.io backupvolumes.longhorn.io engineimages.longhorn.io engines.longhorn.io instancemanagers.longhorn.io nodes.longhorn.io orphans.longhorn.io recurringjobs.longhorn.io replicas.longhorn.io settings.longhorn.io sharemanagers.longhorn.io snapshots.longhorn.io supportbundles.longhorn.io systembackups.longhorn.io systemrestores.longhorn.io volumeattachments.longhorn.io volumes.longhorn.io --ignore-not-found=true 2>/dev/null || echo "  Individual Longhorn CRDs not found"
+ifeq ($(OS),Windows_NT)
+	@echo "  Find and delete any remaining Longhorn CRDs (Windows)..."
+	@for /f "tokens=1" %%i in ('kubectl get crd 2^>nul ^| findstr "longhorn"') do @kubectl delete crd %%i --ignore-not-found=true 2>nul || echo "  No additional Longhorn CRDs found"
+else
+	@echo "  Find and delete any remaining Longhorn CRDs (Linux/Mac)..."
+	@kubectl get crd 2>/dev/null | grep longhorn | awk '{print $$1}' | xargs -I {} kubectl delete crd {} --ignore-not-found=true 2>/dev/null || echo "  No additional Longhorn CRDs found"
+endif
+	@echo "  Remove finalizers from stuck resources..."
+	@kubectl patch backuptargets.longhorn.io default -n longhorn-system -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "  No backup targets to patch"
+	@kubectl patch namespace longhorn-system -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "  Namespace already clean or deleted"
+	@kubectl patch namespace monitoring -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "  Monitoring namespace already clean or deleted"
+	@kubectl patch namespace baget -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "  Baget namespace already clean or deleted"
+	@kubectl patch namespace kubernetes-dashboard -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "  Dashboard namespace already clean or deleted"
+	@echo "Step 5: NOW Running terraform destroy (should not hang)..."
 	@terraform destroy -auto-approve || echo "Terraform destroy completed with warnings"
-	@echo "Step 5: Cleaning up leftover cluster-level resources..."
+	@echo "Step 6: Cleaning up leftover cluster-level resources..."
 	@kubectl delete clusterrolebinding system:metrics-server metrics-server:system:auth-delegator dashboard-admin-user longhorn-bind flannel system:node-proxier --ignore-not-found=true 2>/dev/null || echo "No cluster role bindings to clean"
 	@kubectl delete clusterrole system:metrics-server system:metrics-server-aggregated-reader longhorn-role flannel system:node-proxier --ignore-not-found=true 2>/dev/null || echo "No cluster roles to clean"
-	@kubectl delete storageclass longhorn --ignore-not-found=true 2>/dev/null || echo "No storage classes to clean"
+	@echo "  Deleting StorageClasses..."
+	@kubectl delete storageclass longhorn --ignore-not-found=true 2>/dev/null || echo "  No longhorn storage class to clean"
 	@kubectl delete priorityclass longhorn-critical --ignore-not-found=true 2>/dev/null || echo "No priority classes to clean"
 	@kubectl delete apiservice v1beta1.metrics.k8s.io --ignore-not-found=true 2>/dev/null || echo "No API services to clean"
-	@echo "Step 6: Force delete stuck namespaces..."
+	@echo "Step 7: Force delete stuck namespaces (should now work)..."
 	@kubectl delete namespace longhorn-system monitoring baget kubernetes-dashboard kube-flannel --ignore-not-found=true --timeout=30s || echo "Namespace deletion timeout, continuing..."
-	@echo "Step 7: Clean up remaining kube-vip resources..."
+	@echo "Step 8: Clean up remaining kube-vip resources..."
 	@kubectl delete configmap -n kube-system kubevip --ignore-not-found=true 2>/dev/null || echo "No kube-vip config to clean"
-	@echo "Step 8: Clean up any remaining application resources..."
+	@echo "Step 9: Clean up any remaining application resources..."
 	@kubectl delete pods -n longhorn-system --all --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "No longhorn pods to delete"
 	@kubectl delete pods -n monitoring --all --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "No monitoring pods to delete"
 	@kubectl delete pods -n baget --all --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "No baget pods to delete"
@@ -148,28 +175,10 @@ force-clean: ## Force cleanup of all resources (use when destroy fails)
 	@kubectl delete daemonsets,deployments,replicasets -n baget --all --ignore-not-found=true 2>/dev/null || echo "No baget controllers to delete"
 	@kubectl delete daemonsets,deployments,replicasets -n kubernetes-dashboard --all --ignore-not-found=true 2>/dev/null || echo "No dashboard controllers to delete"
 	@kubectl delete daemonsets,deployments,replicasets -n kube-flannel --all --ignore-not-found=true 2>/dev/null || echo "No flannel controllers to delete"
-	@echo "Step 8b: Clean up Longhorn service accounts and remaining resources..."
+	@echo "Step 9b: Clean up Longhorn service accounts and remaining resources..."
 	@kubectl delete serviceaccount -n longhorn-system longhorn-service-account --ignore-not-found=true 2>/dev/null || echo "No longhorn service account to delete"
 	@kubectl delete configmap -n longhorn-system --all --ignore-not-found=true 2>/dev/null || echo "No longhorn configmaps to delete"
-	@echo "Step 9: Clean up ALL admission webhooks (prevents stuck namespace issues)..."
-	@echo "  Cleaning Longhorn webhooks..."
-	@kubectl delete validatingwebhookconfigurations longhorn-webhook-validator longhorn-admission-webhook --ignore-not-found=true 2>/dev/null || echo "  No longhorn webhook validators"
-	@kubectl delete mutatingwebhookconfigurations longhorn-webhook-mutator longhorn-conversion-webhook --ignore-not-found=true 2>/dev/null || echo "  No longhorn webhook mutators"
-	@echo "  Cleaning Prometheus webhooks..."
-	@kubectl delete validatingwebhookconfigurations prometheus-stack-kube-prom-admission --ignore-not-found=true 2>/dev/null || echo "  No prometheus webhook validators"
-	@kubectl delete mutatingwebhookconfigurations prometheus-stack-kube-prom-admission --ignore-not-found=true 2>/dev/null || echo "  No prometheus webhook mutators"
-	@echo "  Cleaning Kubernetes Dashboard webhooks..."
-	@kubectl delete validatingwebhookconfigurations kubernetes-dashboard-webhook --ignore-not-found=true 2>/dev/null || echo "  No dashboard webhook validators"
-	@kubectl delete mutatingwebhookconfigurations kubernetes-dashboard-webhook --ignore-not-found=true 2>/dev/null || echo "  No dashboard webhook mutators"
-	@echo "Step 9b: Remove finalizers from stuck Longhorn resources (PowerShell-compatible)..."
-	@echo "  Patching backup targets finalizers..."
-	@kubectl patch backuptargets.longhorn.io default -n longhorn-system -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "  No backup targets to patch"
-	@echo "  Forcing namespace finalizer removal if needed..."
-	@kubectl patch namespace longhorn-system -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "  Namespace already clean or deleted"
-	@echo "Step 10: Clean up Longhorn CRDs..."
-	@kubectl delete crd -l app.kubernetes.io/name=longhorn --ignore-not-found=true 2>/dev/null || echo "Longhorn CRDs with label not found, trying individual deletion..."
-	@kubectl delete crd backingimagedatasources.longhorn.io backingimagemanagers.longhorn.io backingimages.longhorn.io backupbackingimages.longhorn.io backups.longhorn.io backuptargets.longhorn.io backupvolumes.longhorn.io engineimages.longhorn.io engines.longhorn.io instancemanagers.longhorn.io nodes.longhorn.io orphans.longhorn.io recurringjobs.longhorn.io replicas.longhorn.io settings.longhorn.io sharemanagers.longhorn.io snapshots.longhorn.io supportbundles.longhorn.io systembackups.longhorn.io systemrestores.longhorn.io volumeattachments.longhorn.io volumes.longhorn.io --ignore-not-found=true 2>/dev/null || echo "Individual Longhorn CRDs not found"
-	@echo "Step 11: Clean up Prometheus/monitoring CRDs..."
+	@echo "Step 10: Clean up Prometheus/monitoring CRDs..."
 	@kubectl delete crd alertmanagerconfigs.monitoring.coreos.com --ignore-not-found=true 2>/dev/null || echo "No alertmanager configs CRD"
 	@kubectl delete crd alertmanagers.monitoring.coreos.com --ignore-not-found=true 2>/dev/null || echo "No alertmanagers CRD"
 	@kubectl delete crd podmonitors.monitoring.coreos.com --ignore-not-found=true 2>/dev/null || echo "No podmonitors CRD"
@@ -187,9 +196,9 @@ force-clean: ## Force cleanup of all resources (use when destroy fails)
 	@kubectl delete service -n kube-system prometheus-stack-kube-prom-kube-proxy --ignore-not-found=true 2>/dev/null || echo "No prometheus kube-proxy service"
 	@kubectl delete service -n kube-system prometheus-stack-kube-prom-kube-scheduler --ignore-not-found=true 2>/dev/null || echo "No prometheus scheduler service"
 	@kubectl delete service -n kube-system prometheus-stack-kube-prom-kubelet --ignore-not-found=true 2>/dev/null || echo "No prometheus kubelet service"
-	@echo "Step 12: Force delete any stuck namespaces (final cleanup)..."
+	@echo "Step 11: Force delete any stuck namespaces (final cleanup - should be unnecessary now)..."
 	@kubectl delete namespace longhorn-system monitoring baget kubernetes-dashboard kube-flannel --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "All namespaces already deleted"
-	@echo "Step 13: Final verification..."
+	@echo "Step 12: Final verification..."
 ifeq ($(OS),Windows_NT)
 	@kubectl get pods -n longhorn-system --ignore-not-found=true 2>nul || echo "✓ longhorn-system namespace is clean"
 	@kubectl get pods -n monitoring --ignore-not-found=true 2>nul || echo "✓ monitoring namespace is clean"
@@ -344,7 +353,7 @@ plan-storage: check-vars check-init ## Plan storage components (Longhorn)
 	@echo "Planning storage components..."
 	terraform plan \
 		-target=helm_release.longhorn \
-		-target=kubernetes_storage_class.longhorn \
+		-target=data.kubernetes_storage_class.longhorn \
 		-target=kubernetes_service.longhorn_frontend_lb
 
 plan-monitoring: check-vars check-init ## Plan monitoring components (Prometheus, Grafana)
@@ -393,7 +402,7 @@ apply-storage: check-vars check-init ## Deploy storage components (Longhorn)
 	@echo "Deploying storage components..."
 	terraform apply \
 		-target=helm_release.longhorn \
-		-target=kubernetes_storage_class.longhorn \
+		-target=data.kubernetes_storage_class.longhorn \
 		-target=kubernetes_service.longhorn_frontend_lb
 
 apply-monitoring: check-vars check-init ## Deploy monitoring components (Prometheus, Grafana)

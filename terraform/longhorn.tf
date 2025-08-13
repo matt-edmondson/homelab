@@ -129,12 +129,6 @@ resource "helm_release" "longhorn" {
       longhornRecoveryBackend = {
         replicas = 1
       }
-      
-      # Disable automatic StorageClass creation - we manage it via Terraform
-      persistence = {
-        defaultClass = false
-        defaultClassReplicaCount = 0  
-      }
     })
   ]
 
@@ -148,26 +142,12 @@ resource "helm_release" "longhorn" {
   timeout = 600
 }
 
-# Longhorn StorageClass (set as default)
-resource "kubernetes_storage_class" "longhorn" {
+# Data source to reference the Longhorn storage class created by Helm
+data "kubernetes_storage_class" "longhorn" {
   metadata {
     name = "longhorn"
-    annotations = {
-      "storageclass.kubernetes.io/is-default-class" = "true"
-    }
-    labels = var.common_labels
   }
-  storage_provisioner    = "driver.longhorn.io"
-  allow_volume_expansion = true
-  reclaim_policy        = "Delete"
-  volume_binding_mode   = "Immediate"
   
-  parameters = {
-    numberOfReplicas       = var.longhorn_replica_count
-    staleReplicaTimeout    = "30"
-    fsType                 = "ext4"
-  }
-
   depends_on = [
     helm_release.longhorn
   ]
@@ -203,7 +183,7 @@ resource "kubernetes_service" "longhorn_frontend_lb" {
   
   depends_on = [
     helm_release.longhorn,
-    kubernetes_storage_class.longhorn,
+    data.kubernetes_storage_class.longhorn,
     kubernetes_daemonset.kube_vip  # Ensure LoadBalancer support is available
   ]
 }
@@ -215,7 +195,7 @@ output "longhorn_info" {
     namespace           = kubernetes_namespace.longhorn_system.metadata[0].name
     chart_version       = var.longhorn_chart_version
     replica_count       = var.longhorn_replica_count
-    storage_class       = kubernetes_storage_class.longhorn.metadata[0].name
+    storage_class       = data.kubernetes_storage_class.longhorn.metadata[0].name
     ui_service         = kubernetes_service.longhorn_frontend_lb.metadata[0].name
     ui_ip              = try(
       kubernetes_service.longhorn_frontend_lb.status[0].load_balancer[0].ingress[0].ip,

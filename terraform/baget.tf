@@ -100,7 +100,7 @@ resource "kubernetes_config_map" "baget_config" {
 resource "kubernetes_persistent_volume_claim" "baget_data" {
   depends_on = [
     helm_release.longhorn,  # Ensure storage backend is available
-    kubernetes_storage_class.longhorn  # Ensure default storage class exists
+    data.kubernetes_storage_class.longhorn  # Ensure default storage class exists
   ]
 
   metadata {
@@ -111,7 +111,7 @@ resource "kubernetes_persistent_volume_claim" "baget_data" {
   
   spec {
     access_modes       = ["ReadWriteOnce"]
-    storage_class_name = kubernetes_storage_class.longhorn.metadata[0].name
+    storage_class_name = data.kubernetes_storage_class.longhorn.metadata[0].name
     resources {
       requests = {
         storage = var.baget_storage_size

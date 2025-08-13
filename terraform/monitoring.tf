@@ -72,7 +72,7 @@ resource "helm_release" "prometheus_stack" {
             volumeClaimTemplate = {
               spec = {
                 accessModes      = ["ReadWriteOnce"]
-                storageClassName = kubernetes_storage_class.longhorn.metadata[0].name
+                storageClassName = data.kubernetes_storage_class.longhorn.metadata[0].name
                 resources = {
                   requests = {
                     storage = var.prometheus_storage_size
@@ -95,7 +95,7 @@ resource "helm_release" "prometheus_stack" {
         adminPassword = var.grafana_admin_password
         persistence = {
           enabled          = true
-          storageClassName = kubernetes_storage_class.longhorn.metadata[0].name
+          storageClassName = data.kubernetes_storage_class.longhorn.metadata[0].name
           size             = var.grafana_storage_size
         }
         service = {
@@ -145,7 +145,7 @@ resource "helm_release" "prometheus_stack" {
             volumeClaimTemplate = {
               spec = {
                 accessModes      = ["ReadWriteOnce"]
-                storageClassName = kubernetes_storage_class.longhorn.metadata[0].name
+                storageClassName = data.kubernetes_storage_class.longhorn.metadata[0].name
                 resources = {
                   requests = {
                     storage = var.alertmanager_storage_size
@@ -162,7 +162,7 @@ resource "helm_release" "prometheus_stack" {
   depends_on = [
     kubernetes_namespace.monitoring,
     helm_release.longhorn,  # Ensure storage backend is available
-    kubernetes_storage_class.longhorn,  # Ensure default storage class exists
+    data.kubernetes_storage_class.longhorn,  # Ensure default storage class exists
     kubernetes_daemonset.kube_vip  # Ensure LoadBalancer support is available
   ]
 }
