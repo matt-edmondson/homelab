@@ -78,10 +78,14 @@ resource "kubernetes_service" "longhorn_frontend_lb" {
       "app.kubernetes.io/name"      = "longhorn-ui"
       "app.kubernetes.io/component" = "frontend"
     })
+    annotations = {
+      "kube-vip.io/loadbalancerHostname" = "longhorn-ui"
+    }
   }
   
   spec {
-    type = "LoadBalancer"
+    type             = "LoadBalancer"
+    load_balancer_ip = "0.0.0.0"  # Trigger kube-vip DHCP behavior
     selector = {
       app = "longhorn-ui"
     }

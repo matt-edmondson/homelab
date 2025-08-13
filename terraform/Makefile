@@ -1,7 +1,7 @@
 # Cross-platform help - Simple approach that works everywhere
 # We'll hardcode the help sections for reliability
 
-.PHONY: help init plan apply destroy validate format lint check-vars status clean \
+.PHONY: help init plan apply destroy force-clean destroy-clean validate format lint check-vars status clean \
 	plan-networking plan-storage plan-monitoring plan-applications plan-dns \
 	apply-networking apply-storage apply-monitoring apply-applications apply-dns \
 	debug-networking debug-storage debug-monitoring debug-applications debug-dns \
@@ -25,6 +25,8 @@ help: ## Show this help message
 	@echo "  plan                 Plan Terraform deployment"
 	@echo "  apply                Apply Terraform configuration"
 	@echo "  destroy              Destroy Terraform infrastructure"
+	@echo "  force-clean          Force cleanup of all resources (use when destroy fails)"
+	@echo "  destroy-clean        Alias for force-clean"
 	@echo "  validate             Validate Terraform configuration"
 	@echo "  format               Format Terraform files"
 	@echo "  lint                 Lint and validate Terraform code"
@@ -96,6 +98,31 @@ apply: check-vars check-init ## Apply Terraform configuration
 
 destroy: check-vars check-init ## Destroy Terraform infrastructure
 	terraform destroy
+
+force-clean: ## Force cleanup of all resources (use when destroy fails)
+	@echo "🧹 Starting comprehensive cleanup..."
+	@echo "Step 1: Setting Longhorn deletion flag..."
+	@kubectl -n longhorn-system patch settings.longhorn.io deleting-confirmation-flag --type='merge' -p='{"value":"true"}' 2>/dev/null || echo "Longhorn settings not found, continuing..."
+	@echo "Step 2: Cleaning up failed jobs..."
+	@kubectl delete jobs -n longhorn-system longhorn-uninstall --ignore-not-found=true
+	@echo "Step 3: Running terraform destroy..."
+	@terraform destroy -auto-approve || echo "Terraform destroy completed with warnings"
+	@echo "Step 4: Cleaning up leftover cluster resources..."
+	@kubectl delete clusterrolebinding system:metrics-server metrics-server:system:auth-delegator --ignore-not-found=true
+	@kubectl delete clusterrole system:metrics-server longhorn-role system:node-proxier --ignore-not-found=true
+	@kubectl delete storageclass longhorn --ignore-not-found=true
+	@kubectl delete priorityclass longhorn-critical --ignore-not-found=true
+	@echo "Step 5: Force delete stuck namespaces..."
+	@kubectl delete namespace longhorn-system monitoring baget --ignore-not-found=true --timeout=30s || echo "Namespace deletion timeout, continuing..."
+	@echo "Step 6: Clean up any remaining kube-vip resources..."
+	@kubectl delete configmap -n kube-system kubevip --ignore-not-found=true
+	@echo "Step 7: Clean up metrics-server resources..."
+	@kubectl delete deployment -n kube-system metrics-server --ignore-not-found=true
+	@kubectl delete service -n kube-system metrics-server --ignore-not-found=true
+	@kubectl delete serviceaccount -n kube-system metrics-server --ignore-not-found=true
+	@echo "✅ Comprehensive cleanup completed!"
+
+destroy-clean: force-clean ## Alias for force-clean
 
 validate: ## Validate Terraform configuration
 	terraform validate

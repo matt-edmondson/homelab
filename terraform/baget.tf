@@ -254,9 +254,14 @@ resource "kubernetes_service" "baget" {
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "baget"
     })
+    annotations = {
+      "kube-vip.io/loadbalancerHostname" = "baget"
+    }
   }
   
   spec {
+    type             = "LoadBalancer"
+    load_balancer_ip = "0.0.0.0"  # Trigger kube-vip DHCP behavior
     selector = {
       app = "baget"
     }
@@ -266,8 +271,6 @@ resource "kubernetes_service" "baget" {
       port        = 80
       target_port = 80
     }
-    
-    type = "LoadBalancer"
   }
 }
 

@@ -84,7 +84,11 @@ resource "helm_release" "prometheus_stack" {
           retention = var.prometheus_retention
         }
         service = {
-          type = "LoadBalancer"  # kube-vip will assign DHCP IP
+          type           = "LoadBalancer"
+          loadBalancerIP = "0.0.0.0"  # Trigger kube-vip DHCP behavior
+          annotations = {
+            "kube-vip.io/loadbalancerHostname" = "prometheus"
+          }
         }
       }
       grafana = {
@@ -95,7 +99,11 @@ resource "helm_release" "prometheus_stack" {
           size             = var.grafana_storage_size
         }
         service = {
-          type = "LoadBalancer"  # kube-vip will assign DHCP IP
+          type           = "LoadBalancer"
+          loadBalancerIP = "0.0.0.0"  # Trigger kube-vip DHCP behavior
+          annotations = {
+            "kube-vip.io/loadbalancerHostname" = "grafana"
+          }
         }
         dashboardProviders = {
           "dashboardproviders.yaml" = {
