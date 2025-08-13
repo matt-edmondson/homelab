@@ -8,9 +8,9 @@ resource "kubernetes_service_account" "pihole_dns_sync" {
   metadata {
     name      = "pihole-dns-sync"
     namespace = "kube-system"
-    labels = {
+    labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "pihole-dns-sync"
-    }
+    })
   }
 }
 
@@ -20,9 +20,9 @@ resource "kubernetes_cluster_role" "pihole_dns_sync" {
   
   metadata {
     name = "pihole-dns-sync"
-    labels = {
+    labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "pihole-dns-sync"
-    }
+    })
   }
 
   rule {
@@ -44,9 +44,9 @@ resource "kubernetes_cluster_role_binding" "pihole_dns_sync" {
   
   metadata {
     name = "pihole-dns-sync"
-    labels = {
+    labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "pihole-dns-sync"
-    }
+    })
   }
 
   role_ref {
@@ -69,9 +69,9 @@ resource "kubernetes_config_map" "pihole_sync_script" {
   metadata {
     name      = "pihole-sync-script"
     namespace = "kube-system"
-    labels = {
+    labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "pihole-dns-sync"
-    }
+    })
   }
 
   data = {
@@ -413,6 +413,7 @@ resource "kubernetes_secret" "pihole_credentials" {
   metadata {
     name      = "pihole-credentials"
     namespace = "kube-system"
+    labels    = var.common_labels
   }
 
   data = {
@@ -429,10 +430,10 @@ resource "kubernetes_deployment" "pihole_dns_sync" {
   metadata {
     name      = "pihole-dns-sync"
     namespace = "kube-system"
-    labels = {
+    labels = merge(var.common_labels, {
       "app.kubernetes.io/name"    = "pihole-dns-sync"
       "app.kubernetes.io/version" = "1.0.0"
-    }
+    })
   }
 
   spec {
@@ -450,9 +451,9 @@ resource "kubernetes_deployment" "pihole_dns_sync" {
 
     template {
       metadata {
-        labels = {
+        labels = merge(var.common_labels, {
           "app.kubernetes.io/name" = "pihole-dns-sync"
-        }
+        })
         annotations = {
           "prometheus.io/scrape" = "true"
           "prometheus.io/port"   = "8080"
@@ -587,9 +588,9 @@ resource "kubernetes_service" "pihole_dns_sync" {
   metadata {
     name      = "pihole-dns-sync"
     namespace = "kube-system"
-    labels = {
+    labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "pihole-dns-sync"
-    }
+    })
     annotations = {
       "prometheus.io/scrape" = "true"
       "prometheus.io/port"   = "8080"
