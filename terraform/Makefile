@@ -120,6 +120,13 @@ force-clean: ## Force cleanup of all resources (use when destroy fails)
 	@kubectl delete deployment -n kube-system metrics-server --ignore-not-found=true
 	@kubectl delete service -n kube-system metrics-server --ignore-not-found=true
 	@kubectl delete serviceaccount -n kube-system metrics-server --ignore-not-found=true
+	@echo "Step 8: Clean up Longhorn CRDs and webhooks..."
+	@kubectl delete crd -l app.kubernetes.io/name=longhorn --ignore-not-found=true || echo "CRDs with label not found, trying individual deletion..."
+	@kubectl delete crd backingimagedatasources.longhorn.io backingimagemanagers.longhorn.io backingimages.longhorn.io backupbackingimages.longhorn.io backups.longhorn.io backuptargets.longhorn.io backupvolumes.longhorn.io engineimages.longhorn.io engines.longhorn.io instancemanagers.longhorn.io nodes.longhorn.io orphans.longhorn.io recurringjobs.longhorn.io replicas.longhorn.io settings.longhorn.io sharemanagers.longhorn.io snapshots.longhorn.io supportbundles.longhorn.io systembackups.longhorn.io systemrestores.longhorn.io volumeattachments.longhorn.io volumes.longhorn.io --ignore-not-found=true
+	@kubectl delete validatingwebhookconfigurations longhorn-webhook-validator --ignore-not-found=true
+	@kubectl delete mutatingwebhookconfigurations longhorn-webhook-mutator --ignore-not-found=true
+	@echo "Step 9: Force delete any stuck namespaces (final cleanup)..."
+	@kubectl delete namespace longhorn-system monitoring baget --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "Namespaces already deleted or deletion completed"
 	@echo "✅ Comprehensive cleanup completed!"
 
 destroy-clean: force-clean ## Alias for force-clean
