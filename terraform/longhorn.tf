@@ -85,6 +85,20 @@ resource "helm_release" "longhorn" {
           }
         ]
         
+        # Increase readiness probe timeout for webhook initialization
+        readinessProbe = {
+          httpGet = {
+            path = "/v1/healthz"
+            port = 9501
+            scheme = "HTTPS"
+          }
+          initialDelaySeconds = 30
+          periodSeconds = 10
+          timeoutSeconds = 5
+          successThreshold = 1
+          failureThreshold = 10  # Allow 10 failures (100 seconds) before marking as not ready
+        }
+        
         tolerations = [
           {
             key = "node.kubernetes.io/not-ready"
@@ -114,6 +128,12 @@ resource "helm_release" "longhorn" {
       
       longhornRecoveryBackend = {
         replicas = 1
+      }
+      
+      # Disable automatic StorageClass creation - we manage it via Terraform
+      persistence = {
+        defaultClass = false
+        defaultClassReplicaCount = 0  
       }
     })
   ]

@@ -17,7 +17,8 @@ help: ## Show this help message
 	@echo "🚀 QUICK START:"
 	@echo "  make list-components  # See all infrastructure components"
 	@echo "  make setup           # Initialize and validate"
-	@echo "  make deploy          # Full deployment"
+	@echo "  make deploy          # Full deployment (existing resources)"
+	@echo "  make redeploy        # Clean deployment (removes existing resources first)"
 	@echo ""
 	@echo "📋 GENERAL TARGETS:"
 	@echo "  help                 Show this help message"
@@ -34,7 +35,8 @@ help: ## Show this help message
 	@echo "  status               Show current deployment status"
 	@echo "  clean                Clean Terraform cache and state"
 	@echo "  setup                Complete setup process"
-	@echo "  deploy               Full deployment"
+	@echo "  deploy               Full deployment (existing resources)"
+	@echo "  redeploy             Clean deployment (removes existing resources first)"
 	@echo "  generate-secrets     Generate secure passwords"
 	@echo "  list-components      List all infrastructure components"
 	@echo "  logs                 Show logs for all deployed applications"
@@ -44,6 +46,13 @@ help: ## Show this help message
 	@echo "  show-structure       Show the modular file structure"
 	@echo "  quick-debug          Quick debug of all components"
 	@echo "  taint-component      Taint a component for recreation"
+	@echo ""
+	@echo "🔧 NETWORKING FIXES:"
+	@echo "  apply-kube-proxy-rbac Apply correct RBAC for kube-proxy"
+	@echo "  restart-kube-proxy   Restart kube-proxy to pick up new RBAC permissions"
+	@echo "  test-dns             Test DNS resolution"
+	@echo "  test-clusterip       Test ClusterIP connectivity"
+	@echo "  fix-cluster-networking Complete fix for ClusterIP connectivity issues"
 	@echo ""
 	@echo "🎯 COMPONENT PLANNING (plan before deploy):"
 	@echo "  plan-networking      Plan networking components"
@@ -94,7 +103,7 @@ else
 endif
 
 apply: check-vars check-init ## Apply Terraform configuration
-	terraform apply
+	terraform apply -auto-approve
 
 destroy: check-vars check-init ## Destroy Terraform infrastructure
 	terraform destroy
@@ -118,13 +127,13 @@ force-clean: ## Force cleanup of all resources (use when destroy fails)
 	@echo "Step 4: Running terraform destroy..."
 	@terraform destroy -auto-approve || echo "Terraform destroy completed with warnings"
 	@echo "Step 5: Cleaning up leftover cluster-level resources..."
-	@kubectl delete clusterrolebinding system:metrics-server metrics-server:system:auth-delegator dashboard-admin-user longhorn-bind --ignore-not-found=true 2>/dev/null || echo "No cluster role bindings to clean"
-	@kubectl delete clusterrole system:metrics-server system:metrics-server-aggregated-reader longhorn-role system:node-proxier --ignore-not-found=true 2>/dev/null || echo "No cluster roles to clean"
+	@kubectl delete clusterrolebinding system:metrics-server metrics-server:system:auth-delegator dashboard-admin-user longhorn-bind flannel system:node-proxier --ignore-not-found=true 2>/dev/null || echo "No cluster role bindings to clean"
+	@kubectl delete clusterrole system:metrics-server system:metrics-server-aggregated-reader longhorn-role flannel system:node-proxier --ignore-not-found=true 2>/dev/null || echo "No cluster roles to clean"
 	@kubectl delete storageclass longhorn --ignore-not-found=true 2>/dev/null || echo "No storage classes to clean"
 	@kubectl delete priorityclass longhorn-critical --ignore-not-found=true 2>/dev/null || echo "No priority classes to clean"
 	@kubectl delete apiservice v1beta1.metrics.k8s.io --ignore-not-found=true 2>/dev/null || echo "No API services to clean"
 	@echo "Step 6: Force delete stuck namespaces..."
-	@kubectl delete namespace longhorn-system monitoring baget kubernetes-dashboard --ignore-not-found=true --timeout=30s || echo "Namespace deletion timeout, continuing..."
+	@kubectl delete namespace longhorn-system monitoring baget kubernetes-dashboard kube-flannel --ignore-not-found=true --timeout=30s || echo "Namespace deletion timeout, continuing..."
 	@echo "Step 7: Clean up remaining kube-vip resources..."
 	@kubectl delete configmap -n kube-system kubevip --ignore-not-found=true 2>/dev/null || echo "No kube-vip config to clean"
 	@echo "Step 8: Clean up any remaining application resources..."
@@ -132,20 +141,35 @@ force-clean: ## Force cleanup of all resources (use when destroy fails)
 	@kubectl delete pods -n monitoring --all --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "No monitoring pods to delete"
 	@kubectl delete pods -n baget --all --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "No baget pods to delete"
 	@kubectl delete pods -n kubernetes-dashboard --all --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "No dashboard pods to delete"
+	@kubectl delete pods -n kube-flannel --all --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "No flannel pods to delete"
+	@kubectl delete pods -n kube-system -l k8s-app=kube-proxy --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "No kube-proxy pods to delete"
 	@kubectl delete daemonsets,deployments,replicasets -n longhorn-system --all --ignore-not-found=true 2>/dev/null || echo "No longhorn controllers to delete"
 	@kubectl delete daemonsets,deployments,replicasets -n monitoring --all --ignore-not-found=true 2>/dev/null || echo "No monitoring controllers to delete"
 	@kubectl delete daemonsets,deployments,replicasets -n baget --all --ignore-not-found=true 2>/dev/null || echo "No baget controllers to delete"
 	@kubectl delete daemonsets,deployments,replicasets -n kubernetes-dashboard --all --ignore-not-found=true 2>/dev/null || echo "No dashboard controllers to delete"
+	@kubectl delete daemonsets,deployments,replicasets -n kube-flannel --all --ignore-not-found=true 2>/dev/null || echo "No flannel controllers to delete"
 	@echo "Step 8b: Clean up Longhorn service accounts and remaining resources..."
 	@kubectl delete serviceaccount -n longhorn-system longhorn-service-account --ignore-not-found=true 2>/dev/null || echo "No longhorn service account to delete"
 	@kubectl delete configmap -n longhorn-system --all --ignore-not-found=true 2>/dev/null || echo "No longhorn configmaps to delete"
-	@echo "Step 9: Clean up Longhorn CRDs and webhooks..."
+	@echo "Step 9: Clean up ALL admission webhooks (prevents stuck namespace issues)..."
+	@echo "  Cleaning Longhorn webhooks..."
+	@kubectl delete validatingwebhookconfigurations longhorn-webhook-validator longhorn-admission-webhook --ignore-not-found=true 2>/dev/null || echo "  No longhorn webhook validators"
+	@kubectl delete mutatingwebhookconfigurations longhorn-webhook-mutator longhorn-conversion-webhook --ignore-not-found=true 2>/dev/null || echo "  No longhorn webhook mutators"
+	@echo "  Cleaning Prometheus webhooks..."
+	@kubectl delete validatingwebhookconfigurations prometheus-stack-kube-prom-admission --ignore-not-found=true 2>/dev/null || echo "  No prometheus webhook validators"
+	@kubectl delete mutatingwebhookconfigurations prometheus-stack-kube-prom-admission --ignore-not-found=true 2>/dev/null || echo "  No prometheus webhook mutators"
+	@echo "  Cleaning Kubernetes Dashboard webhooks..."
+	@kubectl delete validatingwebhookconfigurations kubernetes-dashboard-webhook --ignore-not-found=true 2>/dev/null || echo "  No dashboard webhook validators"
+	@kubectl delete mutatingwebhookconfigurations kubernetes-dashboard-webhook --ignore-not-found=true 2>/dev/null || echo "  No dashboard webhook mutators"
+	@echo "Step 9b: Remove finalizers from stuck Longhorn resources (PowerShell-compatible)..."
+	@echo "  Patching backup targets finalizers..."
+	@kubectl patch backuptargets.longhorn.io default -n longhorn-system -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "  No backup targets to patch"
+	@echo "  Forcing namespace finalizer removal if needed..."
+	@kubectl patch namespace longhorn-system -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "  Namespace already clean or deleted"
+	@echo "Step 10: Clean up Longhorn CRDs..."
 	@kubectl delete crd -l app.kubernetes.io/name=longhorn --ignore-not-found=true 2>/dev/null || echo "Longhorn CRDs with label not found, trying individual deletion..."
 	@kubectl delete crd backingimagedatasources.longhorn.io backingimagemanagers.longhorn.io backingimages.longhorn.io backupbackingimages.longhorn.io backups.longhorn.io backuptargets.longhorn.io backupvolumes.longhorn.io engineimages.longhorn.io engines.longhorn.io instancemanagers.longhorn.io nodes.longhorn.io orphans.longhorn.io recurringjobs.longhorn.io replicas.longhorn.io settings.longhorn.io sharemanagers.longhorn.io snapshots.longhorn.io supportbundles.longhorn.io systembackups.longhorn.io systemrestores.longhorn.io volumeattachments.longhorn.io volumes.longhorn.io --ignore-not-found=true 2>/dev/null || echo "Individual Longhorn CRDs not found"
-	@kubectl delete validatingwebhookconfigurations longhorn-webhook-validator longhorn-admission-webhook --ignore-not-found=true 2>/dev/null || echo "No longhorn webhook validators"
-	@kubectl delete mutatingwebhookconfigurations longhorn-webhook-mutator --ignore-not-found=true 2>/dev/null || echo "No longhorn webhook mutators"
-	@kubectl delete mutatingwebhookconfigurations longhorn-conversion-webhook --ignore-not-found=true 2>/dev/null || echo "No longhorn conversion webhook"
-	@echo "Step 10: Clean up Prometheus/monitoring CRDs..."
+	@echo "Step 11: Clean up Prometheus/monitoring CRDs..."
 	@kubectl delete crd alertmanagerconfigs.monitoring.coreos.com --ignore-not-found=true 2>/dev/null || echo "No alertmanager configs CRD"
 	@kubectl delete crd alertmanagers.monitoring.coreos.com --ignore-not-found=true 2>/dev/null || echo "No alertmanagers CRD"
 	@kubectl delete crd podmonitors.monitoring.coreos.com --ignore-not-found=true 2>/dev/null || echo "No podmonitors CRD"
@@ -164,7 +188,7 @@ force-clean: ## Force cleanup of all resources (use when destroy fails)
 	@kubectl delete service -n kube-system prometheus-stack-kube-prom-kube-scheduler --ignore-not-found=true 2>/dev/null || echo "No prometheus scheduler service"
 	@kubectl delete service -n kube-system prometheus-stack-kube-prom-kubelet --ignore-not-found=true 2>/dev/null || echo "No prometheus kubelet service"
 	@echo "Step 12: Force delete any stuck namespaces (final cleanup)..."
-	@kubectl delete namespace longhorn-system monitoring baget kubernetes-dashboard --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "All namespaces already deleted"
+	@kubectl delete namespace longhorn-system monitoring baget kubernetes-dashboard kube-flannel --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "All namespaces already deleted"
 	@echo "Step 13: Final verification..."
 ifeq ($(OS),Windows_NT)
 	@kubectl get pods -n longhorn-system --ignore-not-found=true 2>nul || echo "✓ longhorn-system namespace is clean"
@@ -174,8 +198,9 @@ ifeq ($(OS),Windows_NT)
 	@kubectl get crd 2>nul | findstr /i "longhorn" >nul && echo "⚠ Some Longhorn CRDs still present" || echo "✓ Longhorn CRDs cleaned up"
 	@kubectl get crd 2>nul | findstr /i "monitoring.coreos.com" >nul && echo "⚠ Some Prometheus CRDs still present" || echo "✓ Prometheus CRDs cleaned up"
 	@kubectl get clusterrole longhorn-role 2>nul && echo "⚠ Longhorn ClusterRole still present" || echo "✓ Longhorn RBAC cleaned up"
-	@kubectl get clusterrolebinding longhorn-bind 2>nul && echo "⚠ Longhorn ClusterRoleBinding still present" || echo "✓ Longhorn ClusterRoleBinding cleaned up"
+	@kubectl get clusterrolebinding longhorn-bind flannel 2>nul && echo "⚠ Some ClusterRoleBindings still present" || echo "✓ All ClusterRoleBindings cleaned up"
 	@kubectl get storageclass longhorn 2>nul && echo "⚠ Longhorn StorageClass still present" || echo "✓ Longhorn StorageClass cleaned up"
+	@kubectl get pods -n kube-flannel --ignore-not-found=true 2>nul || echo "✓ kube-flannel namespace is clean"
 	@helm list -A 2>nul | findstr /i -v "NAME" >nul && echo "⚠ Some Helm releases still present:" && helm list -A || echo "✓ All Helm releases cleaned up"
 else
 	@kubectl get pods -n longhorn-system --ignore-not-found=true 2>/dev/null || echo "✓ longhorn-system namespace is clean"
@@ -185,8 +210,9 @@ else
 	@kubectl get crd 2>/dev/null | grep -i "longhorn" && echo "⚠ Some Longhorn CRDs still present" || echo "✓ Longhorn CRDs cleaned up"
 	@kubectl get crd 2>/dev/null | grep -i "monitoring.coreos.com" && echo "⚠ Some Prometheus CRDs still present" || echo "✓ Prometheus CRDs cleaned up"
 	@kubectl get clusterrole longhorn-role 2>/dev/null && echo "⚠ Longhorn ClusterRole still present" || echo "✓ Longhorn RBAC cleaned up"
-	@kubectl get clusterrolebinding longhorn-bind 2>/dev/null && echo "⚠ Longhorn ClusterRoleBinding still present" || echo "✓ Longhorn ClusterRoleBinding cleaned up"
+	@kubectl get clusterrolebinding longhorn-bind flannel 2>/dev/null && echo "⚠ Some ClusterRoleBindings still present" || echo "✓ All ClusterRoleBindings cleaned up"
 	@kubectl get storageclass longhorn 2>/dev/null && echo "⚠ Longhorn StorageClass still present" || echo "✓ Longhorn StorageClass cleaned up"
+	@kubectl get pods -n kube-flannel --ignore-not-found=true 2>/dev/null || echo "✓ kube-flannel namespace is clean"
 	@helm list -A 2>/dev/null | grep -v "NAME" && echo "⚠ Some Helm releases still present:" && helm list -A || echo "✓ All Helm releases cleaned up"
 endif
 	@echo "✅ Comprehensive cleanup completed!"
@@ -272,6 +298,13 @@ deploy: ## Full deployment (setup + apply)
 	$(MAKE) setup
 	$(MAKE) apply
 
+redeploy: ## Clean and redeploy all infrastructure
+	@echo "Clean redeployment starting..."
+	$(MAKE) force-clean
+	$(MAKE) setup
+	$(MAKE) apply
+	@echo "✅ Clean redeployment completed!"
+
 # Generate secure credentials
 generate-secrets: ## Generate secure passwords for terraform.tfvars
 	@echo "Generating secure credentials..."
@@ -286,12 +319,13 @@ generate-secrets: ## Generate secure passwords for terraform.tfvars
 list-components: ## List all infrastructure components and their files
 	@echo "Infrastructure Components:"
 	@echo "========================="
+	@echo "🌍 Networking    -> flannel.tf          (CNI network plugin)"
 	@echo "📦 Common        -> common.tf           (Terraform config, metrics-server)"
-	@echo "🌐 Networking    -> kube-vip.tf         (kube-vip DHCP LoadBalancer)"
+	@echo "⚖️ LoadBalancer  -> kube-vip.tf         (kube-vip DHCP LoadBalancer)"
 	@echo "💾 Storage       -> longhorn.tf         (Longhorn distributed storage)"
 	@echo "📊 Monitoring    -> monitoring.tf       (Prometheus, Grafana, AlertManager)"
 	@echo "🚀 Applications  -> baget.tf            (Baget NuGet server)"
-	@echo "📋 Dashboard     -> kubernetes-dashboard.tf (Kubernetes Dashboard)"
+	@echo "📋 Dashboard     -> kubernetes-dashboard.tf (Kubernetes Web UI)"
 	@echo ""
 	@echo "Use 'make plan-<component>' or 'make apply-<component>' for targeted operations"
 
@@ -648,6 +682,41 @@ quick-debug: ## Quick debug of all components
 	@kubectl get pods -n kube-system -l app.kubernetes.io/name=pihole-dns-sync --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  Pi-hole Sync: {} pods running" || echo "  Pi-hole Sync: Not deployed"
 	@echo ""
 	@echo "Use 'make debug-<component>' for detailed debugging"
+
+# kube-proxy Management
+apply-kube-proxy-rbac: ## Apply correct RBAC for kube-proxy
+	@echo "🔧 Applying kube-proxy RBAC resources..."
+	@terraform apply -auto-approve -lock=false -target="kubernetes_cluster_role.system_node_proxier" -target="kubernetes_cluster_role_binding.system_node_proxier" || echo "RBAC already exists"
+	@echo "✅ kube-proxy RBAC applied"
+
+restart-kube-proxy: ## Restart kube-proxy DaemonSet to pick up new RBAC permissions
+	@echo "🔄 Restarting kube-proxy DaemonSet..."
+	@kubectl rollout restart daemonset/kube-proxy -n kube-system
+	@echo "⏳ Waiting for kube-proxy rollout to complete..."
+	@kubectl rollout status daemonset/kube-proxy -n kube-system --timeout=300s
+	@echo "✅ kube-proxy restarted successfully"
+
+test-dns: ## Test DNS resolution after networking fixes
+	@echo "🧪 Testing DNS resolution..."
+	@kubectl run dns-test --image=busybox:1.35 --rm -it --restart=Never -- nslookup kubernetes.default.svc.cluster.local || echo "⚠️ DNS test failed"
+
+test-clusterip: ## Test ClusterIP connectivity
+	@echo "🧪 Testing ClusterIP connectivity..."
+	@kubectl run connectivity-test --image=busybox:1.35 --rm -it --restart=Never -- ping -c 2 10.96.0.10 || echo "⚠️ ClusterIP connectivity test failed"
+
+fix-cluster-networking: apply-kube-proxy-rbac restart-kube-proxy test-clusterip test-dns ## Complete fix for cluster networking issues
+	@echo "✅ Cluster networking fix completed!"
+
+fix-stuck-namespace: ## Fix stuck namespace by removing finalizers from Longhorn resources
+	@echo "🔧 Fixing stuck namespace by removing finalizers..."
+	@echo "  Removing webhooks..."
+	@kubectl delete validatingwebhookconfigurations longhorn-webhook-validator --ignore-not-found=true 2>/dev/null || echo "  No longhorn webhook validators"
+	@kubectl delete mutatingwebhookconfigurations longhorn-webhook-mutator --ignore-not-found=true 2>/dev/null || echo "  No longhorn webhook mutators"
+	@echo "  Patching common stuck resources (PowerShell-compatible)..."
+	@kubectl patch backuptargets.longhorn.io default -n longhorn-system -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "  No backup targets to patch"
+	@echo "  Nuclear option - removing namespace finalizers directly..."
+	@kubectl patch namespace longhorn-system -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "  Namespace already deleted or no finalizers to remove"
+	@echo "✅ Stuck namespace fix applied - namespace should delete automatically now"
 
 # Advanced workflows
 taint-component: ## Taint a component for recreation (usage: make taint-component COMPONENT=storage)

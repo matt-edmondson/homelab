@@ -107,6 +107,60 @@ resource "helm_release" "metrics_server" {
   wait_for_jobs = true
 }
 
+# =============================================================================
+# kube-proxy RBAC (Essential for ClusterIP services)
+# =============================================================================
+
+resource "kubernetes_cluster_role" "system_node_proxier" {
+  metadata {
+    name = "system:node-proxier"
+    labels = var.common_labels
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["services", "endpoints", "nodes"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = ["discovery.k8s.io"]
+    resources  = ["endpointslices"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = ["networking.k8s.io"]
+    resources  = ["servicecidrs"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["events"]
+    verbs      = ["create", "patch"]
+  }
+}
+
+resource "kubernetes_cluster_role_binding" "system_node_proxier" {
+  metadata {
+    name = "system:node-proxier"
+    labels = var.common_labels
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = kubernetes_cluster_role.system_node_proxier.metadata[0].name
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = "kube-proxy"
+    namespace = "kube-system"
+  }
+}
+
 # Common Outputs
 output "cluster_info" {
   description = "General cluster information"

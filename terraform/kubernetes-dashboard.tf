@@ -198,8 +198,8 @@ resource "kubernetes_service" "kubernetes_dashboard_lb" {
     type             = "LoadBalancer"
     load_balancer_ip = "0.0.0.0"  # Trigger kube-vip DHCP behavior
     selector = {
-      "app.kubernetes.io/name"      = "kubernetes-dashboard"
-      "app.kubernetes.io/component" = "kubernetes-dashboard"
+      "app.kubernetes.io/name"      = "kong"
+      "app.kubernetes.io/component" = "app"
     }
     port {
       name        = "https"
