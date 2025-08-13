@@ -133,8 +133,8 @@ force-clean: ## Force cleanup of all resources (use when destroy fails)
 	@echo "Step 11: Clean up any remaining Helm releases..."
 	@helm uninstall longhorn -n longhorn-system --ignore-not-found 2>/dev/null || echo "No Helm releases to clean up"
 	@echo "Step 12: Final verification..."
-	@kubectl get pods -n longhorn-system --ignore-not-found=true 2>/dev/null || echo "✓ longhorn-system namespace is clean"
-	@kubectl get crd 2>/dev/null | Select-String -Pattern "longhorn" -Quiet && echo "⚠ Some Longhorn CRDs still present" || echo "✓ Longhorn CRDs cleaned up"
+	@kubectl get pods -n longhorn-system --ignore-not-found=true 2>nul || echo "✓ longhorn-system namespace is clean"
+	@kubectl get crd 2>nul | findstr /i "longhorn" >nul && echo "⚠ Some Longhorn CRDs still present" || echo "✓ Longhorn CRDs cleaned up"
 	@echo "✅ Comprehensive cleanup completed!"
 
 destroy-clean: force-clean ## Alias for force-clean
