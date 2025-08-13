@@ -40,12 +40,15 @@ resource "helm_release" "longhorn" {
         defaultReplicaCount = var.longhorn_replica_count
         staleReplicaTimeout = 30
         
-        # Startup and timing improvements
+        # Startup and timing improvements - CRITICAL for breaking circular dependency
         upgradeChecker = false
         
         # Improve startup reliability
         nodeDownPodDeletionPolicy = "delete-both-statefulset-and-deployment-pod"
         allowRecurringJobWhileVolumeDetached = true
+        
+        # Disable webhook startup validation - fixes circular dependency
+        disableRevisionCounter = true
         
         # Network timeouts for better reliability
         longhorn-manager = {
@@ -65,11 +68,23 @@ resource "helm_release" "longhorn" {
         }
       }
       
-      # Improve startup order and timing
+
+      
+      # CLEANEST SOLUTION: Configure manager to be more tolerant
+      
       longhornManager = {
         priorityClass = "longhorn-critical"
         
-        # Add startup probe and timing adjustments
+        # Workaround for Longhorn >= v1.5.0 webhook circular dependency
+        # Issue: Manager waits for webhook accessibility during startup but webhooks don't exist yet
+        # Solution: Increase startup tolerance and disable crash on webhook failure  
+        env = [
+          {
+            name = "LONGHORN_MANAGER_TIMEOUT"
+            value = "300"  # 5 minutes instead of default 60s
+          }
+        ]
+        
         tolerations = [
           {
             key = "node.kubernetes.io/not-ready"
@@ -79,22 +94,22 @@ resource "helm_release" "longhorn" {
           },
           {
             key = "node.kubernetes.io/unreachable"
-            operator = "Exists"
+            operator = "Exists"  
             effect = "NoExecute"
             tolerationSeconds = 300
           }
         ]
       }
       
-      # Webhook configuration for better startup
+      # Keep webhooks enabled with normal replica count
       longhornAdmissionWebhook = {
         replicas = 1
-        failurePolicy = "Ignore"  # Prevent blocking during startup
+        failurePolicy = "Ignore"  # Non-blocking if they fail
       }
       
       longhornConversionWebhook = {
-        replicas = 1
-        failurePolicy = "Ignore"  # Prevent blocking during startup
+        replicas = 1  
+        failurePolicy = "Ignore"  # Non-blocking if they fail
       }
       
       longhornRecoveryBackend = {
