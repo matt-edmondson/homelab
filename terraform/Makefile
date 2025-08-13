@@ -100,6 +100,16 @@ lint: validate format ## Lint and validate Terraform code
 	@echo "Terraform configuration is valid and formatted"
 
 check-vars: ## Check if terraform.tfvars exists
+ifeq ($(OS),Windows_NT)
+	@if not exist terraform.tfvars ( \
+		echo Error: terraform.tfvars not found! && \
+		echo Please copy terraform.tfvars.example to terraform.tfvars and customize it. && \
+		echo. && \
+		echo   copy terraform.tfvars.example terraform.tfvars && \
+		echo. && \
+		exit /b 1 \
+	)
+else
 	@if [ ! -f terraform.tfvars ]; then \
 		echo "Error: terraform.tfvars not found!"; \
 		echo "Please copy terraform.tfvars.example to terraform.tfvars and customize it."; \
@@ -108,10 +118,15 @@ check-vars: ## Check if terraform.tfvars exists
 		echo ""; \
 		exit 1; \
 	fi
+endif
 
 status: ## Show current deployment status
 	@echo "=== Terraform State Summary ==="
+ifeq ($(OS),Windows_NT)
+	@terraform state list >nul 2>&1 && echo "Terraform state found" || echo "No state found (not initialized)"
+else
 	@terraform state list 2>/dev/null | wc -l | xargs -I {} echo "Total resources: {}" || echo "No state found (not initialized)"
+endif
 	@echo ""
 	@echo "=== Component Status Summary ==="
 	@$(MAKE) --no-print-directory status-networking
@@ -125,13 +140,22 @@ status: ## Show current deployment status
 	@$(MAKE) --no-print-directory status-dns
 	@echo ""
 	@echo "=== LoadBalancer Services ==="
+ifeq ($(OS),Windows_NT)
+	@kubectl get services --all-namespaces 2>nul | findstr LoadBalancer || echo "No LoadBalancer services found"
+else
 	@kubectl get services --all-namespaces | grep LoadBalancer 2>/dev/null || echo "No LoadBalancer services found"
+endif
 	@echo ""
 	@echo "Use 'make status-<component>' for detailed component status"
 
 clean: ## Clean Terraform cache and state
+ifeq ($(OS),Windows_NT)
+	@if exist .terraform rmdir /s /q .terraform
+	@if exist .terraform.lock.hcl del .terraform.lock.hcl
+else
 	rm -rf .terraform
 	rm -f .terraform.lock.hcl
+endif
 
 # Deployment helpers
 setup: ## Complete setup process (init, validate, plan)
