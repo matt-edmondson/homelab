@@ -60,34 +60,51 @@ resource "helm_release" "metrics_server" {
   version    = "3.13.0"
   namespace  = "kube-system"
 
-  values = [
-    yamlencode({
-      # Essential settings for metrics-server to work in homelab
-      apiService = {
-        create = true
-      }
-      
-      # Additional arguments for homelab/development environments
-      extraArgs = [
-        "--kubelet-insecure-tls",
-        "--kubelet-preferred-address-types=InternalIP,ExternalIP,Hostname",
-        "--kubelet-use-node-status-port",
-        "--metric-resolution=15s"
-      ]
-      
-      # Resource limits
-      resources = {
-        requests = {
-          cpu = "100m"
-          memory = "200Mi"
-        }
-        limits = {
-          cpu = "500m"
-          memory = "500Mi"
-        }
-      }
-    })
+  set = [
+    {
+      name  = "apiService.create"
+      value = "true"
+    },
+    {
+      name  = "args[0]"
+      value = "--kubelet-insecure-tls"
+    },
+    {
+      name  = "args[1]"  
+      value = "--kubelet-preferred-address-types=InternalIP\\,ExternalIP\\,Hostname"
+    },
+    {
+      name  = "args[2]"
+      value = "--kubelet-use-node-status-port"
+    },
+    {
+      name  = "args[3]"
+      value = "--metric-resolution=15s"
+    },
+    {
+      name  = "resources.requests.cpu"
+      value = "100m"
+    },
+    {
+      name  = "resources.requests.memory"
+      value = "200Mi"
+    },
+    {
+      name  = "resources.limits.cpu"
+      value = "500m"
+    },
+    {
+      name  = "resources.limits.memory"
+      value = "500Mi"
+    }
   ]
+  
+  # Add timeout for metrics-server to be ready
+  timeout = 300
+  
+  # Wait for deployment to be ready before allowing dependents
+  wait          = true
+  wait_for_jobs = true
 }
 
 # Common Outputs

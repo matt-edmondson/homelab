@@ -33,21 +33,84 @@ resource "helm_release" "longhorn" {
   version    = var.longhorn_chart_version
   namespace  = kubernetes_namespace.longhorn_system.metadata[0].name
 
-  set = [
-    {
-      name  = "defaultSettings.defaultReplicaCount"
-      value = var.longhorn_replica_count
-    },
-    {
-      name  = "defaultSettings.staleReplicaTimeout"
-      value = "30"
-    }
+  values = [
+    yamlencode({
+      # Default settings
+      defaultSettings = {
+        defaultReplicaCount = var.longhorn_replica_count
+        staleReplicaTimeout = 30
+        
+        # Startup and timing improvements
+        upgradeChecker = false
+        
+        # Improve startup reliability
+        nodeDownPodDeletionPolicy = "delete-both-statefulset-and-deployment-pod"
+        allowRecurringJobWhileVolumeDetached = true
+        
+        # Network timeouts for better reliability
+        longhorn-manager = {
+          priorityClass = "longhorn-critical"
+        }
+      }
+      
+      # Image pull policy for better reliability
+      image = {
+        pullPolicy = "IfNotPresent"
+      }
+      
+      # Service configuration to avoid webhook timing issues
+      service = {
+        manager = {
+          type = "ClusterIP"
+        }
+      }
+      
+      # Improve startup order and timing
+      longhornManager = {
+        priorityClass = "longhorn-critical"
+        
+        # Add startup probe and timing adjustments
+        tolerations = [
+          {
+            key = "node.kubernetes.io/not-ready"
+            operator = "Exists"
+            effect = "NoExecute"
+            tolerationSeconds = 300
+          },
+          {
+            key = "node.kubernetes.io/unreachable"
+            operator = "Exists"
+            effect = "NoExecute"
+            tolerationSeconds = 300
+          }
+        ]
+      }
+      
+      # Webhook configuration for better startup
+      longhornAdmissionWebhook = {
+        replicas = 1
+        failurePolicy = "Ignore"  # Prevent blocking during startup
+      }
+      
+      longhornConversionWebhook = {
+        replicas = 1
+        failurePolicy = "Ignore"  # Prevent blocking during startup
+      }
+      
+      longhornRecoveryBackend = {
+        replicas = 1
+      }
+    })
   ]
 
+  # Ensure proper startup order - wait for metrics-server to be ready
   depends_on = [
     kubernetes_namespace.longhorn_system,
     helm_release.metrics_server
   ]
+  
+  # Add timeout for complex deployment
+  timeout = 600
 }
 
 # Longhorn StorageClass (set as default)
@@ -70,7 +133,9 @@ resource "kubernetes_storage_class" "longhorn" {
     fsType                 = "ext4"
   }
 
-  depends_on = [helm_release.longhorn]
+  depends_on = [
+    helm_release.longhorn
+  ]
 }
 
 # Longhorn UI LoadBalancer Service (gets DHCP IP from kube-vip)
@@ -103,6 +168,7 @@ resource "kubernetes_service" "longhorn_frontend_lb" {
   
   depends_on = [
     helm_release.longhorn,
+    kubernetes_storage_class.longhorn,
     kubernetes_daemonset.kube_vip  # Ensure LoadBalancer support is available
   ]
 }
