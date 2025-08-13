@@ -1,12 +1,40 @@
-.PHONY: help init plan apply destroy validate format lint check-vars status clean
+.PHONY: help init plan apply destroy validate format lint check-vars status clean \
+	plan-networking plan-storage plan-monitoring plan-applications plan-dns \
+	apply-networking apply-storage apply-monitoring apply-applications apply-dns \
+	debug-networking debug-storage debug-monitoring debug-applications debug-dns \
+	status-networking status-storage status-monitoring status-applications status-dns \
+	list-components deploy-core deploy-apps plan-all-components status-all-components \
+	show-structure quick-debug taint-component
 
 # Default target
 help: ## Show this help message
-	@echo "Kubernetes Homelab Terraform Management"
+	@echo "Kubernetes Homelab Terraform Management (Modular Structure)"
 	@echo "Usage: make [target]"
 	@echo ""
-	@echo "Available targets:"
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  %-15s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo "🚀 QUICK START:"
+	@echo "  make list-components  # See all infrastructure components"
+	@echo "  make setup           # Initialize and validate"
+	@echo "  make deploy          # Full deployment"
+	@echo ""
+	@echo "📋 GENERAL TARGETS:"
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / && !/^(plan|apply|debug|status)-/ {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "🎯 COMPONENT PLANNING (plan before deploy):"
+	@awk 'BEGIN {FS = ":.*?## "} /^plan-.*:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "🚀 COMPONENT DEPLOYMENT:"
+	@awk 'BEGIN {FS = ":.*?## "} /^apply-.*:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "🔍 COMPONENT DEBUGGING:"
+	@awk 'BEGIN {FS = ":.*?## "} /^debug-.*:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "📊 COMPONENT STATUS:"
+	@awk 'BEGIN {FS = ":.*?## "} /^status-.*:.*?## / {printf "  %-20s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@echo ""
+	@echo "💡 EXAMPLES:"
+	@echo "  make plan-storage && make apply-storage    # Deploy only Longhorn"
+	@echo "  make debug-networking                      # Debug MetalLB issues"
+	@echo "  make status-monitoring                     # Check Prometheus/Grafana"
 
 init: ## Initialize Terraform
 	terraform init
@@ -40,14 +68,24 @@ check-vars: ## Check if terraform.tfvars exists
 	fi
 
 status: ## Show current deployment status
-	@echo "=== Terraform State ==="
-	terraform state list 2>/dev/null || echo "No state found (not initialized or no resources)"
+	@echo "=== Terraform State Summary ==="
+	@terraform state list 2>/dev/null | wc -l | xargs -I {} echo "Total resources: {}" || echo "No state found (not initialized)"
 	@echo ""
-	@echo "=== Kubernetes Pods ==="
-	kubectl get pods --all-namespaces 2>/dev/null || echo "Cannot connect to Kubernetes cluster"
+	@echo "=== Component Status Summary ==="
+	@$(MAKE) --no-print-directory status-networking
+	@echo ""
+	@$(MAKE) --no-print-directory status-storage
+	@echo ""
+	@$(MAKE) --no-print-directory status-monitoring
+	@echo ""
+	@$(MAKE) --no-print-directory status-applications
+	@echo ""
+	@$(MAKE) --no-print-directory status-dns
 	@echo ""
 	@echo "=== LoadBalancer Services ==="
-	kubectl get services --all-namespaces | grep LoadBalancer 2>/dev/null || echo "No LoadBalancer services found"
+	@kubectl get services --all-namespaces | grep LoadBalancer 2>/dev/null || echo "No LoadBalancer services found"
+	@echo ""
+	@echo "Use 'make status-<component>' for detailed component status"
 
 clean: ## Clean Terraform cache and state
 	rm -rf .terraform
@@ -75,6 +113,106 @@ generate-secrets: ## Generate secure passwords for terraform.tfvars
 	@echo ""
 	@echo "Save these credentials securely!"
 
+# Component Management
+list-components: ## List all infrastructure components and their files
+	@echo "Infrastructure Components:"
+	@echo "========================="
+	@echo "📦 Providers     -> providers.tf     (Terraform & provider config)"
+	@echo "🏷️  Namespaces   -> namespaces.tf   (Kubernetes namespaces)"
+	@echo "🌐 Networking    -> networking.tf    (MetalLB, Metrics Server)"
+	@echo "💾 Storage       -> storage.tf       (Longhorn distributed storage)"
+	@echo "📊 Monitoring    -> monitoring.tf    (Prometheus, Grafana, AlertManager)"
+	@echo "🚀 Applications  -> applications.tf  (Baget NuGet server)"
+	@echo "🔍 DNS           -> dns.tf           (Pi-hole DNS sync)"
+	@echo ""
+	@echo "Use 'make plan-<component>' or 'make apply-<component>' for targeted operations"
+
+# Component-specific Planning
+plan-networking: check-vars ## Plan networking components (MetalLB, Metrics Server)
+	@echo "Planning networking components..."
+	terraform plan \
+		-target=helm_release.metallb \
+		-target=kubernetes_manifest.metallb_ipaddresspool \
+		-target=kubernetes_manifest.metallb_bfd_profile \
+		-target=kubernetes_manifest.metallb_bgp_peer \
+		-target=kubernetes_manifest.metallb_bgp_advertisement \
+		-target=helm_release.metrics_server
+
+plan-storage: check-vars ## Plan storage components (Longhorn)
+	@echo "Planning storage components..."
+	terraform plan \
+		-target=helm_release.longhorn \
+		-target=kubernetes_storage_class.longhorn \
+		-target=kubernetes_service.longhorn_frontend_lb
+
+plan-monitoring: check-vars ## Plan monitoring components (Prometheus, Grafana)
+	@echo "Planning monitoring components..."
+	terraform plan \
+		-target=helm_release.prometheus_stack
+
+plan-applications: check-vars ## Plan application components (Baget)
+	@echo "Planning application components..."
+	terraform plan \
+		-target=kubernetes_secret.baget_secrets \
+		-target=kubernetes_config_map.baget_config \
+		-target=kubernetes_persistent_volume_claim.baget_data \
+		-target=kubernetes_deployment.baget \
+		-target=kubernetes_service.baget
+
+plan-dns: check-vars ## Plan DNS components (Pi-hole sync)
+	@echo "Planning DNS components..."
+	terraform plan \
+		-target=kubernetes_service_account.pihole_dns_sync \
+		-target=kubernetes_cluster_role.pihole_dns_sync \
+		-target=kubernetes_cluster_role_binding.pihole_dns_sync \
+		-target=kubernetes_config_map.pihole_sync_script \
+		-target=kubernetes_secret.pihole_credentials \
+		-target=kubernetes_deployment.pihole_dns_sync \
+		-target=kubernetes_service.pihole_dns_sync
+
+# Component-specific Deployment
+apply-networking: check-vars ## Deploy networking components (MetalLB, Metrics Server)
+	@echo "Deploying networking components..."
+	terraform apply \
+		-target=helm_release.metallb \
+		-target=kubernetes_manifest.metallb_ipaddresspool \
+		-target=kubernetes_manifest.metallb_bfd_profile \
+		-target=kubernetes_manifest.metallb_bgp_peer \
+		-target=kubernetes_manifest.metallb_bgp_advertisement \
+		-target=helm_release.metrics_server
+
+apply-storage: check-vars ## Deploy storage components (Longhorn)
+	@echo "Deploying storage components..."
+	terraform apply \
+		-target=helm_release.longhorn \
+		-target=kubernetes_storage_class.longhorn \
+		-target=kubernetes_service.longhorn_frontend_lb
+
+apply-monitoring: check-vars ## Deploy monitoring components (Prometheus, Grafana)
+	@echo "Deploying monitoring components..."
+	terraform apply \
+		-target=helm_release.prometheus_stack
+
+apply-applications: check-vars ## Deploy application components (Baget)
+	@echo "Deploying application components..."
+	terraform apply \
+		-target=kubernetes_secret.baget_secrets \
+		-target=kubernetes_config_map.baget_config \
+		-target=kubernetes_persistent_volume_claim.baget_data \
+		-target=kubernetes_deployment.baget \
+		-target=kubernetes_service.baget
+
+apply-dns: check-vars ## Deploy DNS components (Pi-hole sync)
+	@echo "Deploying DNS components..."
+	terraform apply \
+		-target=kubernetes_service_account.pihole_dns_sync \
+		-target=kubernetes_cluster_role.pihole_dns_sync \
+		-target=kubernetes_cluster_role_binding.pihole_dns_sync \
+		-target=kubernetes_config_map.pihole_sync_script \
+		-target=kubernetes_secret.pihole_credentials \
+		-target=kubernetes_deployment.pihole_dns_sync \
+		-target=kubernetes_service.pihole_dns_sync
+
 # Kubernetes helpers
 k8s-status: ## Show Kubernetes cluster status
 	@echo "=== Cluster Info ==="
@@ -89,21 +227,124 @@ k8s-status: ## Show Kubernetes cluster status
 	@echo "=== All Pods ==="
 	kubectl get pods --all-namespaces -o wide
 
+# Component-specific Debugging
+debug-networking: ## Debug networking components (MetalLB, Metrics Server)
+	@echo "=== Networking Component Debug ==="
+	@echo "Terraform Resources:"
+	@terraform state list | grep -E "(metallb|metrics_server)" || echo "No networking resources found in state"
+	@echo ""
+	@echo "MetalLB Pods:"
+	@kubectl get pods -n metallb-system -o wide 2>/dev/null || echo "MetalLB namespace not found"
+	@echo ""
+	@echo "MetalLB Configuration:"
+	@kubectl get bgppeers,ipaddresspools,bgpadvertisements -n metallb-system 2>/dev/null || echo "MetalLB CRDs not found"
+	@echo ""
+	@echo "Metrics Server Pods:"
+	@kubectl get pods -n kube-system -l app.kubernetes.io/name=metrics-server 2>/dev/null || echo "Metrics Server not found"
+
+debug-storage: ## Debug storage components (Longhorn)
+	@echo "=== Storage Component Debug ==="
+	@echo "Terraform Resources:"
+	@terraform state list | grep longhorn || echo "No storage resources found in state"
+	@echo ""
+	@echo "Longhorn Pods:"
+	@kubectl get pods -n longhorn-system -o wide 2>/dev/null || echo "Longhorn namespace not found"
+	@echo ""
+	@echo "Storage Classes:"
+	@kubectl get storageclass 2>/dev/null || echo "No storage classes found"
+	@echo ""
+	@echo "Persistent Volumes:"
+	@kubectl get pv,pvc --all-namespaces 2>/dev/null || echo "No persistent volumes found"
+
+debug-monitoring: ## Debug monitoring components (Prometheus, Grafana)
+	@echo "=== Monitoring Component Debug ==="
+	@echo "Terraform Resources:"
+	@terraform state list | grep prometheus || echo "No monitoring resources found in state"
+	@echo ""
+	@echo "Monitoring Pods:"
+	@kubectl get pods -n monitoring -o wide 2>/dev/null || echo "Monitoring namespace not found"
+	@echo ""
+	@echo "Services:"
+	@kubectl get svc -n monitoring 2>/dev/null || echo "No monitoring services found"
+	@echo ""
+	@echo "ServiceMonitors:"
+	@kubectl get servicemonitors -A 2>/dev/null || echo "No ServiceMonitors found"
+
+debug-applications: ## Debug application components (Baget)
+	@echo "=== Applications Component Debug ==="
+	@echo "Terraform Resources:"
+	@terraform state list | grep baget || echo "No application resources found in state"
+	@echo ""
+	@echo "Application Pods:"
+	@kubectl get pods -n baget -o wide 2>/dev/null || echo "Baget namespace not found"
+	@echo ""
+	@echo "Application Services:"
+	@kubectl get svc -n baget 2>/dev/null || echo "No Baget services found"
+	@echo ""
+	@echo "Application Storage:"
+	@kubectl get pvc -n baget 2>/dev/null || echo "No Baget storage found"
+
+debug-dns: ## Debug DNS components (Pi-hole sync)
+	@echo "=== DNS Component Debug ==="
+	@echo "Terraform Resources:"
+	@terraform state list | grep pihole || echo "No DNS resources found in state"
+	@echo ""
+	@echo "Pi-hole Sync Pods:"
+	@kubectl get pods -n kube-system -l app.kubernetes.io/name=pihole-dns-sync -o wide 2>/dev/null || echo "Pi-hole sync not found"
+	@echo ""
+	@echo "Pi-hole Sync Logs (last 20 lines):"
+	@kubectl logs -n kube-system -l app.kubernetes.io/name=pihole-dns-sync --tail=20 2>/dev/null || echo "No Pi-hole sync logs found"
+
+# Component-specific Status
+status-networking: ## Show networking component status
+	@echo "=== Networking Status ==="
+	@kubectl get pods -n metallb-system 2>/dev/null || echo "MetalLB not deployed"
+	@kubectl get pods -n kube-system -l app.kubernetes.io/name=metrics-server 2>/dev/null || echo "Metrics Server not deployed"
+	@kubectl get bgppeers,ipaddresspools -n metallb-system 2>/dev/null || echo "MetalLB config not found"
+
+status-storage: ## Show storage component status
+	@echo "=== Storage Status ==="
+	@kubectl get pods -n longhorn-system 2>/dev/null || echo "Longhorn not deployed"
+	@kubectl get storageclass longhorn 2>/dev/null || echo "Longhorn StorageClass not found"
+	@kubectl get svc -n longhorn-system longhorn-frontend-lb 2>/dev/null || echo "Longhorn UI service not found"
+
+status-monitoring: ## Show monitoring component status
+	@echo "=== Monitoring Status ==="
+	@kubectl get pods -n monitoring 2>/dev/null || echo "Monitoring not deployed"
+	@kubectl get svc -n monitoring | grep LoadBalancer 2>/dev/null || echo "No monitoring LoadBalancer services found"
+
+status-applications: ## Show application component status
+	@echo "=== Applications Status ==="
+	@kubectl get pods -n baget 2>/dev/null || echo "Baget not deployed"
+	@kubectl get svc -n baget baget-service 2>/dev/null || echo "Baget service not found"
+
+status-dns: ## Show DNS component status
+	@echo "=== DNS Status ==="
+	@kubectl get pods -n kube-system -l app.kubernetes.io/name=pihole-dns-sync 2>/dev/null || echo "Pi-hole sync not deployed"
+	@echo "Recent Pi-hole sync activity:"
+	@kubectl logs -n kube-system -l app.kubernetes.io/name=pihole-dns-sync --tail=5 2>/dev/null || echo "No recent activity"
+
 logs: ## Show logs for all deployed applications
-	@echo "=== MetalLB Logs ==="
-	kubectl logs -n metallb-system -l app=metallb --tail=10
+	@echo "=== All Component Logs ==="
+	@echo "MetalLB Logs:"
+	@kubectl logs -n metallb-system -l app=metallb --tail=5 2>/dev/null || echo "No MetalLB logs"
 	@echo ""
-	@echo "=== Longhorn Logs ==="
-	kubectl logs -n longhorn-system -l app=longhorn-manager --tail=10
+	@echo "Longhorn Logs:"
+	@kubectl logs -n longhorn-system -l app=longhorn-manager --tail=5 2>/dev/null || echo "No Longhorn logs"
 	@echo ""
-	@echo "=== Prometheus Logs ==="
-	kubectl logs -n monitoring -l app.kubernetes.io/name=prometheus --tail=10
+	@echo "Prometheus Logs:"
+	@kubectl logs -n monitoring -l app.kubernetes.io/name=prometheus --tail=5 2>/dev/null || echo "No Prometheus logs"
 	@echo ""
-	@echo "=== Grafana Logs ==="
-	kubectl logs -n monitoring -l app.kubernetes.io/name=grafana --tail=10
+	@echo "Grafana Logs:"
+	@kubectl logs -n monitoring -l app.kubernetes.io/name=grafana --tail=5 2>/dev/null || echo "No Grafana logs"
 	@echo ""
-	@echo "=== Baget Logs ==="
-	kubectl logs -n baget -l app=baget --tail=10
+	@echo "Baget Logs:"
+	@kubectl logs -n baget -l app=baget --tail=5 2>/dev/null || echo "No Baget logs"
+	@echo ""
+	@echo "Pi-hole Sync Logs:"
+	@kubectl logs -n kube-system -l app.kubernetes.io/name=pihole-dns-sync --tail=5 2>/dev/null || echo "No Pi-hole sync logs"
+	@echo ""
+	@echo "Use 'make debug-<component>' for detailed component debugging"
 
 # BGP helpers
 bgp-status: ## Check BGP configuration status
@@ -121,3 +362,88 @@ bgp-status: ## Check BGP configuration status
 	@echo "set protocols bgp 65001 neighbor 192.168.0.0/24 remote-as 65002"
 	@echo "commit"
 	@echo "save"
+
+# Workflow Shortcuts
+deploy-core: ## Deploy core infrastructure (networking + storage)
+	@echo "Deploying core infrastructure (networking + storage)..."
+	$(MAKE) apply-networking
+	$(MAKE) apply-storage
+
+deploy-apps: ## Deploy applications (monitoring + apps + dns)
+	@echo "Deploying applications (monitoring + apps + dns)..."
+	$(MAKE) apply-monitoring
+	$(MAKE) apply-applications
+	$(MAKE) apply-dns
+
+plan-all-components: ## Plan all components individually
+	@echo "Planning all components..."
+	$(MAKE) plan-networking
+	$(MAKE) plan-storage
+	$(MAKE) plan-monitoring
+	$(MAKE) plan-applications
+	$(MAKE) plan-dns
+
+status-all-components: ## Show status for all components
+	@echo "Checking all component status..."
+	$(MAKE) status-networking
+	$(MAKE) status-storage
+	$(MAKE) status-monitoring
+	$(MAKE) status-applications
+	$(MAKE) status-dns
+
+show-structure: ## Show the modular file structure
+	@echo "Terraform Modular File Structure:"
+	@echo "================================="
+	@echo ""
+	@ls -la *.tf 2>/dev/null | awk '{print $$9, "(" $$5 " bytes)"}' | grep -v "^(" || echo "No .tf files found"
+	@echo ""
+	@echo "File Purposes:"
+	@echo "-------------"
+	@echo "providers.tf     - Terraform and provider configurations"
+	@echo "variables.tf     - All variable definitions"
+	@echo "outputs.tf       - All output definitions"
+	@echo "namespaces.tf    - Kubernetes namespace resources"
+	@echo "networking.tf    - MetalLB load balancer and metrics server"
+	@echo "storage.tf       - Longhorn distributed storage"
+	@echo "monitoring.tf    - Prometheus, Grafana, and AlertManager"
+	@echo "applications.tf  - Application deployments (Baget)"
+	@echo "dns.tf          - Pi-hole DNS sync for automatic service discovery"
+	@echo ""
+	@echo "Use 'make list-components' to see what each file contains"
+
+quick-debug: ## Quick debug of all components
+	@echo "=== Quick Debug Overview ==="
+	@echo "Terraform Resources:"
+	@terraform state list 2>/dev/null | wc -l | xargs -I {} echo "  Total: {}" || echo "  No state found"
+	@echo ""
+	@echo "Kubernetes Resources:"
+	@kubectl get pods --all-namespaces --no-headers 2>/dev/null | wc -l | xargs -I {} echo "  Total Pods: {}" || echo "  Cannot connect to cluster"
+	@kubectl get svc --all-namespaces --no-headers | grep LoadBalancer 2>/dev/null | wc -l | xargs -I {} echo "  LoadBalancer Services: {}" || echo "  No LoadBalancer services"
+	@echo ""
+	@echo "Component Health:"
+	@kubectl get pods -n metallb-system --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  MetalLB: {} pods running" || echo "  MetalLB: Not deployed"
+	@kubectl get pods -n longhorn-system --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  Longhorn: {} pods running" || echo "  Longhorn: Not deployed"
+	@kubectl get pods -n monitoring --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  Monitoring: {} pods running" || echo "  Monitoring: Not deployed"
+	@kubectl get pods -n baget --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  Baget: {} pods running" || echo "  Baget: Not deployed"
+	@kubectl get pods -n kube-system -l app.kubernetes.io/name=pihole-dns-sync --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  Pi-hole Sync: {} pods running" || echo "  Pi-hole Sync: Not deployed"
+	@echo ""
+	@echo "Use 'make debug-<component>' for detailed debugging"
+
+# Advanced workflows
+taint-component: ## Taint a component for recreation (usage: make taint-component COMPONENT=storage)
+ifndef COMPONENT
+	@echo "Error: COMPONENT variable required"
+	@echo "Usage: make taint-component COMPONENT=<networking|storage|monitoring|applications|dns>"
+	@echo "Example: make taint-component COMPONENT=storage"
+	@exit 1
+endif
+	@echo "Tainting $(COMPONENT) component for recreation..."
+	@case "$(COMPONENT)" in \
+		networking) terraform taint helm_release.metallb ;; \
+		storage) terraform taint helm_release.longhorn ;; \
+		monitoring) terraform taint helm_release.prometheus_stack ;; \
+		applications) terraform taint kubernetes_deployment.baget ;; \
+		dns) terraform taint kubernetes_deployment.pihole_dns_sync ;; \
+		*) echo "Invalid component: $(COMPONENT)" && exit 1 ;; \
+	esac
+	@echo "Component $(COMPONENT) tainted. Run 'make apply-$(COMPONENT)' to recreate."
