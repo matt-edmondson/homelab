@@ -71,8 +71,8 @@ resource "helm_release" "prometheus_stack" {
           storageSpec = {
             volumeClaimTemplate = {
               spec = {
-                # Uses default storage class
                 accessModes      = ["ReadWriteOnce"]
+                storageClassName = kubernetes_storage_class.longhorn.metadata[0].name
                 resources = {
                   requests = {
                     storage = var.prometheus_storage_size
@@ -90,9 +90,9 @@ resource "helm_release" "prometheus_stack" {
       grafana = {
         adminPassword = var.grafana_admin_password
         persistence = {
-          enabled = true
-          # Uses default storage class
-          size    = var.grafana_storage_size
+          enabled          = true
+          storageClassName = kubernetes_storage_class.longhorn.metadata[0].name
+          size             = var.grafana_storage_size
         }
         service = {
           type = "LoadBalancer"  # kube-vip will assign DHCP IP
@@ -136,8 +136,8 @@ resource "helm_release" "prometheus_stack" {
           storage = {
             volumeClaimTemplate = {
               spec = {
-                # Uses default storage class
                 accessModes      = ["ReadWriteOnce"]
+                storageClassName = kubernetes_storage_class.longhorn.metadata[0].name
                 resources = {
                   requests = {
                     storage = var.alertmanager_storage_size
@@ -153,7 +153,8 @@ resource "helm_release" "prometheus_stack" {
 
   depends_on = [
     kubernetes_namespace.monitoring,
-    helm_release.longhorn,  # Ensure storage is available for PVCs
+    helm_release.longhorn,  # Ensure storage backend is available
+    kubernetes_storage_class.longhorn,  # Ensure default storage class exists
     kubernetes_daemonset.kube_vip  # Ensure LoadBalancer support is available
   ]
 }
