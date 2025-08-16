@@ -59,7 +59,7 @@ resource "kubernetes_secret" "baget_secrets" {
   }
   
   data = {
-    ApiKey = base64encode(var.baget_api_key)
+    ApiKey = var.baget_api_key
   }
   
   type = "Opaque"
