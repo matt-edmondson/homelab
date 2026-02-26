@@ -55,7 +55,27 @@ resource "helm_release" "longhorn" {
           priorityClass = "longhorn-critical"
         }
       }
-
+      
+      # Configure StorageClass with correct replica count
+      global = {
+        storageClass = {
+          defaultClass = true
+          reclaimPolicy = "Delete"
+          allowVolumeExpansion = true
+          parameters = {
+            numberOfReplicas = tostring(var.longhorn_replica_count)
+            staleReplicaTimeout = "30"
+            fromBackup = ""
+            fsType = "ext4"
+            dataLocality = "disabled"
+            unmapMarkSnapChainRemoved = "ignored"
+            disableRevisionCounter = "true"
+            dataEngine = "v1"
+            backupTargetName = "default"
+          }
+        }
+      }
+      
       # Image pull policy for better reliability
       image = {
         pullPolicy = "IfNotPresent"
