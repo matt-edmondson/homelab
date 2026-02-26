@@ -1,0 +1,79 @@
+# =============================================================================
+# Azure DNS Records
+# =============================================================================
+# Creates individual A records in Azure DNS for each service subdomain,
+# pointing to the external IP that port-forwards to the homelab router.
+# =============================================================================
+
+# Variables
+variable "azure_dns_zone_name" {
+  description = "Azure DNS zone name (e.g. example.com)"
+  type        = string
+}
+
+variable "external_ip" {
+  description = "External/public IP address that forwards to the homelab router (ports 80/443 -> Traefik)"
+  type        = string
+}
+
+variable "dns_ttl" {
+  description = "TTL in seconds for DNS A records"
+  type        = number
+  default     = 300
+}
+
+# Azure provider configuration (uses same credentials as DNS challenge)
+provider "azurerm" {
+  features {}
+
+  client_id       = var.azure_dns_client_id
+  client_secret   = var.azure_dns_client_secret
+  tenant_id       = var.azure_dns_tenant_id
+  subscription_id = var.azure_dns_subscription_id
+}
+
+# Look up the existing Azure DNS zone
+data "azurerm_dns_zone" "main" {
+  name                = var.azure_dns_zone_name
+  resource_group_name = var.azure_dns_resource_group
+}
+
+locals {
+  # All service subdomains that need A records
+  dns_records = {
+    traefik      = "traefik"
+    grafana      = "grafana"
+    prometheus   = "prometheus"
+    alertmanager = "alertmanager"
+    packages     = "packages"
+    longhorn     = "longhorn"
+    dashboard    = "dashboard"
+  }
+}
+
+# Create A records for each service subdomain
+resource "azurerm_dns_a_record" "services" {
+  for_each = local.dns_records
+
+  name                = each.value
+  zone_name           = data.azurerm_dns_zone.main.name
+  resource_group_name = var.azure_dns_resource_group
+  ttl                 = var.dns_ttl
+  records             = [var.external_ip]
+
+  tags = var.common_labels
+}
+
+# Outputs
+output "dns_info" {
+  description = "Azure DNS record information"
+  value = {
+    zone    = data.azurerm_dns_zone.main.name
+    records = { for k, v in azurerm_dns_a_record.services : k => "${v.name}.${data.azurerm_dns_zone.main.name}" }
+    ip      = var.external_ip
+    ttl     = var.dns_ttl
+    commands = {
+      verify = "nslookup grafana.${var.azure_dns_zone_name}"
+    }
+  }
+}

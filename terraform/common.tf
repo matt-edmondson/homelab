@@ -14,6 +14,10 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 3.0.2"
     }
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "~> 4.0"
+    }
   }
 }
 
@@ -28,7 +32,7 @@ variable "common_labels" {
   description = "Common labels to apply to all resources"
   type        = map(string)
   default = {
-    "managed-by" = "terraform"
+    "managed-by"  = "terraform"
     "environment" = "homelab"
   }
 }
@@ -53,7 +57,7 @@ provider "helm" {
 # Metrics Server Installation (optional)
 resource "helm_release" "metrics_server" {
   count = var.metrics_server_enabled ? 1 : 0
-  
+
   name       = "metrics-server"
   repository = "https://kubernetes-sigs.github.io/metrics-server/"
   chart      = "metrics-server"
@@ -70,7 +74,7 @@ resource "helm_release" "metrics_server" {
       value = "--kubelet-insecure-tls"
     },
     {
-      name  = "args[1]"  
+      name  = "args[1]"
       value = "--kubelet-preferred-address-types=InternalIP\\,ExternalIP\\,Hostname"
     },
     {
@@ -98,10 +102,10 @@ resource "helm_release" "metrics_server" {
       value = "500Mi"
     }
   ]
-  
+
   # Add timeout for metrics-server to be ready
   timeout = 300
-  
+
   # Wait for deployment to be ready before allowing dependents
   wait          = true
   wait_for_jobs = true
@@ -113,7 +117,7 @@ resource "helm_release" "metrics_server" {
 
 resource "kubernetes_cluster_role" "system_node_proxier" {
   metadata {
-    name = "system:node-proxier"
+    name   = "system:node-proxier"
     labels = var.common_labels
   }
 
@@ -144,7 +148,7 @@ resource "kubernetes_cluster_role" "system_node_proxier" {
 
 resource "kubernetes_cluster_role_binding" "system_node_proxier" {
   metadata {
-    name = "system:node-proxier"
+    name   = "system:node-proxier"
     labels = var.common_labels
   }
 
@@ -166,15 +170,15 @@ output "cluster_info" {
   description = "General cluster information"
   value = {
     metrics_server_enabled = var.metrics_server_enabled
-    common_labels         = var.common_labels
-    
+    common_labels          = var.common_labels
+
     commands = {
-      check_all_pods     = "kubectl get pods --all-namespaces"
-      check_all_services = "kubectl get services --all-namespaces"
+      check_all_pods      = "kubectl get pods --all-namespaces"
+      check_all_services  = "kubectl get services --all-namespaces"
       check_loadbalancers = "kubectl get services --all-namespaces | grep LoadBalancer"
-      check_storage      = "kubectl get pv,pvc --all-namespaces"
+      check_storage       = "kubectl get pv,pvc --all-namespaces"
     }
-    
+
     metrics_usage = var.metrics_server_enabled ? [
       "kubectl top nodes",
       "kubectl top pods --all-namespaces"

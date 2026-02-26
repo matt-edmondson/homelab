@@ -2,8 +2,8 @@
 # We'll hardcode the help sections for reliability
 
 .PHONY: help init plan apply destroy force-clean destroy-clean validate format lint check-vars status clean \
-	plan-networking plan-storage plan-monitoring plan-applications plan-dns plan-traefik plan-ingress \
-	apply-networking apply-storage apply-monitoring apply-applications apply-dns apply-traefik apply-ingress \
+	plan-networking plan-storage plan-monitoring plan-applications plan-dns plan-traefik plan-ingress plan-azure-dns \
+	apply-networking apply-storage apply-monitoring apply-applications apply-dns apply-traefik apply-ingress apply-azure-dns \
 	debug-networking debug-storage debug-monitoring debug-applications debug-dns debug-traefik debug-ingress \
 	status-networking status-storage status-monitoring status-applications status-dns status-traefik status-ingress \
 	list-components deploy-core deploy-apps plan-all-components status-all-components \
@@ -481,6 +481,12 @@ plan-ingress: check-vars check-init ## Plan ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_longhorn \
 		-target=kubernetes_manifest.ingressroute_dashboard
 
+plan-azure-dns: check-vars check-init ## Plan Azure DNS A records
+	@echo "Planning Azure DNS records..."
+	terraform plan \
+		-target=data.azurerm_dns_zone.main \
+		-target=azurerm_dns_a_record.services
+
 # Component-specific Deployment
 apply-networking: check-vars check-init ## Deploy networking components (MetalLB, Metrics Server)
 	@echo "Deploying networking components..."
@@ -552,6 +558,12 @@ apply-ingress: check-vars check-init ## Deploy ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_baget \
 		-target=kubernetes_manifest.ingressroute_longhorn \
 		-target=kubernetes_manifest.ingressroute_dashboard
+
+apply-azure-dns: check-vars check-init ## Deploy Azure DNS A records
+	@echo "Deploying Azure DNS records..."
+	terraform apply -auto-approve \
+		-target=data.azurerm_dns_zone.main \
+		-target=azurerm_dns_a_record.services
 
 # Kubernetes helpers
 k8s-status: ## Show Kubernetes cluster status
@@ -792,12 +804,13 @@ bgp-status: ## Check BGP configuration status
 	@echo "save"
 
 # Workflow Shortcuts
-deploy-core: ## Deploy core infrastructure (networking + storage + traefik)
-	@echo "Deploying core infrastructure (networking + storage + traefik)..."
+deploy-core: ## Deploy core infrastructure (networking + storage + traefik + dns)
+	@echo "Deploying core infrastructure (networking + storage + traefik + dns)..."
 	$(MAKE) apply-networking
 	$(MAKE) apply-storage
 	$(MAKE) apply-traefik
 	$(MAKE) apply-ingress
+	$(MAKE) apply-azure-dns
 
 deploy-apps: ## Deploy applications (monitoring + apps + dns)
 	@echo "Deploying applications (monitoring + apps + dns)..."

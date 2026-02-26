@@ -55,6 +55,9 @@ azure_dns_client_secret   = "your-azure-app-client-secret"
 azure_dns_tenant_id       = "your-azure-tenant-id"
 azure_dns_subscription_id = "your-azure-subscription-id"
 azure_dns_resource_group  = "your-dns-zone-resource-group"
+azure_dns_zone_name       = "example.com"             # Azure DNS zone name (must match traefik_domain)
+external_ip               = "203.0.113.1"             # Your public/external IP (router WAN IP, forwards 80/443 to Traefik)
+dns_ttl                   = 300                        # TTL for DNS A records in seconds
 
 # Traefik Basic Auth (htpasswd format — generate with: htpasswd -nb username password)
 traefik_basic_auth_users  = "admin:$apr1$xyz$hashedpassword"
