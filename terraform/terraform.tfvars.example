@@ -2,69 +2,69 @@
 # cp terraform.tfvars.example terraform.tfvars
 
 # Kubernetes Configuration
-kubeconfig_path = "~/.kube/config"
+#kubeconfig_path = "~/.kube/config"
 
 # kube-vip Configuration (DHCP LoadBalancer)
-kube_vip_version   = "v0.6.4"    # kube-vip container version
-kube_vip_interface = "eth0"      # Network interface (usually eth0, ens160, or enp0s3)
+#kube_vip_version   = "v0.6.4"    # kube-vip container version
+#kube_vip_interface = "eth0"      # Network interface (usually eth0, ens160, or enp0s3)
 
 # Security Configuration
-baget_api_key           = "your-very-secure-api-key-here-generate-a-random-one"
-grafana_admin_password  = "your-secure-grafana-password"
+#baget_api_key           = "your-very-secure-api-key-here-generate-a-random-one"
+#grafana_admin_password  = "your-secure-grafana-password"
 
 # Storage Configuration
-longhorn_replica_count     = 2
-baget_storage_size        = "10Gi"
-prometheus_storage_size   = "20Gi"
-grafana_storage_size      = "10Gi"
-alertmanager_storage_size = "5Gi"
+#longhorn_replica_count     = 2
+#baget_storage_size        = "10Gi"
+#prometheus_storage_size   = "20Gi"
+#grafana_storage_size      = "10Gi"
+#alertmanager_storage_size = "5Gi"
 
 # Resource Configuration
-baget_memory_request = "256Mi"
-baget_memory_limit   = "512Mi"
-baget_cpu_request    = "250m"
-baget_cpu_limit      = "500m"
+#baget_memory_request = "256Mi"
+#baget_memory_limit   = "512Mi"
+#baget_cpu_request    = "250m"
+#baget_cpu_limit      = "500m"
 
 # Chart Versions (update as needed)
-flannel_version                   = "v0.27.2"           # Flannel container version
-flannel_cni_plugin_version        = "v1.7.1-flannel2"  # CNI plugin binary version
-flannel_network_cidr              = "10.244.0.0/16"    # Pod network CIDR
-longhorn_chart_version            = "1.6.2"
-prometheus_stack_chart_version    = "57.2.0"
-kubernetes_dashboard_chart_version = "7.13.0"
+#flannel_version                   = "v0.27.2"           # Flannel container version
+#flannel_cni_plugin_version        = "v1.7.1-flannel2"  # CNI plugin binary version
+#flannel_network_cidr              = "10.244.0.0/16"    # Pod network CIDR
+#longhorn_chart_version            = "1.6.2"
+#prometheus_stack_chart_version    = "57.2.0"
+#kubernetes_dashboard_chart_version = "7.13.0"
 
 # Metrics Server (recommended for kubectl top and HPA)
-metrics_server_enabled = true
+#metrics_server_enabled = true
 
 # Kubernetes Dashboard Configuration (homelab-optimized)
-dashboard_enable_skip_login      = true     # Skip login button (convenient for homelab)
-dashboard_enable_insecure_login  = true     # Allow HTTP access (less secure but convenient)
-dashboard_session_lifetime       = 43200    # Session timeout in seconds (12 hours)
-dashboard_auto_generate_certificates = true # Auto-generate TLS certificates
+#dashboard_enable_skip_login      = true     # Skip login button (convenient for homelab)
+#dashboard_enable_insecure_login  = true     # Allow HTTP access (less secure but convenient)
+#dashboard_session_lifetime       = 43200    # Session timeout in seconds (12 hours)
+#dashboard_auto_generate_certificates = true # Auto-generate TLS certificates
 
 # Traefik Reverse Proxy Configuration
-traefik_chart_version     = "34.5.0"
-traefik_domain            = "example.com"            # Your domain (services will be at grafana.example.com, etc.)
-traefik_acme_email        = "admin@example.com"      # Let's Encrypt registration email
-traefik_log_level         = "ERROR"
-traefik_acme_storage_size = "1Gi"
+#traefik_chart_version     = "34.5.0"
+#traefik_domain            = "example.com"            # Your domain (services will be at grafana.example.com, etc.)
+#traefik_acme_email        = "admin@example.com"      # Let's Encrypt registration email
+#traefik_log_level         = "ERROR"
+#traefik_acme_storage_size = "1Gi"
 
 # Azure DNS Challenge Credentials (for Let's Encrypt ACME)
-azure_dns_client_id       = "your-azure-app-client-id"
-azure_dns_client_secret   = "your-azure-app-client-secret"
-azure_dns_tenant_id       = "your-azure-tenant-id"
-azure_dns_subscription_id = "your-azure-subscription-id"
-azure_dns_resource_group  = "your-dns-zone-resource-group"
-azure_dns_zone_name       = "example.com"             # Azure DNS zone name (must match traefik_domain)
-external_ip               = "203.0.113.1"             # Your public/external IP (router WAN IP, forwards 80/443 to Traefik)
-dns_ttl                   = 300                        # TTL for DNS A records in seconds
+#azure_dns_client_id       = "your-azure-app-client-id"
+#azure_dns_client_secret   = "your-azure-app-client-secret"
+#azure_dns_tenant_id       = "your-azure-tenant-id"
+#azure_dns_subscription_id = "your-azure-subscription-id"
+#azure_dns_resource_group  = "your-dns-zone-resource-group"
+#azure_dns_zone_name       = "example.com"             # Azure DNS zone name (must match traefik_domain)
+#external_ip               = "203.0.113.1"             # Your public/external IP (router WAN IP, forwards 80/443 to Traefik)
+#dns_ttl                   = 300                        # TTL for DNS A records in seconds
 
 # Traefik Basic Auth (htpasswd format — generate with: htpasswd -nb username password)
-traefik_basic_auth_users  = "admin:$apr1$xyz$hashedpassword"
+#traefik_basic_auth_users  = "admin:$apr1$xyz$hashedpassword"
 
 # Traefik Rate Limiting
-rate_limit_average = 100    # Requests per second
-rate_limit_burst   = 200    # Maximum burst size
+#rate_limit_average = 100    # Requests per second
+#rate_limit_burst   = 200    # Maximum burst size
 
 # DNS Setup (after deployment):
 # 1. Deploy Traefik: make apply-traefik
@@ -74,21 +74,21 @@ rate_limit_burst   = 200    # Maximum burst size
 
 # Static Sites Configuration
 # Each site needs a domain, git repo URL, and branch
-static_sites = [
+#static_sites = [
   # { domain = "example.com", repo_url = "https://github.com/user/site.git", branch = "main" },
-]
-static_sites_git_poll_interval = "60"       # Seconds between git pulls
-static_sites_nginx_image       = "nginx:alpine"
-static_sites_git_image         = "alpine/git:latest"
-static_sites_memory_request    = "64Mi"
-static_sites_memory_limit      = "128Mi"
-static_sites_cpu_request       = "50m"
-static_sites_cpu_limit         = "200m"
+#]
+#static_sites_git_poll_interval = "60"       # Seconds between git pulls
+#static_sites_nginx_image       = "nginx:alpine"
+#static_sites_git_image         = "alpine/git:latest"
+#static_sites_memory_request    = "64Mi"
+#static_sites_memory_limit      = "128Mi"
+#static_sites_cpu_request       = "50m"
+#static_sites_cpu_limit         = "200m"
 # static_sites_git_credentials = "https://user:token@github.com"  # For private repos
 
 # Labels
-common_labels = {
-  "managed-by"  = "terraform"
-  "environment" = "homelab"
-  "cluster"     = "main"
-}
+#common_labels = {
+#  "managed-by"  = "terraform"
+#  "environment" = "homelab"
+#  "cluster"     = "main"
+#}
