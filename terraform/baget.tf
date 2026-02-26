@@ -57,11 +57,11 @@ resource "kubernetes_secret" "baget_secrets" {
     namespace = kubernetes_namespace.baget.metadata[0].name
     labels    = var.common_labels
   }
-  
+
   data = {
     ApiKey = var.baget_api_key
   }
-  
+
   type = "Opaque"
 }
 
@@ -72,7 +72,7 @@ resource "kubernetes_config_map" "baget_config" {
     namespace = kubernetes_namespace.baget.metadata[0].name
     labels    = var.common_labels
   }
-  
+
   data = {
     "appsettings.json" = jsonencode({
       Database = {
@@ -91,7 +91,7 @@ resource "kubernetes_config_map" "baget_config" {
       }
       PackageDeletionBehavior = "Unlist"
       AllowPackageOverwrites  = false
-      ApiKey                  = ""  # Set via environment variable
+      ApiKey                  = "" # Set via environment variable
     })
   }
 }
@@ -99,8 +99,8 @@ resource "kubernetes_config_map" "baget_config" {
 # Baget Persistent Volume Claim
 resource "kubernetes_persistent_volume_claim" "baget_data" {
   depends_on = [
-    helm_release.longhorn,  # Ensure storage backend is available
-    data.kubernetes_storage_class.longhorn  # Ensure default storage class exists
+    helm_release.longhorn,                 # Ensure storage backend is available
+    data.kubernetes_storage_class.longhorn # Ensure default storage class exists
   ]
 
   metadata {
@@ -108,7 +108,7 @@ resource "kubernetes_persistent_volume_claim" "baget_data" {
     namespace = kubernetes_namespace.baget.metadata[0].name
     labels    = var.common_labels
   }
-  
+
   spec {
     access_modes       = ["ReadWriteOnce"]
     storage_class_name = data.kubernetes_storage_class.longhorn.metadata[0].name
@@ -127,7 +127,7 @@ resource "kubernetes_deployment" "baget" {
     kubernetes_persistent_volume_claim.baget_data,
     kubernetes_secret.baget_secrets,
     kubernetes_config_map.baget_config,
-    helm_release.longhorn  # Ensure storage backend is available
+    helm_release.longhorn # Ensure storage backend is available
   ]
 
   metadata {
@@ -137,7 +137,7 @@ resource "kubernetes_deployment" "baget" {
       "app.kubernetes.io/name" = "baget"
     })
   }
-  
+
   spec {
     replicas = 1
     selector {
@@ -145,33 +145,33 @@ resource "kubernetes_deployment" "baget" {
         app = "baget"
       }
     }
-    
+
     template {
       metadata {
         labels = merge(var.common_labels, {
           app = "baget"
         })
       }
-      
+
       spec {
         container {
           name  = "baget"
           image = "loicsharma/baget:latest"
-          
+
           port {
             container_port = 80
           }
-          
+
           env {
             name  = "ASPNETCORE_URLS"
             value = "http://+:80"
           }
-          
+
           env {
             name  = "ASPNETCORE_ENVIRONMENT"
             value = "Production"
           }
-          
+
           env {
             name = "ApiKey"
             value_from {
@@ -181,18 +181,18 @@ resource "kubernetes_deployment" "baget" {
               }
             }
           }
-          
+
           volume_mount {
             name       = "baget-data"
             mount_path = "/app/data"
           }
-          
+
           volume_mount {
             name       = "baget-config"
             mount_path = "/app/appsettings.json"
             sub_path   = "appsettings.json"
           }
-          
+
           resources {
             requests = {
               memory = var.baget_memory_request
@@ -203,7 +203,7 @@ resource "kubernetes_deployment" "baget" {
               cpu    = var.baget_cpu_limit
             }
           }
-          
+
           liveness_probe {
             http_get {
               path = "/"
@@ -212,7 +212,7 @@ resource "kubernetes_deployment" "baget" {
             initial_delay_seconds = 30
             period_seconds        = 10
           }
-          
+
           readiness_probe {
             http_get {
               path = "/"
@@ -222,14 +222,14 @@ resource "kubernetes_deployment" "baget" {
             period_seconds        = 5
           }
         }
-        
+
         volume {
           name = "baget-data"
           persistent_volume_claim {
             claim_name = kubernetes_persistent_volume_claim.baget_data.metadata[0].name
           }
         }
-        
+
         volume {
           name = "baget-config"
           config_map {
@@ -241,11 +241,10 @@ resource "kubernetes_deployment" "baget" {
   }
 }
 
-# Baget LoadBalancer Service (gets DHCP IP from kube-vip)
+# Baget Service
 resource "kubernetes_service" "baget" {
   depends_on = [
-    kubernetes_deployment.baget,
-    kubernetes_daemonset.kube_vip  # Ensure LoadBalancer support is available
+    kubernetes_deployment.baget
   ]
 
   metadata {
@@ -254,18 +253,14 @@ resource "kubernetes_service" "baget" {
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "baget"
     })
-    annotations = {
-      "kube-vip.io/loadbalancerHostname" = "baget"
-    }
   }
-  
+
   spec {
-    type             = "LoadBalancer"
-    load_balancer_ip = "0.0.0.0"  # Trigger kube-vip DHCP behavior
+    type = "ClusterIP"
     selector = {
       app = "baget"
     }
-    
+
     port {
       protocol    = "TCP"
       port        = 80
@@ -278,31 +273,26 @@ resource "kubernetes_service" "baget" {
 output "baget_info" {
   description = "Baget NuGet server information"
   value = {
-    namespace     = kubernetes_namespace.baget.metadata[0].name
-    service_name  = kubernetes_service.baget.metadata[0].name
-    storage_size  = var.baget_storage_size
-    ip_address    = try(
-      kubernetes_service.baget.status[0].load_balancer[0].ingress[0].ip,
-      "pending (will be assigned by router DHCP)"
-    )
-    
+    namespace    = kubernetes_namespace.baget.metadata[0].name
+    service_name = kubernetes_service.baget.metadata[0].name
+    storage_size = var.baget_storage_size
+
     access = {
-      web_ui = "Access Baget at: http://<dhcp-assigned-ip>"
-      nuget_url = "http://<dhcp-assigned-ip>/v3/index.json"
+      web_ui    = "https://baget.${var.traefik_domain}"
+      nuget_url = "https://baget.${var.traefik_domain}/v3/index.json"
     }
-    
+
     usage = {
-      add_source = "dotnet nuget add source http://<dhcp-assigned-ip>/v3/index.json -n \"Homelab Baget\""
-      push_package = "dotnet nuget push package.nupkg -s http://<dhcp-assigned-ip>/v3/index.json -k <your-api-key>"
+      add_source   = "dotnet nuget add source https://baget.${var.traefik_domain}/v3/index.json -n \"Homelab Baget\""
+      push_package = "dotnet nuget push package.nupkg -s https://baget.${var.traefik_domain}/v3/index.json -k <your-api-key>"
     }
-    
+
     commands = {
       check_pods = "kubectl get pods -n ${kubernetes_namespace.baget.metadata[0].name}"
       check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.baget.metadata[0].name}"
-      get_ip     = "kubectl get svc -n ${kubernetes_namespace.baget.metadata[0].name} baget-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}'"
       logs       = "kubectl logs -n ${kubernetes_namespace.baget.metadata[0].name} -l app=baget -f"
     }
   }
-  
-  sensitive = true  # Contains API key info
+
+  sensitive = true
 }

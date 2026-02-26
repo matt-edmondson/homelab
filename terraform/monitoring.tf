@@ -84,11 +84,7 @@ resource "helm_release" "prometheus_stack" {
           retention = var.prometheus_retention
         }
         service = {
-          type           = "LoadBalancer"
-          loadBalancerIP = "0.0.0.0"  # Trigger kube-vip DHCP behavior
-          annotations = {
-            "kube-vip.io/loadbalancerHostname" = "prometheus"
-          }
+          type = "ClusterIP"
         }
       }
       grafana = {
@@ -99,11 +95,7 @@ resource "helm_release" "prometheus_stack" {
           size             = var.grafana_storage_size
         }
         service = {
-          type           = "LoadBalancer"
-          loadBalancerIP = "0.0.0.0"  # Trigger kube-vip DHCP behavior
-          annotations = {
-            "kube-vip.io/loadbalancerHostname" = "grafana"
-          }
+          type = "ClusterIP"
         }
         dashboardProviders = {
           "dashboardproviders.yaml" = {
@@ -131,9 +123,9 @@ resource "helm_release" "prometheus_stack" {
               gnetId     = 1860
               datasource = "Prometheus"
             }
-          }, var.enable_storage_dashboards ? {
+            }, var.enable_storage_dashboards ? {
             "storage-system" = {
-              gnetId     = 13032  # Generic storage dashboard (works with Longhorn, etc.)
+              gnetId     = 13032 # Generic storage dashboard (works with Longhorn, etc.)
               datasource = "Prometheus"
             }
           } : {})
@@ -161,9 +153,8 @@ resource "helm_release" "prometheus_stack" {
 
   depends_on = [
     kubernetes_namespace.monitoring,
-    helm_release.longhorn,  # Ensure storage backend is available
-    data.kubernetes_storage_class.longhorn,  # Ensure default storage class exists
-    kubernetes_daemonset.kube_vip  # Ensure LoadBalancer support is available
+    helm_release.longhorn,                  # Ensure storage backend is available
+    data.kubernetes_storage_class.longhorn, # Ensure default storage class exists
   ]
 }
 
@@ -176,24 +167,22 @@ output "monitoring_info" {
     prometheus_storage = var.prometheus_storage_size
     grafana_storage    = var.grafana_storage_size
     retention_period   = var.prometheus_retention
-    
+
     services = {
       prometheus = "${helm_release.prometheus_stack.name}-kube-prom-prometheus"
       grafana    = "${helm_release.prometheus_stack.name}-grafana"
     }
-    
+
     access = {
-      prometheus = "Access Prometheus at: http://<dhcp-assigned-ip>:9090"
-      grafana    = "Access Grafana at: http://<dhcp-assigned-ip> (admin/${var.grafana_admin_password})"
+      prometheus = "https://prometheus.${var.traefik_domain}"
+      grafana    = "https://grafana.${var.traefik_domain}"
     }
-    
+
     commands = {
       check_pods     = "kubectl get pods -n ${kubernetes_namespace.monitoring.metadata[0].name}"
       check_services = "kubectl get svc -n ${kubernetes_namespace.monitoring.metadata[0].name}"
-      get_grafana_ip = "kubectl get svc -n ${kubernetes_namespace.monitoring.metadata[0].name} ${helm_release.prometheus_stack.name}-grafana -o jsonpath='{.status.loadBalancer.ingress[0].ip}'"
-      get_prometheus_ip = "kubectl get svc -n ${kubernetes_namespace.monitoring.metadata[0].name} ${helm_release.prometheus_stack.name}-kube-prom-prometheus -o jsonpath='{.status.loadBalancer.ingress[0].ip}'"
     }
   }
-  
-  sensitive = true  # Contains password
+
+  sensitive = true # Contains password
 }

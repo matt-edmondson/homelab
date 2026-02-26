@@ -24,7 +24,7 @@ variable "dashboard_enable_insecure_login" {
 variable "dashboard_session_lifetime" {
   description = "Session lifetime in seconds"
   type        = number
-  default     = 43200  # 12 hours
+  default     = 43200 # 12 hours
 }
 
 variable "dashboard_auto_generate_certificates" {
@@ -88,9 +88,9 @@ resource "kubernetes_secret" "dashboard_admin_user_token" {
       "kubernetes.io/service-account.name" = kubernetes_service_account.dashboard_admin_user.metadata[0].name
     }
   }
-  
+
   type = "kubernetes.io/service-account-token"
-  
+
   depends_on = [kubernetes_service_account.dashboard_admin_user]
 }
 
@@ -108,16 +108,16 @@ resource "helm_release" "kubernetes_dashboard" {
         ingress = {
           enabled = false
         }
-        
+
         # Security settings for homelab
         settings = {
-          itemsPerPage = 25
-          labelsLimit = 3
-          logsAutoRefreshTimeInterval = 5
-          resourceAutoRefreshTimeInterval = 5
+          itemsPerPage                     = 25
+          labelsLimit                      = 3
+          logsAutoRefreshTimeInterval      = 5
+          resourceAutoRefreshTimeInterval  = 5
           disableAccessDeniedNotifications = false
         }
-        
+
         # Enable skip login and insecure access for homelab convenience
         extraArgs = concat([
           "--enable-skip-login=${var.dashboard_enable_skip_login}",
@@ -125,47 +125,47 @@ resource "helm_release" "kubernetes_dashboard" {
           "--disable-settings-authorizer=true",
           "--session-lifetime=${var.dashboard_session_lifetime}"
         ], var.dashboard_auto_generate_certificates ? ["--auto-generate-certificates"] : [])
-        
+
         # Service configuration
         service = {
-          type = "ClusterIP"  # We'll create our own LoadBalancer service
+          type         = "ClusterIP" # We'll create our own LoadBalancer service
           externalPort = 443
           internalPort = 8443
         }
-        
+
         # Resource limits
         resources = {
           requests = {
-            cpu = "100m"
+            cpu    = "100m"
             memory = "200Mi"
           }
           limits = {
-            cpu = "500m"
+            cpu    = "500m"
             memory = "500Mi"
           }
         }
       }
-      
+
       # Metrics scraper configuration
       metricsScraper = {
         enabled = true
         resources = {
           requests = {
-            cpu = "100m"
+            cpu    = "100m"
             memory = "200Mi"
           }
           limits = {
-            cpu = "500m"
+            cpu    = "500m"
             memory = "500Mi"
           }
         }
       }
-      
+
       # Cert manager integration (disabled for simplicity)
       cert-manager = {
         enabled = false
       }
-      
+
       # Nginx integration (disabled)
       nginx = {
         enabled = false
@@ -180,7 +180,7 @@ resource "helm_release" "kubernetes_dashboard" {
   ]
 }
 
-# LoadBalancer Service for external access (gets DHCP IP from kube-vip)
+# Dashboard Service
 resource "kubernetes_service" "kubernetes_dashboard_lb" {
   metadata {
     name      = "kubernetes-dashboard-lb"
@@ -189,14 +189,10 @@ resource "kubernetes_service" "kubernetes_dashboard_lb" {
       "app.kubernetes.io/name"      = "kubernetes-dashboard"
       "app.kubernetes.io/component" = "kubernetes-dashboard"
     })
-    annotations = {
-      "kube-vip.io/loadbalancerHostname" = "dashboard"
-    }
   }
-  
+
   spec {
-    type             = "LoadBalancer"
-    load_balancer_ip = "0.0.0.0"  # Trigger kube-vip DHCP behavior
+    type = "ClusterIP"
     selector = {
       "app.kubernetes.io/name"      = "kong"
       "app.kubernetes.io/component" = "app"
@@ -208,10 +204,9 @@ resource "kubernetes_service" "kubernetes_dashboard_lb" {
       protocol    = "TCP"
     }
   }
-  
+
   depends_on = [
-    helm_release.kubernetes_dashboard,
-    kubernetes_daemonset.kube_vip  # Ensure LoadBalancer support is available
+    helm_release.kubernetes_dashboard
   ]
 }
 
@@ -219,37 +214,30 @@ resource "kubernetes_service" "kubernetes_dashboard_lb" {
 output "kubernetes_dashboard_info" {
   description = "Kubernetes Dashboard information"
   value = {
-    namespace           = kubernetes_namespace.kubernetes_dashboard.metadata[0].name
-    chart_version       = var.kubernetes_dashboard_chart_version
-    service_name        = kubernetes_service.kubernetes_dashboard_lb.metadata[0].name
-    admin_user          = kubernetes_service_account.dashboard_admin_user.metadata[0].name
-    skip_login_enabled  = var.dashboard_enable_skip_login
-    insecure_login      = var.dashboard_enable_insecure_login
-    session_lifetime    = "${var.dashboard_session_lifetime} seconds"
-    
-    ip_address = try(
-      kubernetes_service.kubernetes_dashboard_lb.status[0].load_balancer[0].ingress[0].ip,
-      "pending (will be assigned by router DHCP)"
-    )
-    
+    namespace          = kubernetes_namespace.kubernetes_dashboard.metadata[0].name
+    chart_version      = var.kubernetes_dashboard_chart_version
+    service_name       = kubernetes_service.kubernetes_dashboard_lb.metadata[0].name
+    admin_user         = kubernetes_service_account.dashboard_admin_user.metadata[0].name
+    skip_login_enabled = var.dashboard_enable_skip_login
+    insecure_login     = var.dashboard_enable_insecure_login
+    session_lifetime   = "${var.dashboard_session_lifetime} seconds"
+
     access = {
-      web_ui = "Access Dashboard at: https://<dhcp-assigned-ip>"
-      insecure_access = var.dashboard_enable_insecure_login ? "http://<dhcp-assigned-ip>:8080" : "HTTPS only"
+      web_ui = "https://dashboard.${var.traefik_domain}"
     }
-    
+
     authentication = {
-      method = var.dashboard_enable_skip_login ? "Skip login enabled for homelab convenience" : "Token authentication required"
+      method              = var.dashboard_enable_skip_login ? "Skip login enabled for homelab convenience" : "Token authentication required"
       admin_token_command = "kubectl get secret -n ${kubernetes_namespace.kubernetes_dashboard.metadata[0].name} ${kubernetes_secret.dashboard_admin_user_token.metadata[0].name} -o jsonpath='{.data.token}' | base64 --decode"
     }
-    
+
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.kubernetes_dashboard.metadata[0].name}"
-      check_service = "kubectl get svc -n ${kubernetes_namespace.kubernetes_dashboard.metadata[0].name}"
-      get_ip = "kubectl get svc -n ${kubernetes_namespace.kubernetes_dashboard.metadata[0].name} ${kubernetes_service.kubernetes_dashboard_lb.metadata[0].name} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'"
+      check_pods      = "kubectl get pods -n ${kubernetes_namespace.kubernetes_dashboard.metadata[0].name}"
+      check_service   = "kubectl get svc -n ${kubernetes_namespace.kubernetes_dashboard.metadata[0].name}"
       get_admin_token = "kubectl get secret -n ${kubernetes_namespace.kubernetes_dashboard.metadata[0].name} ${kubernetes_secret.dashboard_admin_user_token.metadata[0].name} -o jsonpath='{.data.token}' | base64 --decode && echo"
-      view_logs = "kubectl logs -n ${kubernetes_namespace.kubernetes_dashboard.metadata[0].name} -l app.kubernetes.io/name=kubernetes-dashboard -f"
+      view_logs       = "kubectl logs -n ${kubernetes_namespace.kubernetes_dashboard.metadata[0].name} -l app.kubernetes.io/name=kubernetes-dashboard -f"
     }
-    
+
     security_notes = [
       "Skip login and insecure login are enabled for homelab convenience",
       "Admin user has cluster-admin privileges - suitable for homelab only",
