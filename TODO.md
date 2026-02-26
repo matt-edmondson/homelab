@@ -1,0 +1,23 @@
+# TODO
+
+- emby
+- sonarr
+- radarr
+- prowlarr
+- qbittorrent
+- postfix
+- squid
+- notifiarr
+- Bazarr
+- Jackett
+- Huntarr
+- Cleanuparr
+- SABnzbd
+- CrowdSec
+- Traefik Bouncer
+- n8n
+- ollama
+- qdrant
+- chromadb
+- comfyui
+- Flaresolverr
