@@ -39,6 +39,8 @@ make apply-networking
 make apply-storage
 make apply-monitoring
 make apply-applications
+make plan-traefik / make apply-traefik
+make plan-ingress / make apply-ingress
 
 # View status of deployed components
 make status
@@ -71,18 +73,20 @@ Copy `terraform.tfvars.example` to `terraform.tfvars` and populate values. The `
 - [common.tf](terraform/common.tf) — Provider configuration (Kubernetes `~> 2.38`, Helm `~> 3.0.2`), Metrics Server Helm release, kube-proxy RBAC, shared outputs and variables
 - [flannel.tf](terraform/flannel.tf) — Flannel CNI DaemonSet, RBAC, and ConfigMap (default pod CIDR: `10.244.0.0/16`, backend: VXLAN)
 - [kube-vip.tf](terraform/kube-vip.tf) — kube-vip DaemonSet for ARP-based LoadBalancer IP assignment via router DHCP
-- [longhorn.tf](terraform/longhorn.tf) — Longhorn distributed block storage via Helm (default chart version: `1.9.1`, default replicas: 2), plus a LoadBalancer service for the Longhorn UI
+- [longhorn.tf](terraform/longhorn.tf) — Longhorn distributed block storage via Helm (default chart version: `1.9.1`, default replicas: 2), plus a ClusterIP service for the Longhorn UI
 - [monitoring.tf](terraform/monitoring.tf) — kube-prometheus-stack (Prometheus, Grafana, AlertManager) via Helm (default chart version: `76.3.0`); all use Longhorn storage
-- [baget.tf](terraform/baget.tf) — BaGet NuGet package server (Deployment, PVC on Longhorn, LoadBalancer Service, Secret, ConfigMap)
-- [kubernetes-dashboard.tf](terraform/kubernetes-dashboard.tf) — Kubernetes Dashboard via Helm (default chart version: `7.13.0`) with admin ServiceAccount and LoadBalancer service
+- [baget.tf](terraform/baget.tf) — BaGet NuGet package server (Deployment, PVC on Longhorn, ClusterIP Service, Secret, ConfigMap)
+- [kubernetes-dashboard.tf](terraform/kubernetes-dashboard.tf) — Kubernetes Dashboard via Helm (default chart version: `7.13.0`) with admin ServiceAccount and ClusterIP service
+- [traefik.tf](terraform/traefik.tf) — Traefik reverse proxy via Helm (ACME Let's Encrypt, Azure DNS challenge, Longhorn persistence)
+- [ingress.tf](terraform/ingress.tf) — IngressRoute and Middleware CRD resources for all services
 
 ### Networking Model
 
-kube-vip handles all external service exposure:
+Traefik serves as the single ingress entry point. It receives a LoadBalancer IP from kube-vip and routes traffic to backend ClusterIP services by hostname via IngressRoute CRDs.
 
-- kube-vip runs as a DaemonSet in `kube-system`, configured in ARP mode (`--arp` flag)
-- LoadBalancer services are assigned IPs dynamically from the router's DHCP pool — no fixed IP range is configured in Terraform
-- Services trigger DHCP assignment by setting `load_balancer_ip = "0.0.0.0"` and using the `kube-vip.io/loadbalancerHostname` annotation
+- All services are ClusterIP; external access is through Traefik only
+- kube-vip runs as a DaemonSet in `kube-system`, configured in ARP mode (`--arp` flag) — only Traefik gets a LoadBalancer IP
+- Traefik provides automatic TLS via Let's Encrypt ACME (Azure DNS challenge) with wildcard certificates
 - Flannel handles pod-to-pod networking (VXLAN backend)
 
 ### Storage Model
@@ -91,7 +95,7 @@ Longhorn provides distributed block storage. All PVCs reference the `longhorn` S
 
 ### Key Patterns
 
-- **LoadBalancer services** all use `load_balancer_ip = "0.0.0.0"` to trigger kube-vip DHCP behavior, with `kube-vip.io/loadbalancerHostname` annotations for DNS hostname hints
+- **Traefik CRD ordering** — Traefik Helm chart must be applied before IngressRoute resources (`make apply-traefik` then `make apply-ingress`). The CRDs don't exist until the Helm chart is installed.
 - **Common labels** default to `managed-by = "terraform"` and `environment = "homelab"` (defined in `common.tf`, configurable via `var.common_labels`)
 - **Longhorn startup** has special handling to work around a webhook circular dependency: extended manager timeout (300s), relaxed readiness probe (10 failures allowed), and webhooks set to `failurePolicy = "Ignore"`
 - **Longhorn stuck resources** — use `make force-clean` which handles finalizer removal and force-deletion
