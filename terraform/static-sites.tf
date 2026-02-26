@@ -61,3 +61,37 @@ variable "static_sites_git_credentials" {
   sensitive   = true
   default     = ""
 }
+
+# Namespace
+resource "kubernetes_namespace" "static_sites" {
+  count = length(var.static_sites) > 0 ? 1 : 0
+
+  metadata {
+    name = "static-sites"
+    labels = merge(var.common_labels, {
+      "app.kubernetes.io/name" = "static-sites"
+    })
+  }
+}
+
+# Nginx virtual host configuration (generated from static_sites list)
+resource "kubernetes_config_map" "static_sites_config" {
+  count = length(var.static_sites) > 0 ? 1 : 0
+
+  metadata {
+    name      = "static-sites-config"
+    namespace = kubernetes_namespace.static_sites[0].metadata[0].name
+    labels    = var.common_labels
+  }
+
+  data = {
+    "nginx.conf" = templatefile("${path.module}/templates/static-sites-nginx.conf.tpl", {
+      sites = var.static_sites
+    })
+
+    "git-pull.sh" = templatefile("${path.module}/templates/static-sites-git-pull.sh.tpl", {
+      sites    = var.static_sites
+      interval = var.static_sites_git_poll_interval
+    })
+  }
+}
