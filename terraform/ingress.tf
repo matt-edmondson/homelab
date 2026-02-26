@@ -339,7 +339,7 @@ resource "kubernetes_manifest" "ingressroute_baget" {
     spec = {
       entryPoints = ["websecure"]
       routes = [{
-        match = "Host(`baget.${var.traefik_domain}`)"
+        match = "Host(`packages.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
           {

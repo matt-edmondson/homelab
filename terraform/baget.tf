@@ -278,13 +278,13 @@ output "baget_info" {
     storage_size = var.baget_storage_size
 
     access = {
-      web_ui    = "https://baget.${var.traefik_domain}"
-      nuget_url = "https://baget.${var.traefik_domain}/v3/index.json"
+      web_ui    = "https://packages.${var.traefik_domain}"
+      nuget_url = "https://packages.${var.traefik_domain}/v3/index.json"
     }
 
     usage = {
-      add_source   = "dotnet nuget add source https://baget.${var.traefik_domain}/v3/index.json -n \"Homelab Baget\""
-      push_package = "dotnet nuget push package.nupkg -s https://baget.${var.traefik_domain}/v3/index.json -k <your-api-key>"
+      add_source   = "dotnet nuget add source https://packages.${var.traefik_domain}/v3/index.json -n \"Homelab Baget\""
+      push_package = "dotnet nuget push package.nupkg -s https://packages.${var.traefik_domain}/v3/index.json -k <your-api-key>"
     }
 
     commands = {

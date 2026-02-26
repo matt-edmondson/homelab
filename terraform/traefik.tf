@@ -266,7 +266,7 @@ output "traefik_info" {
       grafana       = "https://grafana.${var.traefik_domain}"
       prometheus    = "https://prometheus.${var.traefik_domain}"
       alertmanager  = "https://alertmanager.${var.traefik_domain}"
-      baget         = "https://baget.${var.traefik_domain}"
+      baget         = "https://packages.${var.traefik_domain}"
       longhorn      = "https://longhorn.${var.traefik_domain}"
       dashboard_k8s = "https://dashboard.${var.traefik_domain}"
     }
