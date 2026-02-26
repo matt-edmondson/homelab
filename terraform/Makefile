@@ -2,10 +2,10 @@
 # We'll hardcode the help sections for reliability
 
 .PHONY: help init plan apply destroy force-clean destroy-clean validate format lint check-vars status clean \
-	plan-networking plan-storage plan-monitoring plan-applications plan-dns \
-	apply-networking apply-storage apply-monitoring apply-applications apply-dns \
-	debug-networking debug-storage debug-monitoring debug-applications debug-dns \
-	status-networking status-storage status-monitoring status-applications status-dns \
+	plan-networking plan-storage plan-monitoring plan-applications plan-dns plan-traefik plan-ingress \
+	apply-networking apply-storage apply-monitoring apply-applications apply-dns apply-traefik apply-ingress \
+	debug-networking debug-storage debug-monitoring debug-applications debug-dns debug-traefik debug-ingress \
+	status-networking status-storage status-monitoring status-applications status-dns status-traefik status-ingress \
 	list-components deploy-core deploy-apps plan-all-components status-all-components \
 	show-structure quick-debug taint-component
 
@@ -389,6 +389,7 @@ generate-secrets: ## Generate secure passwords for terraform.tfvars
 	@echo "# Generated credentials - add to your terraform.tfvars file:"
 	@echo "baget_api_key = \"$$(openssl rand -base64 32)\""
 	@echo "grafana_admin_password = \"$$(openssl rand -base64 16)\""
+	@echo "traefik_basic_auth_users = \"$$(htpasswd -nb admin $$(openssl rand -base64 16))\"" 2>/dev/null || echo "# traefik_basic_auth_users requires htpasswd tool (apache2-utils)"
 	@echo ""
 	@echo "Save these credentials securely!"
 
@@ -403,6 +404,8 @@ list-components: ## List all infrastructure components and their files
 	@echo "📊 Monitoring    -> monitoring.tf       (Prometheus, Grafana, AlertManager)"
 	@echo "🚀 Applications  -> baget.tf            (Baget NuGet server)"
 	@echo "📋 Dashboard     -> kubernetes-dashboard.tf (Kubernetes Web UI)"
+	@echo "🔀 Reverse Proxy -> traefik.tf          (Traefik ingress controller)"
+	@echo "🔗 Ingress       -> ingress.tf          (IngressRoutes and middleware)"
 	@echo ""
 	@echo "Use 'make plan-<component>' or 'make apply-<component>' for targeted operations"
 
@@ -455,6 +458,29 @@ plan-dns: check-vars check-init ## Plan DNS components (Pi-hole sync)
 		-target=kubernetes_deployment.pihole_dns_sync \
 		-target=kubernetes_service.pihole_dns_sync
 
+plan-traefik: check-vars check-init ## Plan Traefik reverse proxy
+	@echo "Planning Traefik components..."
+	terraform plan \
+		-target=kubernetes_namespace.traefik \
+		-target=kubernetes_secret.traefik_azure_dns \
+		-target=helm_release.traefik
+
+plan-ingress: check-vars check-init ## Plan ingress routes and middleware
+	@echo "Planning ingress components..."
+	terraform plan \
+		-target=kubernetes_secret.traefik_basic_auth \
+		-target=kubernetes_manifest.middleware_redirect_https \
+		-target=kubernetes_manifest.middleware_rate_limit \
+		-target=kubernetes_manifest.middleware_basic_auth \
+		-target=kubernetes_manifest.servers_transport_insecure \
+		-target=kubernetes_manifest.ingressroute_traefik_dashboard \
+		-target=kubernetes_manifest.ingressroute_grafana \
+		-target=kubernetes_manifest.ingressroute_prometheus \
+		-target=kubernetes_manifest.ingressroute_alertmanager \
+		-target=kubernetes_manifest.ingressroute_baget \
+		-target=kubernetes_manifest.ingressroute_longhorn \
+		-target=kubernetes_manifest.ingressroute_dashboard
+
 # Component-specific Deployment
 apply-networking: check-vars check-init ## Deploy networking components (MetalLB, Metrics Server)
 	@echo "Deploying networking components..."
@@ -503,6 +529,29 @@ apply-dns: check-vars check-init ## Deploy DNS components (Pi-hole sync)
 		-target=kubernetes_secret.pihole_credentials \
 		-target=kubernetes_deployment.pihole_dns_sync \
 		-target=kubernetes_service.pihole_dns_sync
+
+apply-traefik: check-vars check-init ## Deploy Traefik reverse proxy
+	@echo "Deploying Traefik..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.traefik \
+		-target=kubernetes_secret.traefik_azure_dns \
+		-target=helm_release.traefik
+
+apply-ingress: check-vars check-init ## Deploy ingress routes and middleware
+	@echo "Deploying ingress routes..."
+	terraform apply -auto-approve \
+		-target=kubernetes_secret.traefik_basic_auth \
+		-target=kubernetes_manifest.middleware_redirect_https \
+		-target=kubernetes_manifest.middleware_rate_limit \
+		-target=kubernetes_manifest.middleware_basic_auth \
+		-target=kubernetes_manifest.servers_transport_insecure \
+		-target=kubernetes_manifest.ingressroute_traefik_dashboard \
+		-target=kubernetes_manifest.ingressroute_grafana \
+		-target=kubernetes_manifest.ingressroute_prometheus \
+		-target=kubernetes_manifest.ingressroute_alertmanager \
+		-target=kubernetes_manifest.ingressroute_baget \
+		-target=kubernetes_manifest.ingressroute_longhorn \
+		-target=kubernetes_manifest.ingressroute_dashboard
 
 # Kubernetes helpers
 k8s-status: ## Show Kubernetes cluster status
@@ -590,6 +639,37 @@ debug-dns: ## Debug DNS components (Pi-hole sync)
 	@echo "Pi-hole Sync Logs (last 20 lines):"
 	@kubectl logs -n kube-system -l app.kubernetes.io/name=pihole-dns-sync --tail=20 2>/dev/null || echo "No Pi-hole sync logs found"
 
+debug-traefik: ## Debug Traefik reverse proxy
+	@echo "=== Traefik Debug ==="
+	@echo "Terraform Resources:"
+	@terraform state list | grep traefik || echo "No Traefik resources found in state"
+	@echo ""
+	@echo "Traefik Pods:"
+	@kubectl get pods -n traefik -o wide 2>/dev/null || echo "Traefik namespace not found"
+	@echo ""
+	@echo "Traefik Service:"
+	@kubectl get svc -n traefik 2>/dev/null || echo "No Traefik services found"
+	@echo ""
+	@echo "IngressRoutes:"
+	@kubectl get ingressroutes -A 2>/dev/null || echo "No IngressRoutes found"
+	@echo ""
+	@echo "Middleware:"
+	@kubectl get middlewares -A 2>/dev/null || echo "No Middleware found"
+	@echo ""
+	@echo "Certificates:"
+	@kubectl get certificates -A 2>/dev/null || echo "No certificates found"
+
+debug-ingress: ## Debug ingress routes
+	@echo "=== Ingress Routes Debug ==="
+	@echo "IngressRoutes:"
+	@kubectl get ingressroutes -A -o wide 2>/dev/null || echo "No IngressRoutes found"
+	@echo ""
+	@echo "Middleware:"
+	@kubectl get middlewares -A -o wide 2>/dev/null || echo "No Middleware found"
+	@echo ""
+	@echo "ServersTransports:"
+	@kubectl get serverstransports -A 2>/dev/null || echo "No ServersTransports found"
+
 # Component-specific Status
 status-networking: ## Show networking component status
 	@echo "=== Networking Status ==="
@@ -651,6 +731,24 @@ else
 	@kubectl logs -n kube-system -l app.kubernetes.io/name=pihole-dns-sync --tail=5 2>/dev/null || echo "No recent activity"
 endif
 
+status-traefik: ## Show Traefik status
+	@echo "=== Traefik Status ==="
+ifeq ($(OS),Windows_NT)
+	@kubectl get pods -n traefik 2>nul || echo "Traefik not deployed"
+	@kubectl get svc -n traefik 2>nul || echo "Traefik service not found"
+else
+	@kubectl get pods -n traefik 2>/dev/null || echo "Traefik not deployed"
+	@kubectl get svc -n traefik 2>/dev/null || echo "Traefik service not found"
+endif
+
+status-ingress: ## Show ingress routes status
+	@echo "=== Ingress Status ==="
+ifeq ($(OS),Windows_NT)
+	@kubectl get ingressroutes -A 2>nul || echo "No IngressRoutes found"
+else
+	@kubectl get ingressroutes -A 2>/dev/null || echo "No IngressRoutes found"
+endif
+
 logs: ## Show logs for all deployed applications
 	@echo "=== All Component Logs ==="
 	@echo "MetalLB Logs:"
@@ -694,10 +792,12 @@ bgp-status: ## Check BGP configuration status
 	@echo "save"
 
 # Workflow Shortcuts
-deploy-core: ## Deploy core infrastructure (networking + storage)
-	@echo "Deploying core infrastructure (networking + storage)..."
+deploy-core: ## Deploy core infrastructure (networking + storage + traefik)
+	@echo "Deploying core infrastructure (networking + storage + traefik)..."
 	$(MAKE) apply-networking
 	$(MAKE) apply-storage
+	$(MAKE) apply-traefik
+	$(MAKE) apply-ingress
 
 deploy-apps: ## Deploy applications (monitoring + apps + dns)
 	@echo "Deploying applications (monitoring + apps + dns)..."
@@ -709,6 +809,8 @@ plan-all-components: ## Plan all components individually
 	@echo "Planning all components..."
 	$(MAKE) plan-networking
 	$(MAKE) plan-storage
+	$(MAKE) plan-traefik
+	$(MAKE) plan-ingress
 	$(MAKE) plan-monitoring
 	$(MAKE) plan-applications
 	$(MAKE) plan-dns
@@ -717,6 +819,8 @@ status-all-components: ## Show status for all components
 	@echo "Checking all component status..."
 	$(MAKE) status-networking
 	$(MAKE) status-storage
+	$(MAKE) status-traefik
+	$(MAKE) status-ingress
 	$(MAKE) status-monitoring
 	$(MAKE) status-applications
 	$(MAKE) status-dns
