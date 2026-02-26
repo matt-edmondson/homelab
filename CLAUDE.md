@@ -79,6 +79,7 @@ Copy `terraform.tfvars.example` to `terraform.tfvars` and populate values. The `
 - [kubernetes-dashboard.tf](terraform/kubernetes-dashboard.tf) — Kubernetes Dashboard via Helm (default chart version: `7.13.0`) with admin ServiceAccount and ClusterIP service
 - [traefik.tf](terraform/traefik.tf) — Traefik reverse proxy via Helm (ACME Let's Encrypt, Azure DNS challenge, Longhorn persistence)
 - [ingress.tf](terraform/ingress.tf) — IngressRoute and Middleware CRD resources for all services
+- [dns.tf](terraform/dns.tf) — Azure DNS A records for each service subdomain (uses azurerm provider)
 
 ### Networking Model
 
