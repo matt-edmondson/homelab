@@ -465,3 +465,50 @@ resource "kubernetes_manifest" "ingressroute_dashboard" {
     kubernetes_manifest.servers_transport_insecure,
   ]
 }
+
+# --- Static Sites ---
+
+# IngressRoute per static site (each on its own primary domain)
+resource "kubernetes_manifest" "ingressroute_static_site" {
+  for_each = { for site in var.static_sites : site.domain => site }
+
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "IngressRoute"
+    metadata = {
+      name      = "static-site-${replace(each.key, ".", "-")}"
+      namespace = kubernetes_namespace.traefik.metadata[0].name
+      labels    = var.common_labels
+    }
+    spec = {
+      entryPoints = ["websecure"]
+      routes = [{
+        match = "Host(`${each.key}`)"
+        kind  = "Rule"
+        middlewares = [
+          {
+            name      = "rate-limit"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+        ]
+        services = [{
+          name      = kubernetes_service.static_sites[0].metadata[0].name
+          namespace = kubernetes_namespace.static_sites[0].metadata[0].name
+          port      = 80
+        }]
+      }]
+      tls = {
+        certResolver = "letsencrypt"
+        domains = [{
+          main = each.key
+        }]
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.traefik,
+    kubernetes_service.static_sites,
+    kubernetes_manifest.middleware_rate_limit,
+  ]
+}
