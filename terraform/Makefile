@@ -7,6 +7,7 @@
 	debug-networking debug-storage debug-monitoring debug-applications debug-dns debug-traefik debug-ingress \
 	status-networking status-storage status-monitoring status-applications status-dns status-traefik status-ingress \
 	list-components deploy-core deploy-apps plan-all-components status-all-components \
+	plan-static-sites apply-static-sites debug-static-sites status-static-sites \
 	show-structure quick-debug taint-component
 
 # Default target
@@ -60,6 +61,7 @@ help: ## Show this help message
 	@echo "  plan-monitoring      Plan monitoring components"
 	@echo "  plan-applications    Plan application components"
 	@echo "  plan-dns             Plan DNS components"
+	@echo "  plan-static-sites    Plan static sites components"
 	@echo "  plan-all-components  Plan all components individually"
 	@echo ""
 	@echo "🚀 COMPONENT DEPLOYMENT:"
@@ -68,6 +70,7 @@ help: ## Show this help message
 	@echo "  apply-monitoring     Deploy monitoring components"
 	@echo "  apply-applications   Deploy application components"
 	@echo "  apply-dns            Deploy DNS components"
+	@echo "  apply-static-sites   Deploy static sites components"
 	@echo ""
 	@echo "🔍 COMPONENT DEBUGGING:"
 	@echo "  debug-networking     Debug networking components"
@@ -75,6 +78,7 @@ help: ## Show this help message
 	@echo "  debug-monitoring     Debug monitoring components"
 	@echo "  debug-applications   Debug application components"
 	@echo "  debug-dns            Debug DNS components"
+	@echo "  debug-static-sites   Debug static sites components"
 	@echo ""
 	@echo "📊 COMPONENT STATUS:"
 	@echo "  status-networking    Show networking component status"
@@ -82,6 +86,7 @@ help: ## Show this help message
 	@echo "  status-monitoring    Show monitoring component status"
 	@echo "  status-applications  Show application component status"
 	@echo "  status-dns           Show DNS component status"
+	@echo "  status-static-sites  Show static sites status"
 	@echo "  status-all-components Show status for all components"
 	@echo ""
 	@echo "💡 EXAMPLES:"
@@ -458,6 +463,14 @@ plan-dns: check-vars check-init ## Plan DNS components (Pi-hole sync)
 		-target=kubernetes_deployment.pihole_dns_sync \
 		-target=kubernetes_service.pihole_dns_sync
 
+plan-static-sites: check-vars check-init ## Plan static sites components
+	@echo "Planning static sites components..."
+	terraform plan \
+		-target=kubernetes_namespace.static_sites \
+		-target=kubernetes_config_map.static_sites_config \
+		-target=kubernetes_deployment.static_sites \
+		-target=kubernetes_service.static_sites
+
 plan-traefik: check-vars check-init ## Plan Traefik reverse proxy
 	@echo "Planning Traefik components..."
 	terraform plan \
@@ -535,6 +548,14 @@ apply-dns: check-vars check-init ## Deploy DNS components (Pi-hole sync)
 		-target=kubernetes_secret.pihole_credentials \
 		-target=kubernetes_deployment.pihole_dns_sync \
 		-target=kubernetes_service.pihole_dns_sync
+
+apply-static-sites: check-vars check-init ## Deploy static sites components
+	@echo "Deploying static sites..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.static_sites \
+		-target=kubernetes_config_map.static_sites_config \
+		-target=kubernetes_deployment.static_sites \
+		-target=kubernetes_service.static_sites
 
 apply-traefik: check-vars check-init ## Deploy Traefik reverse proxy
 	@echo "Deploying Traefik..."
@@ -651,6 +672,17 @@ debug-dns: ## Debug DNS components (Pi-hole sync)
 	@echo "Pi-hole Sync Logs (last 20 lines):"
 	@kubectl logs -n kube-system -l app.kubernetes.io/name=pihole-dns-sync --tail=20 2>/dev/null || echo "No Pi-hole sync logs found"
 
+debug-static-sites: ## Debug static sites components
+	@echo "=== Static Sites Debug ==="
+	@echo "Pods:"
+	@kubectl get pods -n static-sites -o wide 2>/dev/null || echo "No static-sites pods found"
+	@echo ""
+	@echo "Nginx Logs (last 20 lines):"
+	@kubectl logs -n static-sites -l app=static-sites -c nginx --tail=20 2>/dev/null || echo "No nginx logs"
+	@echo ""
+	@echo "Git Pull Logs (last 20 lines):"
+	@kubectl logs -n static-sites -l app=static-sites -c git-pull --tail=20 2>/dev/null || echo "No git-pull logs"
+
 debug-traefik: ## Debug Traefik reverse proxy
 	@echo "=== Traefik Debug ==="
 	@echo "Terraform Resources:"
@@ -743,6 +775,16 @@ else
 	@kubectl logs -n kube-system -l app.kubernetes.io/name=pihole-dns-sync --tail=5 2>/dev/null || echo "No recent activity"
 endif
 
+status-static-sites: ## Show static sites status
+	@echo "=== Static Sites Status ==="
+ifeq ($(OS),Windows_NT)
+	@kubectl get pods -n static-sites 2>nul || echo "Static sites not deployed"
+	@kubectl get svc -n static-sites 2>nul || echo "No services found"
+else
+	@kubectl get pods -n static-sites 2>/dev/null || echo "Static sites not deployed"
+	@kubectl get svc -n static-sites 2>/dev/null || echo "No services found"
+endif
+
 status-traefik: ## Show Traefik status
 	@echo "=== Traefik Status ==="
 ifeq ($(OS),Windows_NT)
@@ -812,11 +854,12 @@ deploy-core: ## Deploy core infrastructure (networking + storage + traefik + dns
 	$(MAKE) apply-ingress
 	$(MAKE) apply-azure-dns
 
-deploy-apps: ## Deploy applications (monitoring + apps + dns)
-	@echo "Deploying applications (monitoring + apps + dns)..."
+deploy-apps: ## Deploy applications (monitoring + apps + dns + static sites)
+	@echo "Deploying applications (monitoring + apps + dns + static sites)..."
 	$(MAKE) apply-monitoring
 	$(MAKE) apply-applications
 	$(MAKE) apply-dns
+	$(MAKE) apply-static-sites
 
 plan-all-components: ## Plan all components individually
 	@echo "Planning all components..."
@@ -827,6 +870,7 @@ plan-all-components: ## Plan all components individually
 	$(MAKE) plan-monitoring
 	$(MAKE) plan-applications
 	$(MAKE) plan-dns
+	$(MAKE) plan-static-sites
 
 status-all-components: ## Show status for all components
 	@echo "Checking all component status..."
@@ -837,6 +881,7 @@ status-all-components: ## Show status for all components
 	$(MAKE) status-monitoring
 	$(MAKE) status-applications
 	$(MAKE) status-dns
+	$(MAKE) status-static-sites
 
 show-structure: ## Show the modular file structure
 	@echo "Terraform Modular File Structure:"
