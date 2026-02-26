@@ -64,6 +64,31 @@ resource "azurerm_dns_a_record" "services" {
   tags = var.common_labels
 }
 
+# --- Static Sites DNS ---
+
+# Create Azure DNS zone for each static site domain
+resource "azurerm_dns_zone" "static_sites" {
+  for_each = { for site in var.static_sites : site.domain => site }
+
+  name                = each.key
+  resource_group_name = var.azure_dns_resource_group
+
+  tags = var.common_labels
+}
+
+# Create A record (@) for each static site domain
+resource "azurerm_dns_a_record" "static_sites" {
+  for_each = { for site in var.static_sites : site.domain => site }
+
+  name                = "@"
+  zone_name           = azurerm_dns_zone.static_sites[each.key].name
+  resource_group_name = var.azure_dns_resource_group
+  ttl                 = var.dns_ttl
+  records             = [var.external_ip]
+
+  tags = var.common_labels
+}
+
 # Outputs
 output "dns_info" {
   description = "Azure DNS record information"
@@ -72,6 +97,12 @@ output "dns_info" {
     records = { for k, v in azurerm_dns_a_record.services : k => "${v.name}.${data.azurerm_dns_zone.main.name}" }
     ip      = var.external_ip
     ttl     = var.dns_ttl
+
+    static_sites = { for k, v in azurerm_dns_zone.static_sites : k => {
+      nameservers = v.name_servers
+      a_record    = var.external_ip
+    } }
+
     commands = {
       verify = "nslookup grafana.${var.azure_dns_zone_name}"
     }
