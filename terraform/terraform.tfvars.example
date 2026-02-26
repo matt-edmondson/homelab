@@ -72,6 +72,20 @@ rate_limit_burst   = 200    # Maximum burst size
 # 3. Create a wildcard DNS A record: *.example.com -> <traefik-ip>
 #    Or create individual A records for each service subdomain
 
+# Static Sites Configuration
+# Each site needs a domain, git repo URL, and branch
+static_sites = [
+  # { domain = "example.com", repo_url = "https://github.com/user/site.git", branch = "main" },
+]
+static_sites_git_poll_interval = "60"       # Seconds between git pulls
+static_sites_nginx_image       = "nginx:alpine"
+static_sites_git_image         = "alpine/git:latest"
+static_sites_memory_request    = "64Mi"
+static_sites_memory_limit      = "128Mi"
+static_sites_cpu_request       = "50m"
+static_sites_cpu_limit         = "200m"
+# static_sites_git_credentials = "https://user:token@github.com"  # For private repos
+
 # Labels
 common_labels = {
   "managed-by"  = "terraform"
