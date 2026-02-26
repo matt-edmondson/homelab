@@ -26,7 +26,7 @@ resource "kubernetes_namespace" "flannel" {
   metadata {
     name = "kube-flannel"
     labels = merge(var.common_labels, {
-      "app.kubernetes.io/name" = "flannel"
+      "app.kubernetes.io/name"             = "flannel"
       "pod-security.kubernetes.io/enforce" = "privileged"
     })
   }
@@ -46,7 +46,7 @@ resource "kubernetes_service_account" "flannel" {
 # Flannel ClusterRole
 resource "kubernetes_cluster_role" "flannel" {
   metadata {
-    name = "flannel"
+    name   = "flannel"
     labels = var.common_labels
   }
 
@@ -78,7 +78,7 @@ resource "kubernetes_cluster_role" "flannel" {
 # Flannel ClusterRoleBinding
 resource "kubernetes_cluster_role_binding" "flannel" {
   metadata {
-    name = "flannel"
+    name   = "flannel"
     labels = var.common_labels
   }
 
@@ -112,9 +112,9 @@ resource "kubernetes_config_map" "flannel_cfg" {
       cniVersion = "1.0.0"
       plugins = [
         {
-          type   = "flannel"
+          type = "flannel"
           delegate = {
-            hairpinMode   = true
+            hairpinMode      = true
             isDefaultGateway = true
           }
         },
@@ -128,7 +128,7 @@ resource "kubernetes_config_map" "flannel_cfg" {
     })
 
     "net-conf.json" = jsonencode({
-      Network   = var.flannel_network_cidr
+      Network = var.flannel_network_cidr
       Backend = {
         Type = "vxlan"
       }
@@ -209,7 +209,7 @@ resource "kubernetes_daemonset" "flannel" {
           }
 
           security_context {
-            privileged                 = true
+            privileged = true
             capabilities {
               add = ["NET_ADMIN", "NET_RAW"]
             }
@@ -234,7 +234,7 @@ resource "kubernetes_daemonset" "flannel" {
           }
 
           env {
-            name = "EVENT_QUEUE_DEPTH"
+            name  = "EVENT_QUEUE_DEPTH"
             value = "5000"
           }
 
@@ -345,17 +345,17 @@ resource "kubernetes_daemonset" "flannel" {
 output "flannel_info" {
   description = "Flannel CNI network plugin information"
   value = {
-    namespace         = kubernetes_namespace.flannel.metadata[0].name
-    service_account   = kubernetes_service_account.flannel.metadata[0].name
-    daemonset         = kubernetes_daemonset.flannel.metadata[0].name
-    network_cidr      = var.flannel_network_cidr
-    flannel_version   = var.flannel_version
+    namespace          = kubernetes_namespace.flannel.metadata[0].name
+    service_account    = kubernetes_service_account.flannel.metadata[0].name
+    daemonset          = kubernetes_daemonset.flannel.metadata[0].name
+    network_cidr       = var.flannel_network_cidr
+    flannel_version    = var.flannel_version
     cni_plugin_version = var.flannel_cni_plugin_version
-    backend_type      = "vxlan"
+    backend_type       = "vxlan"
     commands = {
-      check_pods     = "kubectl get pods -n ${kubernetes_namespace.flannel.metadata[0].name}"
-      check_nodes    = "kubectl get nodes -o wide"
-      flannel_logs   = "kubectl logs -n ${kubernetes_namespace.flannel.metadata[0].name} -l app=flannel"
+      check_pods   = "kubectl get pods -n ${kubernetes_namespace.flannel.metadata[0].name}"
+      check_nodes  = "kubectl get nodes -o wide"
+      flannel_logs = "kubectl logs -n ${kubernetes_namespace.flannel.metadata[0].name} -l app=flannel"
     }
   }
 }

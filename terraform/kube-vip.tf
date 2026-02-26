@@ -139,21 +139,21 @@ resource "kubernetes_daemonset" "kube_vip" {
         service_account_name = kubernetes_service_account.kube_vip.metadata[0].name
         host_network         = true
         host_pid             = true
-        
+
         toleration {
           effect = "NoSchedule"
           key    = "node-role.kubernetes.io/master"
         }
-        
+
         toleration {
-          effect = "NoSchedule" 
+          effect = "NoSchedule"
           key    = "node-role.kubernetes.io/control-plane"
         }
 
         container {
           name  = "kube-vip"
           image = "ghcr.io/kube-vip/kube-vip:${var.kube_vip_version}"
-          
+
           args = [
             "manager",
             "--interface=${var.kube_vip_interface}",
@@ -205,7 +205,7 @@ resource "kubernetes_daemonset" "kube_vip" {
           readiness_probe {
             failure_threshold = 3
             http_get {
-              host = "localhost" 
+              host = "localhost"
               path = "/metrics"
               port = 2112
             }
@@ -230,21 +230,21 @@ resource "kubernetes_daemonset" "kube_vip" {
 output "kube_vip_info" {
   description = "kube-vip DHCP LoadBalancer information"
   value = {
-    version          = var.kube_vip_version
-    interface        = var.kube_vip_interface
+    version         = var.kube_vip_version
+    interface       = var.kube_vip_interface
     mode            = "DHCP"
     deployment_name = kubernetes_daemonset.kube_vip.metadata[0].name
     namespace       = "kube-system"
-    
+
     description = "LoadBalancer services get IPs dynamically from your router's DHCP server"
-    
+
     router_benefits = [
       "LoadBalancer services get real DHCP IPs from your router",
       "You can pin/reserve these IPs in your router's DHCP settings",
       "Add DNS A records directly on your router for each service",
       "No IP range conflicts - router DHCP handles all assignment"
     ]
-    
+
     workflow = [
       "1. kube-vip requests DHCP IP for each LoadBalancer service",
       "2. Router assigns IP from DHCP pool to kube-vip",
@@ -252,7 +252,7 @@ output "kube_vip_info" {
       "4. Pin/reserve IPs in router DHCP settings",
       "5. Add DNS A records on router (e.g., grafana.k8s.home -> IP)"
     ]
-    
+
     commands = {
       check_pods     = "kubectl get pods -n kube-system -l app.kubernetes.io/name=kube-vip"
       check_services = "kubectl get services --all-namespaces | grep LoadBalancer"
