@@ -9,6 +9,7 @@
 	list-components deploy-core deploy-apps plan-all-components status-all-components \
 	plan-static-sites apply-static-sites debug-static-sites status-static-sites \
 	plan-nfs apply-nfs \
+	plan-crowdsec apply-crowdsec plan-oauth apply-oauth \
 	show-structure quick-debug taint-component
 
 # Default target
@@ -479,6 +480,18 @@ plan-nfs: check-vars check-init ## Plan NFS CSI driver
 		-target=kubernetes_storage_class.nfs_media \
 		-target=kubernetes_storage_class.nfs_downloads
 
+plan-crowdsec: check-vars check-init ## Plan CrowdSec security engine
+	@echo "Planning CrowdSec components..."
+	terraform plan \
+		-target=kubernetes_namespace.crowdsec \
+		-target=helm_release.crowdsec
+
+plan-oauth: check-vars check-init ## Plan OAuth2 Proxy
+	@echo "Planning OAuth2 Proxy components..."
+	terraform plan \
+		-target=kubernetes_namespace.oauth2_proxy \
+		-target=helm_release.oauth2_proxy
+
 plan-traefik: check-vars check-init ## Plan Traefik reverse proxy
 	@echo "Planning Traefik components..."
 	terraform plan \
@@ -493,6 +506,8 @@ plan-ingress: check-vars check-init ## Plan ingress routes and middleware
 		-target=kubernetes_manifest.middleware_redirect_https \
 		-target=kubernetes_manifest.middleware_rate_limit \
 		-target=kubernetes_manifest.middleware_basic_auth \
+		-target=kubernetes_manifest.middleware_crowdsec_bouncer \
+		-target=kubernetes_manifest.middleware_oauth_forward_auth \
 		-target=kubernetes_manifest.servers_transport_insecure \
 		-target=kubernetes_manifest.ingressroute_traefik_dashboard \
 		-target=kubernetes_manifest.ingressroute_grafana \
@@ -500,7 +515,8 @@ plan-ingress: check-vars check-init ## Plan ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_alertmanager \
 		-target=kubernetes_manifest.ingressroute_baget \
 		-target=kubernetes_manifest.ingressroute_longhorn \
-		-target=kubernetes_manifest.ingressroute_dashboard
+		-target=kubernetes_manifest.ingressroute_dashboard \
+		-target=kubernetes_manifest.ingressroute_oauth2_proxy
 
 plan-azure-dns: check-vars check-init ## Plan Azure DNS A records
 	@echo "Planning Azure DNS records..."
@@ -572,6 +588,18 @@ apply-nfs: check-vars check-init ## Deploy NFS CSI driver
 		-target=kubernetes_storage_class.nfs_media \
 		-target=kubernetes_storage_class.nfs_downloads
 
+apply-crowdsec: check-vars check-init ## Deploy CrowdSec security engine
+	@echo "Deploying CrowdSec..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.crowdsec \
+		-target=helm_release.crowdsec
+
+apply-oauth: check-vars check-init ## Deploy OAuth2 Proxy
+	@echo "Deploying OAuth2 Proxy..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.oauth2_proxy \
+		-target=helm_release.oauth2_proxy
+
 apply-traefik: check-vars check-init ## Deploy Traefik reverse proxy
 	@echo "Deploying Traefik..."
 	terraform apply -auto-approve \
@@ -586,6 +614,8 @@ apply-ingress: check-vars check-init ## Deploy ingress routes and middleware
 		-target=kubernetes_manifest.middleware_redirect_https \
 		-target=kubernetes_manifest.middleware_rate_limit \
 		-target=kubernetes_manifest.middleware_basic_auth \
+		-target=kubernetes_manifest.middleware_crowdsec_bouncer \
+		-target=kubernetes_manifest.middleware_oauth_forward_auth \
 		-target=kubernetes_manifest.servers_transport_insecure \
 		-target=kubernetes_manifest.ingressroute_traefik_dashboard \
 		-target=kubernetes_manifest.ingressroute_grafana \
@@ -593,7 +623,8 @@ apply-ingress: check-vars check-init ## Deploy ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_alertmanager \
 		-target=kubernetes_manifest.ingressroute_baget \
 		-target=kubernetes_manifest.ingressroute_longhorn \
-		-target=kubernetes_manifest.ingressroute_dashboard
+		-target=kubernetes_manifest.ingressroute_dashboard \
+		-target=kubernetes_manifest.ingressroute_oauth2_proxy
 
 apply-azure-dns: check-vars check-init ## Deploy Azure DNS A records
 	@echo "Deploying Azure DNS records..."
