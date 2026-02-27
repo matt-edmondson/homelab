@@ -139,6 +139,7 @@ All media services mount NFS volumes from the NAS via the NFS CSI driver (Wave 0
 - Port 8096/8920, ClusterIP Service + IngressRoute
 - Resource limits: 1.5GB RAM
 - Migrate: Backup /var/lib/emby (config, metadata, user data)
+- prefer building emby from a github repo, as I will be using a custom fork
 
 **New files:** `prowlarr.tf`, `sonarr.tf`, `radarr.tf`, `qbittorrent.tf`, `emby.tf`
 
