@@ -132,7 +132,7 @@ All media services mount NFS volumes from the NAS via the NFS CSI driver (Wave 0
 - Resource limits: 2GB RAM
 - **VPN requirement:** Runs full-time through Private Internet Access (PIA) VPN tunnel
 - VPN approach: Use a sidecar container (e.g. gluetun) that establishes the PIA WireGuard/OpenVPN tunnel, and route all qbittorrent traffic through it. The web UI is still accessible via Traefik (routed through the pod's network namespace). Alternatively, use a dedicated VPN gateway pod.
-- Note: Currently a full VM with 800G disk; in K8s, downloads go directly to NFS
+- Note: Currently a full VM with 800G disk; in K8s, downloads go directly to NFS, but ive had issues in the past with qbit + NFS performance. May need to use a local scratch PVC for active downloads and then move completed files to NFS.
 
 **emby** (migrate from LXC 109) — Media server.
 - Deployment, Longhorn PVC for config/metadata, NFS PVC for media library
