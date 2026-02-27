@@ -26,6 +26,8 @@ variable "dns_ttl" {
 provider "azurerm" {
   features {}
 
+  resource_provider_registrations = "none"
+
   client_id       = var.azure_dns_client_id
   client_secret   = var.azure_dns_client_secret
   tenant_id       = var.azure_dns_tenant_id
