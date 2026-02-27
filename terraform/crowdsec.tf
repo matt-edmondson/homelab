@@ -52,6 +52,12 @@ resource "helm_release" "crowdsec" {
       container_runtime = "containerd"
 
       lapi = {
+        bouncers = {
+          "traefik-bouncer" = {
+            key = var.crowdsec_bouncer_key
+          }
+        }
+
         env = concat(
           var.crowdsec_enroll_key != "" ? [
             {
