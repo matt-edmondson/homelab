@@ -48,6 +48,7 @@ locals {
     packages     = "packages"
     longhorn     = "longhorn"
     dashboard    = "dashboard"
+    auth         = "auth"
   }
 }
 
