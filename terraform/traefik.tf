@@ -167,7 +167,9 @@ resource "helm_release" "traefik" {
             email   = var.traefik_acme_email
             storage = "/data/acme.json"
             dnsChallenge = {
-              provider = "azuredns"
+              provider                = "azuredns"
+              delayBeforeCheck        = "30"
+              resolvers               = ["1.1.1.1:53", "8.8.8.8:53"]
             }
           }
         }
@@ -199,6 +201,18 @@ resource "helm_release" "traefik" {
         {
           name  = "AZURE_RESOURCE_GROUP"
           value = var.azure_dns_resource_group
+        },
+        {
+          name  = "AZURE_ZONE_NAME"
+          value = var.traefik_domain
+        },
+        {
+          name  = "AZURE_PROPAGATION_TIMEOUT"
+          value = "300"
+        },
+        {
+          name  = "AZURE_POLLING_INTERVAL"
+          value = "10"
         },
       ]
 
