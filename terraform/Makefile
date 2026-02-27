@@ -13,6 +13,7 @@ SHELL := /bin/bash
 	plan-static-sites apply-static-sites debug-static-sites status-static-sites \
 	plan-nfs apply-nfs \
 	plan-crowdsec apply-crowdsec plan-oauth apply-oauth \
+	plan-n8n apply-n8n plan-postfix apply-postfix plan-squid apply-squid \
 	show-structure quick-debug taint-component
 
 # Default target
@@ -440,6 +441,31 @@ plan-oauth: check-vars check-init ## Plan OAuth2 Proxy
 		-target=kubernetes_namespace.oauth2_proxy \
 		-target=helm_release.oauth2_proxy
 
+plan-n8n: check-vars check-init ## Plan n8n workflow automation
+	@echo "Planning n8n components..."
+	terraform plan \
+		-target=kubernetes_namespace.n8n \
+		-target=kubernetes_persistent_volume_claim.n8n_data \
+		-target=kubernetes_deployment.n8n \
+		-target=kubernetes_service.n8n
+
+plan-postfix: check-vars check-init ## Plan Postfix SMTP relay
+	@echo "Planning Postfix components..."
+	terraform plan \
+		-target=kubernetes_namespace.postfix \
+		-target=kubernetes_config_map.postfix_config \
+		-target=kubernetes_deployment.postfix \
+		-target=kubernetes_service.postfix
+
+plan-squid: check-vars check-init ## Plan Squid caching proxy
+	@echo "Planning Squid components..."
+	terraform plan \
+		-target=kubernetes_namespace.squid \
+		-target=kubernetes_config_map.squid_config \
+		-target=kubernetes_persistent_volume_claim.squid_cache \
+		-target=kubernetes_deployment.squid \
+		-target=kubernetes_service.squid
+
 plan-traefik: check-vars check-init ## Plan Traefik reverse proxy
 	@echo "Planning Traefik components..."
 	terraform plan \
@@ -543,6 +569,31 @@ apply-oauth: check-vars check-init ## Deploy OAuth2 Proxy
 	terraform apply -auto-approve \
 		-target=kubernetes_namespace.oauth2_proxy \
 		-target=helm_release.oauth2_proxy
+
+apply-n8n: check-vars check-init ## Deploy n8n workflow automation
+	@echo "Deploying n8n..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.n8n \
+		-target=kubernetes_persistent_volume_claim.n8n_data \
+		-target=kubernetes_deployment.n8n \
+		-target=kubernetes_service.n8n
+
+apply-postfix: check-vars check-init ## Deploy Postfix SMTP relay
+	@echo "Deploying Postfix..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.postfix \
+		-target=kubernetes_config_map.postfix_config \
+		-target=kubernetes_deployment.postfix \
+		-target=kubernetes_service.postfix
+
+apply-squid: check-vars check-init ## Deploy Squid caching proxy
+	@echo "Deploying Squid..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.squid \
+		-target=kubernetes_config_map.squid_config \
+		-target=kubernetes_persistent_volume_claim.squid_cache \
+		-target=kubernetes_deployment.squid \
+		-target=kubernetes_service.squid
 
 apply-traefik: check-vars check-init ## Deploy Traefik reverse proxy
 	@echo "Deploying Traefik..."

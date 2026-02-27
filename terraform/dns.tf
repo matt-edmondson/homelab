@@ -51,6 +51,7 @@ locals {
     longhorn     = "longhorn"
     dashboard    = "dashboard"
     auth         = "auth"
+    n8n          = "n8n"
   }
 }
 

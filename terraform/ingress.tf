@@ -616,6 +616,60 @@ resource "kubernetes_manifest" "ingressroute_dashboard" {
   ]
 }
 
+# n8n
+resource "kubernetes_manifest" "ingressroute_n8n" {
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "IngressRoute"
+    metadata = {
+      name      = "n8n"
+      namespace = kubernetes_namespace.traefik.metadata[0].name
+      labels    = var.common_labels
+    }
+    spec = {
+      entryPoints = ["websecure"]
+      routes = [{
+        match = "Host(`n8n.${var.traefik_domain}`)"
+        kind  = "Rule"
+        middlewares = [
+          {
+            name      = "rate-limit"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "crowdsec-bouncer"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "oauth-forward-auth"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+        ]
+        services = [{
+          name      = kubernetes_service.n8n.metadata[0].name
+          namespace = kubernetes_namespace.n8n.metadata[0].name
+          port      = 80
+        }]
+      }]
+      tls = {
+        certResolver = "letsencrypt"
+        domains = [{
+          main = var.traefik_domain
+          sans = ["*.${var.traefik_domain}"]
+        }]
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.traefik,
+    kubernetes_service.n8n,
+    kubernetes_manifest.middleware_rate_limit,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
+    kubernetes_manifest.middleware_oauth_forward_auth,
+  ]
+}
+
 # --- Static Sites ---
 
 # IngressRoute per static site (each on its own primary domain)

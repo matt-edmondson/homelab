@@ -167,9 +167,9 @@ resource "helm_release" "traefik" {
             email   = var.traefik_acme_email
             storage = "/data/acme.json"
             dnsChallenge = {
-              provider                = "azuredns"
-              delayBeforeCheck        = "30"
-              resolvers               = ["1.1.1.1:53", "8.8.8.8:53"]
+              provider         = "azuredns"
+              delayBeforeCheck = "30"
+              resolvers        = ["1.1.1.1:53", "8.8.8.8:53"]
             }
           }
         }

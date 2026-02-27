@@ -99,6 +99,27 @@
 #static_sites_cpu_limit         = "200m"
 # static_sites_git_credentials = "https://user:token@github.com"  # For private repos
 
+# n8n Workflow Automation
+#n8n_storage_size   = "5Gi"
+#n8n_memory_request = "128Mi"
+#n8n_memory_limit   = "512Mi"
+#n8n_cpu_request    = "100m"
+#n8n_cpu_limit      = "500m"
+#n8n_image_tag      = "latest"
+
+# Postfix SMTP Relay (migrated from LXC 102)
+#postfix_hostname        = "mail.ktsu.dev"
+#postfix_relay_host      = ""                                          # Empty for direct delivery
+#postfix_virtual_domains = "ktsu.dev ktsu.io matthewedmondson.com"
+#postfix_virtual_aliases = "@ktsu.dev user@gmail.com\n@ktsu.io user@gmail.com"
+
+# Squid Caching Proxy (migrated from LXC 105)
+#squid_enabled            = true    # Set to false if not needed
+#squid_cache_storage_size = "10Gi"
+#squid_max_cache_size_mb  = 8192
+#squid_memory_request     = "64Mi"
+#squid_memory_limit       = "256Mi"
+
 # Labels
 #common_labels = {
 #  "managed-by"  = "terraform"
