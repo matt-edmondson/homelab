@@ -145,6 +145,89 @@ resource "kubernetes_manifest" "middleware_crowdsec_bouncer" {
   ]
 }
 
+# OAuth2 Proxy ForwardAuth Middleware
+resource "kubernetes_manifest" "middleware_oauth_forward_auth" {
+  count = var.oauth_enabled ? 1 : 0
+
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "Middleware"
+    metadata = {
+      name      = "oauth-forward-auth"
+      namespace = kubernetes_namespace.traefik.metadata[0].name
+      labels    = var.common_labels
+    }
+    spec = {
+      forwardAuth = {
+        address            = "http://oauth2-proxy.${kubernetes_namespace.oauth2_proxy[0].metadata[0].name}.svc.cluster.local/oauth2/auth"
+        trustForwardHeader = true
+        authResponseHeaders = [
+          "X-Auth-Request-User",
+          "X-Auth-Request-Email",
+          "X-Auth-Request-Access-Token",
+          "Set-Cookie",
+        ]
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.traefik,
+    helm_release.oauth2_proxy,
+  ]
+}
+
+# OAuth2 Proxy IngressRoute (callback + sign-in)
+resource "kubernetes_manifest" "ingressroute_oauth2_proxy" {
+  count = var.oauth_enabled ? 1 : 0
+
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "IngressRoute"
+    metadata = {
+      name      = "oauth2-proxy"
+      namespace = kubernetes_namespace.traefik.metadata[0].name
+      labels    = var.common_labels
+    }
+    spec = {
+      entryPoints = ["websecure"]
+      routes = [{
+        match = "Host(`auth.${var.traefik_domain}`)"
+        kind  = "Rule"
+        middlewares = [
+          {
+            name      = "rate-limit"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "crowdsec-bouncer"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+        ]
+        services = [{
+          name      = "oauth2-proxy"
+          namespace = kubernetes_namespace.oauth2_proxy[0].metadata[0].name
+          port      = 80
+        }]
+      }]
+      tls = {
+        certResolver = "letsencrypt"
+        domains = [{
+          main = var.traefik_domain
+          sans = ["*.${var.traefik_domain}"]
+        }]
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.traefik,
+    helm_release.oauth2_proxy,
+    kubernetes_manifest.middleware_rate_limit,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
+  ]
+}
+
 # ServersTransport for backends with self-signed TLS (e.g. K8s Dashboard)
 resource "kubernetes_manifest" "servers_transport_insecure" {
   manifest = {
@@ -192,7 +275,7 @@ resource "kubernetes_manifest" "ingressroute_traefik_dashboard" {
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
           {
-            name      = "basic-auth"
+            name      = "oauth-forward-auth"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
         ]
@@ -215,7 +298,7 @@ resource "kubernetes_manifest" "ingressroute_traefik_dashboard" {
     helm_release.traefik,
     kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
-    kubernetes_manifest.middleware_basic_auth,
+    kubernetes_manifest.middleware_oauth_forward_auth,
   ]
 }
 
@@ -293,7 +376,7 @@ resource "kubernetes_manifest" "ingressroute_prometheus" {
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
           {
-            name      = "basic-auth"
+            name      = "oauth-forward-auth"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
         ]
@@ -318,7 +401,7 @@ resource "kubernetes_manifest" "ingressroute_prometheus" {
     helm_release.prometheus_stack,
     kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
-    kubernetes_manifest.middleware_basic_auth,
+    kubernetes_manifest.middleware_oauth_forward_auth,
   ]
 }
 
@@ -347,7 +430,7 @@ resource "kubernetes_manifest" "ingressroute_alertmanager" {
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
           {
-            name      = "basic-auth"
+            name      = "oauth-forward-auth"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
         ]
@@ -372,7 +455,7 @@ resource "kubernetes_manifest" "ingressroute_alertmanager" {
     helm_release.prometheus_stack,
     kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
-    kubernetes_manifest.middleware_basic_auth,
+    kubernetes_manifest.middleware_oauth_forward_auth,
   ]
 }
 
@@ -450,7 +533,7 @@ resource "kubernetes_manifest" "ingressroute_longhorn" {
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
           {
-            name      = "basic-auth"
+            name      = "oauth-forward-auth"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
         ]
@@ -475,7 +558,7 @@ resource "kubernetes_manifest" "ingressroute_longhorn" {
     kubernetes_service.longhorn_frontend_lb,
     kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
-    kubernetes_manifest.middleware_basic_auth,
+    kubernetes_manifest.middleware_oauth_forward_auth,
   ]
 }
 
