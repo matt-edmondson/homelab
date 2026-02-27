@@ -52,12 +52,6 @@ resource "helm_release" "crowdsec" {
       container_runtime = "containerd"
 
       lapi = {
-        bouncers = {
-          "traefik-bouncer" = {
-            key = var.crowdsec_bouncer_key
-          }
-        }
-
         env = concat(
           var.crowdsec_enroll_key != "" ? [
             {
@@ -130,6 +124,140 @@ resource "helm_release" "crowdsec" {
 
   timeout = 300
   wait    = true
+}
+
+# Register the Traefik bouncer API key with CrowdSec LAPI
+# Uses cscli to add the bouncer (idempotent: checks if already registered)
+resource "kubernetes_job" "crowdsec_register_bouncer" {
+  metadata {
+    name      = "crowdsec-register-bouncer"
+    namespace = kubernetes_namespace.crowdsec.metadata[0].name
+    labels    = var.common_labels
+  }
+
+  spec {
+    backoff_limit = 5
+
+    template {
+      metadata {
+        labels = var.common_labels
+      }
+
+      spec {
+        restart_policy = "OnFailure"
+
+        container {
+          name    = "register-bouncer"
+          image   = "bitnami/kubectl:latest"
+          command = ["/bin/sh", "-c"]
+          args = [
+            <<-EOT
+            # Wait for LAPI to be ready
+            echo "Waiting for CrowdSec LAPI to be ready..."
+            kubectl wait --for=condition=available deployment/crowdsec-lapi -n crowdsec --timeout=120s
+
+            # Check if bouncer already exists
+            EXISTING=$(kubectl exec deploy/crowdsec-lapi -n crowdsec -- cscli bouncers list -o raw 2>/dev/null | grep "traefik-bouncer" || true)
+            if [ -n "$EXISTING" ]; then
+              echo "Bouncer 'traefik-bouncer' already registered, skipping."
+            else
+              echo "Registering bouncer 'traefik-bouncer'..."
+              kubectl exec deploy/crowdsec-lapi -n crowdsec -- cscli bouncers add traefik-bouncer --key "$BOUNCER_KEY"
+              echo "Bouncer registered successfully."
+            fi
+            EOT
+          ]
+
+          env {
+            name = "BOUNCER_KEY"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret.crowdsec_bouncer_secret.metadata[0].name
+                key  = "bouncer-key"
+              }
+            }
+          }
+        }
+
+        service_account_name = kubernetes_service_account.crowdsec_bouncer_registrar.metadata[0].name
+      }
+    }
+  }
+
+  wait_for_completion = true
+  timeouts {
+    create = "5m"
+  }
+
+  depends_on = [
+    helm_release.crowdsec,
+    kubernetes_cluster_role_binding.crowdsec_bouncer_registrar,
+  ]
+}
+
+# Service account for the bouncer registration job
+resource "kubernetes_service_account" "crowdsec_bouncer_registrar" {
+  metadata {
+    name      = "crowdsec-bouncer-registrar"
+    namespace = kubernetes_namespace.crowdsec.metadata[0].name
+    labels    = var.common_labels
+  }
+}
+
+# RBAC: allow the job to exec into pods and wait for deployments in the crowdsec namespace
+resource "kubernetes_role" "crowdsec_bouncer_registrar" {
+  metadata {
+    name      = "crowdsec-bouncer-registrar"
+    namespace = kubernetes_namespace.crowdsec.metadata[0].name
+    labels    = var.common_labels
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["pods", "pods/exec"]
+    verbs      = ["get", "list", "create"]
+  }
+
+  rule {
+    api_groups = ["apps"]
+    resources  = ["deployments"]
+    verbs      = ["get", "list", "watch"]
+  }
+}
+
+resource "kubernetes_role_binding" "crowdsec_bouncer_registrar" {
+  metadata {
+    name      = "crowdsec-bouncer-registrar"
+    namespace = kubernetes_namespace.crowdsec.metadata[0].name
+    labels    = var.common_labels
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Role"
+    name      = kubernetes_role.crowdsec_bouncer_registrar.metadata[0].name
+  }
+
+  subject {
+    kind      = "ServiceAccount"
+    name      = kubernetes_service_account.crowdsec_bouncer_registrar.metadata[0].name
+    namespace = kubernetes_namespace.crowdsec.metadata[0].name
+  }
+}
+
+# Secret to hold the bouncer API key
+resource "kubernetes_secret" "crowdsec_bouncer_secret" {
+  metadata {
+    name      = "crowdsec-bouncer-key"
+    namespace = kubernetes_namespace.crowdsec.metadata[0].name
+    labels    = var.common_labels
+  }
+
+  data = {
+    "bouncer-key" = var.crowdsec_bouncer_key
+  }
+
+  type = "Opaque"
 }
 
 # Outputs
