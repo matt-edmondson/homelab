@@ -140,6 +140,11 @@ resource "kubernetes_deployment" "baget" {
 
   spec {
     replicas = 1
+
+    strategy {
+      type = "Recreate"
+    }
+
     selector {
       match_labels = {
         app = "baget"
