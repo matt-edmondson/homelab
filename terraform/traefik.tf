@@ -100,6 +100,16 @@ resource "helm_release" "traefik" {
       # Global settings
       globalArguments = []
 
+      # CrowdSec Bouncer Plugin
+      experimental = {
+        plugins = {
+          bouncer = {
+            moduleName = "github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin"
+            version    = "v1.5.1"
+          }
+        }
+      }
+
       # Logging
       logs = {
         general = {
@@ -107,6 +117,7 @@ resource "helm_release" "traefik" {
         }
         access = {
           enabled = true
+          format  = "json"
         }
       }
 
@@ -243,7 +254,8 @@ resource "helm_release" "traefik" {
     kubernetes_secret.traefik_azure_dns,
     helm_release.longhorn,
     data.kubernetes_storage_class.longhorn,
-    kubernetes_daemonset.kube_vip
+    kubernetes_daemonset.kube_vip,
+    helm_release.crowdsec,
   ]
 
   timeout = 300
