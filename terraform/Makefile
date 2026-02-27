@@ -1,3 +1,6 @@
+# Force bash shell for cross-platform compatibility (works in Git Bash on Windows and native Linux)
+SHELL := /bin/bash
+
 # Cross-platform help - Simple approach that works everywhere
 # We'll hardcode the help sections for reliability
 
@@ -103,11 +106,7 @@ plan: check-vars check-init ## Plan Terraform deployment
 	terraform plan
 
 check-init: ## Check if Terraform is initialized
-ifeq ($(OS),Windows_NT)
-	@if not exist .terraform\providers (echo Error: Terraform not initialized. Run 'make init' first. && exit /b 1)
-else
 	@if [ ! -d ".terraform/providers" ]; then echo "Error: Terraform not initialized. Run 'make init' first."; exit 1; fi
-endif
 
 apply: check-vars check-init ## Apply Terraform configuration
 	terraform apply -auto-approve
@@ -130,8 +129,8 @@ force-clean: ## Force cleanup of all resources (use when destroy fails)
 	@kubectl delete secret -n longhorn-system -l name=longhorn --ignore-not-found=true 2>/dev/null || echo "  No Longhorn Helm secrets to delete"
 	@echo "  Uninstalling prometheus-stack..."
 	@helm uninstall prometheus-stack -n monitoring --ignore-not-found --wait --timeout=60s 2>/dev/null || echo "  No prometheus-stack Helm release"
-	@echo "  Uninstalling kubernetes-dashboard..."
-	@helm uninstall kubernetes-dashboard -n kubernetes-dashboard --ignore-not-found --wait --timeout=60s 2>/dev/null || echo "  No kubernetes-dashboard Helm release"
+	@echo "  Uninstalling headlamp..."
+	@helm uninstall headlamp -n headlamp --ignore-not-found --wait --timeout=60s 2>/dev/null || echo "  No headlamp Helm release"
 	@echo "  All Helm releases thoroughly uninstalled"
 	@echo "Step 4: CRITICAL - Clean up webhooks and CRDs BEFORE terraform destroy..."
 	@echo "  Cleaning Longhorn webhooks..."
@@ -141,30 +140,21 @@ force-clean: ## Force cleanup of all resources (use when destroy fails)
 	@kubectl delete validatingwebhookconfigurations prometheus-stack-kube-prom-admission --ignore-not-found=true 2>/dev/null || echo "  No prometheus webhook validators"
 	@kubectl delete mutatingwebhookconfigurations prometheus-stack-kube-prom-admission --ignore-not-found=true 2>/dev/null || echo "  No prometheus webhook mutators"
 	@echo "  Cleaning Kubernetes Dashboard webhooks..."
-	@kubectl delete validatingwebhookconfigurations kubernetes-dashboard-webhook --ignore-not-found=true 2>/dev/null || echo "  No dashboard webhook validators"
-	@kubectl delete mutatingwebhookconfigurations kubernetes-dashboard-webhook --ignore-not-found=true 2>/dev/null || echo "  No dashboard webhook mutators"
+	@echo "  (Headlamp has no webhooks to clean)"
 	@echo "  FIRST: Remove finalizers from stuck resources (before deleting CRDs)..."
-ifeq ($(OS),Windows_NT)
-	@kubectl patch backuptargets.longhorn.io default -n longhorn-system -p "{\"metadata\":{\"finalizers\":[]}}" --type=merge 2>nul || echo "  No backup targets to patch"
-	@kubectl patch namespace longhorn-system -p "{\"metadata\":{\"finalizers\":[]}}" --type=merge 2>nul || echo "  Namespace already clean or deleted"
-	@kubectl patch namespace monitoring -p "{\"metadata\":{\"finalizers\":[]}}" --type=merge 2>nul || echo "  Monitoring namespace already clean or deleted"
-	@kubectl patch namespace baget -p "{\"metadata\":{\"finalizers\":[]}}" --type=merge 2>nul || echo "  Baget namespace already clean or deleted"
-	@kubectl patch namespace kubernetes-dashboard -p "{\"metadata\":{\"finalizers\":[]}}" --type=merge 2>nul || echo "  Dashboard namespace already clean or deleted"
-else
 	@kubectl patch backuptargets.longhorn.io default -n longhorn-system -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "  No backup targets to patch"
 	@kubectl patch namespace longhorn-system -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "  Namespace already clean or deleted"
 	@kubectl patch namespace monitoring -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "  Monitoring namespace already clean or deleted"
 	@kubectl patch namespace baget -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "  Baget namespace already clean or deleted"
-	@kubectl patch namespace kubernetes-dashboard -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "  Dashboard namespace already clean or deleted"
-endif
+	@kubectl patch namespace headlamp -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "  Headlamp namespace already clean or deleted"
 	@echo "  CRITICAL: Removing finalizers from Longhorn resources to unblock terraform destroy..."
 	@echo "  Step 1: Remove finalizers from all Longhorn custom resources (instances) first..."
 	@echo "    Removing finalizers from volumes..."
-	@kubectl get volumes.longhorn.io -n longhorn-system -o name 2>/dev/null | powershell -Command "$$input | ForEach-Object { kubectl patch $$_ -n longhorn-system -p '{\"metadata\":{\"finalizers\":[]}}' --type=merge 2>$$null }" || echo "    No volumes to patch"
+	@kubectl get volumes.longhorn.io -n longhorn-system -o name 2>/dev/null | xargs -I {} kubectl patch {} -n longhorn-system -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "    No volumes to patch"
 	@echo "    Removing finalizers from engines..."
-	@kubectl get engines.longhorn.io -n longhorn-system -o name 2>/dev/null | powershell -Command "$$input | ForEach-Object { kubectl patch $$_ -n longhorn-system -p '{\"metadata\":{\"finalizers\":[]}}' --type=merge 2>$$null }" || echo "    No engines to patch"
+	@kubectl get engines.longhorn.io -n longhorn-system -o name 2>/dev/null | xargs -I {} kubectl patch {} -n longhorn-system -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "    No engines to patch"
 	@echo "    Removing finalizers from replicas..."
-	@kubectl get replicas.longhorn.io -n longhorn-system -o name 2>/dev/null | powershell -Command "$$input | ForEach-Object { kubectl patch $$_ -n longhorn-system -p '{\"metadata\":{\"finalizers\":[]}}' --type=merge 2>$$null }" || echo "    No replicas to patch"
+	@kubectl get replicas.longhorn.io -n longhorn-system -o name 2>/dev/null | xargs -I {} kubectl patch {} -n longhorn-system -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "    No replicas to patch"
 	@echo "    Manually removing finalizers from known node instances..."
 	@kubectl patch node.longhorn.io k8s02 -n longhorn-system -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "    k8s02 node finalizer removed"
 	@kubectl patch node.longhorn.io k8s03 -n longhorn-system -p '{"metadata":{"finalizers":[]}}' --type=merge 2>/dev/null || echo "    k8s03 node finalizer removed"
@@ -185,7 +175,7 @@ endif
 	@echo "    Force deleting all remaining standard resources..."
 	@kubectl delete all --all -n longhorn-system --force --grace-period=0 --ignore-not-found=true --timeout=10s 2>/dev/null || echo "    All standard resources deleted"
 	@echo "    Waiting 3 seconds for node deletions to propagate..."
-	@powershell -Command "Start-Sleep -Seconds 3" 2>/dev/null || sleep 3
+	@sleep 3
 	@echo "    Verifying node instances are gone (this should unblock the CRD)..."
 	@kubectl get nodes.longhorn.io -n longhorn-system 2>/dev/null && echo "    WARNING: Node instances still exist!" || echo "    ✅ Node instances successfully deleted"
 	@echo "  Step 2: CRITICAL - Remove finalizer from the nodes.longhorn.io CRD itself..."
@@ -235,20 +225,20 @@ endif
 	@kubectl delete priorityclass longhorn-critical --ignore-not-found=true 2>/dev/null || echo "No priority classes to clean"
 	@kubectl delete apiservice v1beta1.metrics.k8s.io --ignore-not-found=true 2>/dev/null || echo "No API services to clean"
 	@echo "Step 7: Force delete stuck namespaces (should now work)..."
-	@kubectl delete namespace longhorn-system monitoring baget kubernetes-dashboard kube-flannel --ignore-not-found=true --timeout=30s || echo "Namespace deletion timeout, continuing..."
+	@kubectl delete namespace longhorn-system monitoring baget headlamp kube-flannel --ignore-not-found=true --timeout=30s || echo "Namespace deletion timeout, continuing..."
 	@echo "Step 8: Clean up remaining kube-vip resources..."
 	@kubectl delete configmap -n kube-system kubevip --ignore-not-found=true 2>/dev/null || echo "No kube-vip config to clean"
 	@echo "Step 9: Clean up any remaining application resources..."
 	@kubectl delete pods -n longhorn-system --all --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "No longhorn pods to delete"
 	@kubectl delete pods -n monitoring --all --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "No monitoring pods to delete"
 	@kubectl delete pods -n baget --all --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "No baget pods to delete"
-	@kubectl delete pods -n kubernetes-dashboard --all --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "No dashboard pods to delete"
+	@kubectl delete pods -n headlamp --all --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "No headlamp pods to delete"
 	@kubectl delete pods -n kube-flannel --all --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "No flannel pods to delete"
 	@kubectl delete pods -n kube-system -l k8s-app=kube-proxy --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "No kube-proxy pods to delete"
 	@kubectl delete daemonsets,deployments,replicasets -n longhorn-system --all --ignore-not-found=true 2>/dev/null || echo "No longhorn controllers to delete"
 	@kubectl delete daemonsets,deployments,replicasets -n monitoring --all --ignore-not-found=true 2>/dev/null || echo "No monitoring controllers to delete"
 	@kubectl delete daemonsets,deployments,replicasets -n baget --all --ignore-not-found=true 2>/dev/null || echo "No baget controllers to delete"
-	@kubectl delete daemonsets,deployments,replicasets -n kubernetes-dashboard --all --ignore-not-found=true 2>/dev/null || echo "No dashboard controllers to delete"
+	@kubectl delete daemonsets,deployments,replicasets -n headlamp --all --ignore-not-found=true 2>/dev/null || echo "No headlamp controllers to delete"
 	@kubectl delete daemonsets,deployments,replicasets -n kube-flannel --all --ignore-not-found=true 2>/dev/null || echo "No flannel controllers to delete"
 	@echo "Step 9b: Clean up Longhorn service accounts and remaining resources..."
 	@kubectl delete serviceaccount -n longhorn-system longhorn-service-account --ignore-not-found=true 2>/dev/null || echo "No longhorn service account to delete"
@@ -272,25 +262,12 @@ endif
 	@kubectl delete service -n kube-system prometheus-stack-kube-prom-kube-scheduler --ignore-not-found=true 2>/dev/null || echo "No prometheus scheduler service"
 	@kubectl delete service -n kube-system prometheus-stack-kube-prom-kubelet --ignore-not-found=true 2>/dev/null || echo "No prometheus kubelet service"
 	@echo "Step 11: Force delete any stuck namespaces (final cleanup - should be unnecessary now)..."
-	@kubectl delete namespace longhorn-system monitoring baget kubernetes-dashboard kube-flannel --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "All namespaces already deleted"
+	@kubectl delete namespace longhorn-system monitoring baget headlamp kube-flannel --force --grace-period=0 --ignore-not-found=true 2>/dev/null || echo "All namespaces already deleted"
 	@echo "Step 12: Final verification..."
-ifeq ($(OS),Windows_NT)
-	@kubectl get pods -n longhorn-system --ignore-not-found=true 2>nul || echo "✓ longhorn-system namespace is clean"
-	@kubectl get pods -n monitoring --ignore-not-found=true 2>nul || echo "✓ monitoring namespace is clean"
-	@kubectl get pods -n baget --ignore-not-found=true 2>nul || echo "✓ baget namespace is clean"
-	@kubectl get pods -n kubernetes-dashboard --ignore-not-found=true 2>nul || echo "✓ kubernetes-dashboard namespace is clean"
-	@kubectl get crd 2>nul | findstr /i "longhorn" >nul && echo "⚠ Some Longhorn CRDs still present" || echo "✓ Longhorn CRDs cleaned up"
-	@kubectl get crd 2>nul | findstr /i "monitoring.coreos.com" >nul && echo "⚠ Some Prometheus CRDs still present" || echo "✓ Prometheus CRDs cleaned up"
-	@kubectl get clusterrole longhorn-role 2>nul && echo "⚠ Longhorn ClusterRole still present" || echo "✓ Longhorn RBAC cleaned up"
-	@kubectl get clusterrolebinding longhorn-bind flannel 2>nul && echo "⚠ Some ClusterRoleBindings still present" || echo "✓ All ClusterRoleBindings cleaned up"
-	@kubectl get storageclass longhorn 2>nul && echo "⚠ Longhorn StorageClass still present" || echo "✓ Longhorn StorageClass cleaned up"
-	@kubectl get pods -n kube-flannel --ignore-not-found=true 2>nul || echo "✓ kube-flannel namespace is clean"
-	@helm list -A 2>nul | findstr /i -v "NAME" >nul && echo "⚠ Some Helm releases still present:" && helm list -A || echo "✓ All Helm releases cleaned up"
-else
 	@kubectl get pods -n longhorn-system --ignore-not-found=true 2>/dev/null || echo "✓ longhorn-system namespace is clean"
 	@kubectl get pods -n monitoring --ignore-not-found=true 2>/dev/null || echo "✓ monitoring namespace is clean"
 	@kubectl get pods -n baget --ignore-not-found=true 2>/dev/null || echo "✓ baget namespace is clean"
-	@kubectl get pods -n kubernetes-dashboard --ignore-not-found=true 2>/dev/null || echo "✓ kubernetes-dashboard namespace is clean"
+	@kubectl get pods -n headlamp --ignore-not-found=true 2>/dev/null || echo "✓ headlamp namespace is clean"
 	@kubectl get crd 2>/dev/null | grep -i "longhorn" && echo "⚠ Some Longhorn CRDs still present" || echo "✓ Longhorn CRDs cleaned up"
 	@kubectl get crd 2>/dev/null | grep -i "monitoring.coreos.com" && echo "⚠ Some Prometheus CRDs still present" || echo "✓ Prometheus CRDs cleaned up"
 	@kubectl get clusterrole longhorn-role 2>/dev/null && echo "⚠ Longhorn ClusterRole still present" || echo "✓ Longhorn RBAC cleaned up"
@@ -298,7 +275,6 @@ else
 	@kubectl get storageclass longhorn 2>/dev/null && echo "⚠ Longhorn StorageClass still present" || echo "✓ Longhorn StorageClass cleaned up"
 	@kubectl get pods -n kube-flannel --ignore-not-found=true 2>/dev/null || echo "✓ kube-flannel namespace is clean"
 	@helm list -A 2>/dev/null | grep -v "NAME" && echo "⚠ Some Helm releases still present:" && helm list -A || echo "✓ All Helm releases cleaned up"
-endif
 	@echo "✅ Comprehensive cleanup completed!"
 
 destroy-clean: force-clean ## Alias for force-clean
@@ -313,16 +289,6 @@ lint: validate format ## Lint and validate Terraform code
 	@echo "Terraform configuration is valid and formatted"
 
 check-vars: ## Check if terraform.tfvars exists
-ifeq ($(OS),Windows_NT)
-	@if not exist terraform.tfvars ( \
-		echo Error: terraform.tfvars not found! && \
-		echo Please copy terraform.tfvars.example to terraform.tfvars and customize it. && \
-		echo. && \
-		echo   copy terraform.tfvars.example terraform.tfvars && \
-		echo. && \
-		exit /b 1 \
-	)
-else
 	@if [ ! -f terraform.tfvars ]; then \
 		echo "Error: terraform.tfvars not found!"; \
 		echo "Please copy terraform.tfvars.example to terraform.tfvars and customize it."; \
@@ -331,15 +297,10 @@ else
 		echo ""; \
 		exit 1; \
 	fi
-endif
 
 status: ## Show current deployment status
 	@echo "=== Terraform State Summary ==="
-ifeq ($(OS),Windows_NT)
-	@terraform state list >nul 2>&1 && echo "Terraform state found" || echo "No state found (not initialized)"
-else
 	@terraform state list 2>/dev/null | wc -l | xargs -I {} echo "Total resources: {}" || echo "No state found (not initialized)"
-endif
 	@echo ""
 	@echo "=== Component Status Summary ==="
 	@$(MAKE) --no-print-directory status-networking
@@ -353,22 +314,13 @@ endif
 	@$(MAKE) --no-print-directory status-dns
 	@echo ""
 	@echo "=== LoadBalancer Services ==="
-ifeq ($(OS),Windows_NT)
-	@kubectl get services --all-namespaces 2>nul | findstr LoadBalancer || echo "No LoadBalancer services found"
-else
-	@kubectl get services --all-namespaces | grep LoadBalancer 2>/dev/null || echo "No LoadBalancer services found"
-endif
+	@kubectl get services --all-namespaces 2>/dev/null | grep LoadBalancer || echo "No LoadBalancer services found"
 	@echo ""
 	@echo "Use 'make status-<component>' for detailed component status"
 
 clean: ## Clean Terraform cache and state
-ifeq ($(OS),Windows_NT)
-	@if exist .terraform rmdir /s /q .terraform
-	@if exist .terraform.lock.hcl del .terraform.lock.hcl
-else
 	rm -rf .terraform
 	rm -f .terraform.lock.hcl
-endif
 
 # Deployment helpers
 setup: ## Complete setup process (init, validate, plan)
@@ -410,7 +362,7 @@ list-components: ## List all infrastructure components and their files
 	@echo "💾 Storage       -> longhorn.tf         (Longhorn distributed storage)"
 	@echo "📊 Monitoring    -> monitoring.tf       (Prometheus, Grafana, AlertManager)"
 	@echo "🚀 Applications  -> baget.tf            (Baget NuGet server)"
-	@echo "📋 Dashboard     -> kubernetes-dashboard.tf (Kubernetes Web UI)"
+	@echo "📋 Dashboard     -> kubernetes-dashboard.tf (Headlamp Web UI)"
 	@echo "🔀 Reverse Proxy -> traefik.tf          (Traefik ingress controller)"
 	@echo "🔗 Ingress       -> ingress.tf          (IngressRoutes and middleware)"
 	@echo ""
@@ -447,12 +399,8 @@ plan-applications: check-vars check-init ## Plan application components (Baget, 
 		-target=kubernetes_persistent_volume_claim.baget_data \
 		-target=kubernetes_deployment.baget \
 		-target=kubernetes_service.baget \
-		-target=kubernetes_namespace.kubernetes_dashboard \
-		-target=kubernetes_service_account.dashboard_admin_user \
-		-target=kubernetes_cluster_role_binding.dashboard_admin_user \
-		-target=kubernetes_secret.dashboard_admin_user_token \
-		-target=helm_release.kubernetes_dashboard \
-		-target=kubernetes_service.kubernetes_dashboard_lb
+		-target=kubernetes_namespace.headlamp \
+		-target=helm_release.headlamp
 
 plan-dns: check-vars check-init ## Plan DNS components (Pi-hole sync)
 	@echo "Planning DNS components..."
@@ -549,18 +497,14 @@ apply-monitoring: check-vars check-init ## Deploy monitoring components (Prometh
 
 apply-applications: check-vars check-init ## Deploy application components (Baget, Dashboard)
 	@echo "Deploying application components..."
-	terraform apply \
+	terraform apply -auto-approve \
 		-target=kubernetes_secret.baget_secrets \
 		-target=kubernetes_config_map.baget_config \
 		-target=kubernetes_persistent_volume_claim.baget_data \
 		-target=kubernetes_deployment.baget \
 		-target=kubernetes_service.baget \
-		-target=kubernetes_namespace.kubernetes_dashboard \
-		-target=kubernetes_service_account.dashboard_admin_user \
-		-target=kubernetes_cluster_role_binding.dashboard_admin_user \
-		-target=kubernetes_secret.dashboard_admin_user_token \
-		-target=helm_release.kubernetes_dashboard \
-		-target=kubernetes_service.kubernetes_dashboard_lb
+		-target=kubernetes_namespace.headlamp \
+		-target=helm_release.headlamp
 
 apply-dns: check-vars check-init ## Deploy DNS components (Pi-hole sync)
 	@echo "Deploying DNS components..."
@@ -692,17 +636,17 @@ debug-monitoring: ## Debug monitoring components (Prometheus, Grafana)
 debug-applications: ## Debug application components (Baget, Dashboard)
 	@echo "=== Applications Component Debug ==="
 	@echo "Terraform Resources:"
-	@terraform state list | grep -E "(baget|kubernetes_dashboard)" || echo "No application resources found in state"
+	@terraform state list | grep -E "(baget|headlamp)" || echo "No application resources found in state"
 	@echo ""
 	@echo "Baget Pods:"
 	@kubectl get pods -n baget -o wide 2>/dev/null || echo "Baget namespace not found"
 	@echo ""
-	@echo "Dashboard Pods:"
-	@kubectl get pods -n kubernetes-dashboard -o wide 2>/dev/null || echo "Dashboard namespace not found"
+	@echo "Headlamp Pods:"
+	@kubectl get pods -n headlamp -o wide 2>/dev/null || echo "Headlamp namespace not found"
 	@echo ""
 	@echo "Application Services:"
 	@kubectl get svc -n baget 2>/dev/null || echo "No Baget services found"
-	@kubectl get svc -n kubernetes-dashboard 2>/dev/null || echo "No Dashboard services found"
+	@kubectl get svc -n headlamp 2>/dev/null || echo "No Headlamp services found"
 	@echo ""
 	@echo "Application Storage:"
 	@kubectl get pvc -n baget 2>/dev/null || echo "No Baget storage found"
@@ -763,91 +707,47 @@ debug-ingress: ## Debug ingress routes
 # Component-specific Status
 status-networking: ## Show networking component status
 	@echo "=== Networking Status ==="
-ifeq ($(OS),Windows_NT)
-	@kubectl get pods -n metallb-system 2>nul || echo "MetalLB not deployed"
-	@kubectl get pods -n kube-system -l app.kubernetes.io/name=metrics-server 2>nul || echo "Metrics Server not deployed"
-	@kubectl get bgppeers,ipaddresspools -n metallb-system 2>nul || echo "MetalLB config not found"
-else
 	@kubectl get pods -n metallb-system 2>/dev/null || echo "MetalLB not deployed"
 	@kubectl get pods -n kube-system -l app.kubernetes.io/name=metrics-server 2>/dev/null || echo "Metrics Server not deployed"
 	@kubectl get bgppeers,ipaddresspools -n metallb-system 2>/dev/null || echo "MetalLB config not found"
-endif
 
 status-storage: ## Show storage component status
 	@echo "=== Storage Status ==="
-ifeq ($(OS),Windows_NT)
-	@kubectl get pods -n longhorn-system 2>nul || echo "Longhorn not deployed"
-	@kubectl get storageclass longhorn 2>nul || echo "Longhorn StorageClass not found"
-	@kubectl get svc -n longhorn-system longhorn-frontend-lb 2>nul || echo "Longhorn UI service not found"
-else
 	@kubectl get pods -n longhorn-system 2>/dev/null || echo "Longhorn not deployed"
 	@kubectl get storageclass longhorn 2>/dev/null || echo "Longhorn StorageClass not found"
 	@kubectl get svc -n longhorn-system longhorn-frontend-lb 2>/dev/null || echo "Longhorn UI service not found"
-endif
 
 status-monitoring: ## Show monitoring component status
 	@echo "=== Monitoring Status ==="
-ifeq ($(OS),Windows_NT)
-	@kubectl get pods -n monitoring 2>nul || echo "Monitoring not deployed"
-	@kubectl get svc -n monitoring 2>nul | findstr LoadBalancer || echo "No monitoring LoadBalancer services found"
-else
 	@kubectl get pods -n monitoring 2>/dev/null || echo "Monitoring not deployed"
-	@kubectl get svc -n monitoring | grep LoadBalancer 2>/dev/null || echo "No monitoring LoadBalancer services found"
-endif
+	@kubectl get svc -n monitoring 2>/dev/null | grep LoadBalancer || echo "No monitoring LoadBalancer services found"
 
 status-applications: ## Show application component status
 	@echo "=== Applications Status ==="
-ifeq ($(OS),Windows_NT)
-	@kubectl get pods -n baget 2>nul || echo "Baget not deployed"
-	@kubectl get svc -n baget baget-service 2>nul || echo "Baget service not found"
-	@kubectl get pods -n kubernetes-dashboard 2>nul || echo "Dashboard not deployed"
-	@kubectl get svc -n kubernetes-dashboard kubernetes-dashboard-lb 2>nul || echo "Dashboard service not found"
-else
 	@kubectl get pods -n baget 2>/dev/null || echo "Baget not deployed"
 	@kubectl get svc -n baget baget-service 2>/dev/null || echo "Baget service not found"
-	@kubectl get pods -n kubernetes-dashboard 2>/dev/null || echo "Dashboard not deployed"
-	@kubectl get svc -n kubernetes-dashboard kubernetes-dashboard-lb 2>/dev/null || echo "Dashboard service not found"
-endif
+	@kubectl get pods -n headlamp 2>/dev/null || echo "Headlamp not deployed"
+	@kubectl get svc -n headlamp 2>/dev/null || echo "Headlamp service not found"
 
 status-dns: ## Show DNS component status
 	@echo "=== DNS Status ==="
-ifeq ($(OS),Windows_NT)
-	@kubectl get pods -n kube-system -l app.kubernetes.io/name=pihole-dns-sync 2>nul || echo "Pi-hole sync not deployed"
-	@echo "Recent Pi-hole sync activity:"
-	@kubectl logs -n kube-system -l app.kubernetes.io/name=pihole-dns-sync --tail=5 2>nul || echo "No recent activity"
-else
 	@kubectl get pods -n kube-system -l app.kubernetes.io/name=pihole-dns-sync 2>/dev/null || echo "Pi-hole sync not deployed"
 	@echo "Recent Pi-hole sync activity:"
 	@kubectl logs -n kube-system -l app.kubernetes.io/name=pihole-dns-sync --tail=5 2>/dev/null || echo "No recent activity"
-endif
 
 status-static-sites: ## Show static sites status
 	@echo "=== Static Sites Status ==="
-ifeq ($(OS),Windows_NT)
-	@kubectl get pods -n static-sites 2>nul || echo "Static sites not deployed"
-	@kubectl get svc -n static-sites 2>nul || echo "No services found"
-else
 	@kubectl get pods -n static-sites 2>/dev/null || echo "Static sites not deployed"
 	@kubectl get svc -n static-sites 2>/dev/null || echo "No services found"
-endif
 
 status-traefik: ## Show Traefik status
 	@echo "=== Traefik Status ==="
-ifeq ($(OS),Windows_NT)
-	@kubectl get pods -n traefik 2>nul || echo "Traefik not deployed"
-	@kubectl get svc -n traefik 2>nul || echo "Traefik service not found"
-else
 	@kubectl get pods -n traefik 2>/dev/null || echo "Traefik not deployed"
 	@kubectl get svc -n traefik 2>/dev/null || echo "Traefik service not found"
-endif
 
 status-ingress: ## Show ingress routes status
 	@echo "=== Ingress Status ==="
-ifeq ($(OS),Windows_NT)
-	@kubectl get ingressroutes -A 2>nul || echo "No IngressRoutes found"
-else
 	@kubectl get ingressroutes -A 2>/dev/null || echo "No IngressRoutes found"
-endif
 
 logs: ## Show logs for all deployed applications
 	@echo "=== All Component Logs ==="
@@ -867,7 +767,7 @@ logs: ## Show logs for all deployed applications
 	@kubectl logs -n baget -l app=baget --tail=5 2>/dev/null || echo "No Baget logs"
 	@echo ""
 	@echo "Kubernetes Dashboard Logs:"
-	@kubectl logs -n kubernetes-dashboard -l app.kubernetes.io/name=kubernetes-dashboard --tail=5 2>/dev/null || echo "No Dashboard logs"
+	@kubectl logs -n headlamp -l app.kubernetes.io/name=headlamp --tail=5 2>/dev/null || echo "No Headlamp logs"
 	@echo ""
 	@echo "Pi-hole Sync Logs:"
 	@kubectl logs -n kube-system -l app.kubernetes.io/name=pihole-dns-sync --tail=5 2>/dev/null || echo "No Pi-hole sync logs"
@@ -963,7 +863,7 @@ quick-debug: ## Quick debug of all components
 	@kubectl get pods -n longhorn-system --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  Longhorn: {} pods running" || echo "  Longhorn: Not deployed"
 	@kubectl get pods -n monitoring --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  Monitoring: {} pods running" || echo "  Monitoring: Not deployed"
 	@kubectl get pods -n baget --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  Baget: {} pods running" || echo "  Baget: Not deployed"
-	@kubectl get pods -n kubernetes-dashboard --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  Dashboard: {} pods running" || echo "  Dashboard: Not deployed"
+	@kubectl get pods -n headlamp --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  Headlamp: {} pods running" || echo "  Headlamp: Not deployed"
 	@kubectl get pods -n kube-system -l app.kubernetes.io/name=pihole-dns-sync --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  Pi-hole Sync: {} pods running" || echo "  Pi-hole Sync: Not deployed"
 	@echo ""
 	@echo "Use 'make debug-<component>' for detailed debugging"
@@ -1017,7 +917,7 @@ endif
 		storage) terraform taint helm_release.longhorn ;; \
 		monitoring) terraform taint helm_release.prometheus_stack ;; \
 		applications) terraform taint kubernetes_deployment.baget ;; \
-		dashboard) terraform taint helm_release.kubernetes_dashboard ;; \
+		dashboard) terraform taint helm_release.headlamp ;; \
 		dns) terraform taint kubernetes_deployment.pihole_dns_sync ;; \
 		*) echo "Invalid component: $(COMPONENT)" && exit 1 ;; \
 	esac

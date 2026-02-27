@@ -50,16 +50,10 @@
 #flannel_network_cidr              = "10.244.0.0/16"    # Pod network CIDR
 #longhorn_chart_version            = "1.6.2"
 #prometheus_stack_chart_version    = "57.2.0"
-#kubernetes_dashboard_chart_version = "7.13.0"
+#headlamp_chart_version            = "0.40.0"
 
 # Metrics Server (recommended for kubectl top and HPA)
 #metrics_server_enabled = true
-
-# Kubernetes Dashboard Configuration (homelab-optimized)
-#dashboard_enable_skip_login      = true     # Skip login button (convenient for homelab)
-#dashboard_enable_insecure_login  = true     # Allow HTTP access (less secure but convenient)
-#dashboard_session_lifetime       = 43200    # Session timeout in seconds (12 hours)
-#dashboard_auto_generate_certificates = true # Auto-generate TLS certificates
 
 # Traefik Reverse Proxy Configuration
 #traefik_chart_version     = "34.5.0"

@@ -562,13 +562,13 @@ resource "kubernetes_manifest" "ingressroute_longhorn" {
   ]
 }
 
-# Kubernetes Dashboard (backend uses HTTPS on port 8443)
+# Headlamp Dashboard
 resource "kubernetes_manifest" "ingressroute_dashboard" {
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
     metadata = {
-      name      = "kubernetes-dashboard"
+      name      = "headlamp"
       namespace = kubernetes_namespace.traefik.metadata[0].name
       labels    = var.common_labels
     }
@@ -586,13 +586,15 @@ resource "kubernetes_manifest" "ingressroute_dashboard" {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
+          {
+            name      = "oauth-forward-auth"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
         ]
         services = [{
-          name             = kubernetes_service.kubernetes_dashboard_lb.metadata[0].name
-          namespace        = kubernetes_namespace.kubernetes_dashboard.metadata[0].name
-          port             = 443
-          scheme           = "https"
-          serversTransport = "insecure-skip-verify"
+          name      = "headlamp"
+          namespace = kubernetes_namespace.headlamp.metadata[0].name
+          port      = 80
         }]
       }]
       tls = {
@@ -607,10 +609,10 @@ resource "kubernetes_manifest" "ingressroute_dashboard" {
 
   depends_on = [
     helm_release.traefik,
-    kubernetes_service.kubernetes_dashboard_lb,
+    helm_release.headlamp,
     kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
-    kubernetes_manifest.servers_transport_insecure,
+    kubernetes_manifest.middleware_oauth_forward_auth,
   ]
 }
 
