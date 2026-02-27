@@ -115,6 +115,36 @@ resource "kubernetes_manifest" "middleware_basic_auth" {
   depends_on = [helm_release.traefik]
 }
 
+# CrowdSec Bouncer Middleware
+resource "kubernetes_manifest" "middleware_crowdsec_bouncer" {
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "Middleware"
+    metadata = {
+      name      = "crowdsec-bouncer"
+      namespace = kubernetes_namespace.traefik.metadata[0].name
+      labels    = var.common_labels
+    }
+    spec = {
+      plugin = {
+        bouncer = {
+          Enabled               = "true"
+          crowdsecMode          = "stream"
+          crowdsecLapiHost      = "crowdsec-service.${kubernetes_namespace.crowdsec.metadata[0].name}.svc.cluster.local:8080"
+          crowdsecLapiScheme    = "http"
+          crowdsecLapiKey       = var.crowdsec_bouncer_key
+          updateIntervalSeconds = 15
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.traefik,
+    helm_release.crowdsec,
+  ]
+}
+
 # ServersTransport for backends with self-signed TLS (e.g. K8s Dashboard)
 resource "kubernetes_manifest" "servers_transport_insecure" {
   manifest = {
@@ -158,6 +188,10 @@ resource "kubernetes_manifest" "ingressroute_traefik_dashboard" {
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
           {
+            name      = "crowdsec-bouncer"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
             name      = "basic-auth"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
@@ -180,6 +214,7 @@ resource "kubernetes_manifest" "ingressroute_traefik_dashboard" {
   depends_on = [
     helm_release.traefik,
     kubernetes_manifest.middleware_rate_limit,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_basic_auth,
   ]
 }
@@ -204,6 +239,10 @@ resource "kubernetes_manifest" "ingressroute_grafana" {
             name      = "rate-limit"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
+          {
+            name      = "crowdsec-bouncer"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
         ]
         services = [{
           name      = "prometheus-stack-grafana"
@@ -225,6 +264,7 @@ resource "kubernetes_manifest" "ingressroute_grafana" {
     helm_release.traefik,
     helm_release.prometheus_stack,
     kubernetes_manifest.middleware_rate_limit,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
   ]
 }
 
@@ -246,6 +286,10 @@ resource "kubernetes_manifest" "ingressroute_prometheus" {
         middlewares = [
           {
             name      = "rate-limit"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
           {
@@ -273,6 +317,7 @@ resource "kubernetes_manifest" "ingressroute_prometheus" {
     helm_release.traefik,
     helm_release.prometheus_stack,
     kubernetes_manifest.middleware_rate_limit,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_basic_auth,
   ]
 }
@@ -295,6 +340,10 @@ resource "kubernetes_manifest" "ingressroute_alertmanager" {
         middlewares = [
           {
             name      = "rate-limit"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
           {
@@ -322,6 +371,7 @@ resource "kubernetes_manifest" "ingressroute_alertmanager" {
     helm_release.traefik,
     helm_release.prometheus_stack,
     kubernetes_manifest.middleware_rate_limit,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_basic_auth,
   ]
 }
@@ -346,6 +396,10 @@ resource "kubernetes_manifest" "ingressroute_baget" {
             name      = "rate-limit"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
+          {
+            name      = "crowdsec-bouncer"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
         ]
         services = [{
           name      = kubernetes_service.baget.metadata[0].name
@@ -367,6 +421,7 @@ resource "kubernetes_manifest" "ingressroute_baget" {
     helm_release.traefik,
     kubernetes_service.baget,
     kubernetes_manifest.middleware_rate_limit,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
   ]
 }
 
@@ -388,6 +443,10 @@ resource "kubernetes_manifest" "ingressroute_longhorn" {
         middlewares = [
           {
             name      = "rate-limit"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
           {
@@ -415,6 +474,7 @@ resource "kubernetes_manifest" "ingressroute_longhorn" {
     helm_release.traefik,
     kubernetes_service.longhorn_frontend_lb,
     kubernetes_manifest.middleware_rate_limit,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_basic_auth,
   ]
 }
@@ -437,6 +497,10 @@ resource "kubernetes_manifest" "ingressroute_dashboard" {
         middlewares = [
           {
             name      = "rate-limit"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
         ]
@@ -462,6 +526,7 @@ resource "kubernetes_manifest" "ingressroute_dashboard" {
     helm_release.traefik,
     kubernetes_service.kubernetes_dashboard_lb,
     kubernetes_manifest.middleware_rate_limit,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.servers_transport_insecure,
   ]
 }
@@ -490,6 +555,10 @@ resource "kubernetes_manifest" "ingressroute_static_site" {
             name      = "rate-limit"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
+          {
+            name      = "crowdsec-bouncer"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
         ]
         services = [{
           name      = kubernetes_service.static_sites[0].metadata[0].name
@@ -510,5 +579,6 @@ resource "kubernetes_manifest" "ingressroute_static_site" {
     helm_release.traefik,
     kubernetes_service.static_sites,
     kubernetes_manifest.middleware_rate_limit,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
   ]
 }
