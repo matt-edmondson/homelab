@@ -14,6 +14,8 @@ SHELL := /bin/bash
 	plan-nfs apply-nfs \
 	plan-crowdsec apply-crowdsec plan-oauth apply-oauth \
 	plan-n8n apply-n8n plan-postfix apply-postfix plan-squid apply-squid \
+	plan-prowlarr apply-prowlarr plan-sonarr apply-sonarr plan-radarr apply-radarr \
+	plan-qbittorrent apply-qbittorrent plan-emby apply-emby \
 	show-structure quick-debug taint-component
 
 # Default target
@@ -466,6 +468,60 @@ plan-squid: check-vars check-init ## Plan Squid caching proxy
 		-target=kubernetes_deployment.squid \
 		-target=kubernetes_service.squid
 
+plan-prowlarr: check-vars check-init ## Plan Prowlarr indexer
+	@echo "Planning Prowlarr components..."
+	terraform plan \
+		-target=kubernetes_namespace.prowlarr \
+		-target=kubernetes_persistent_volume_claim.prowlarr_config \
+		-target=kubernetes_deployment.prowlarr \
+		-target=kubernetes_service.prowlarr
+
+plan-sonarr: check-vars check-init ## Plan Sonarr TV management
+	@echo "Planning Sonarr components..."
+	terraform plan \
+		-target=kubernetes_namespace.sonarr \
+		-target=kubernetes_persistent_volume_claim.sonarr_config \
+		-target=kubernetes_persistent_volume.sonarr_media \
+		-target=kubernetes_persistent_volume_claim.sonarr_media \
+		-target=kubernetes_persistent_volume.sonarr_downloads \
+		-target=kubernetes_persistent_volume_claim.sonarr_downloads \
+		-target=kubernetes_deployment.sonarr \
+		-target=kubernetes_service.sonarr
+
+plan-radarr: check-vars check-init ## Plan Radarr movie management
+	@echo "Planning Radarr components..."
+	terraform plan \
+		-target=kubernetes_namespace.radarr \
+		-target=kubernetes_persistent_volume_claim.radarr_config \
+		-target=kubernetes_persistent_volume.radarr_media \
+		-target=kubernetes_persistent_volume_claim.radarr_media \
+		-target=kubernetes_persistent_volume.radarr_downloads \
+		-target=kubernetes_persistent_volume_claim.radarr_downloads \
+		-target=kubernetes_deployment.radarr \
+		-target=kubernetes_service.radarr
+
+plan-qbittorrent: check-vars check-init ## Plan qBittorrent + VPN
+	@echo "Planning qBittorrent components..."
+	terraform plan \
+		-target=kubernetes_namespace.qbittorrent \
+		-target=kubernetes_secret.gluetun_vpn \
+		-target=kubernetes_persistent_volume_claim.qbittorrent_config \
+		-target=kubernetes_persistent_volume_claim.qbittorrent_scratch \
+		-target=kubernetes_persistent_volume.qbittorrent_downloads \
+		-target=kubernetes_persistent_volume_claim.qbittorrent_downloads \
+		-target=kubernetes_deployment.qbittorrent \
+		-target=kubernetes_service.qbittorrent
+
+plan-emby: check-vars check-init ## Plan Emby media server
+	@echo "Planning Emby components..."
+	terraform plan \
+		-target=kubernetes_namespace.emby \
+		-target=kubernetes_persistent_volume_claim.emby_config \
+		-target=kubernetes_persistent_volume.emby_media \
+		-target=kubernetes_persistent_volume_claim.emby_media \
+		-target=kubernetes_deployment.emby \
+		-target=kubernetes_service.emby
+
 plan-traefik: check-vars check-init ## Plan Traefik reverse proxy
 	@echo "Planning Traefik components..."
 	terraform plan \
@@ -594,6 +650,60 @@ apply-squid: check-vars check-init ## Deploy Squid caching proxy
 		-target=kubernetes_persistent_volume_claim.squid_cache \
 		-target=kubernetes_deployment.squid \
 		-target=kubernetes_service.squid
+
+apply-prowlarr: check-vars check-init ## Deploy Prowlarr indexer
+	@echo "Deploying Prowlarr..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.prowlarr \
+		-target=kubernetes_persistent_volume_claim.prowlarr_config \
+		-target=kubernetes_deployment.prowlarr \
+		-target=kubernetes_service.prowlarr
+
+apply-sonarr: check-vars check-init ## Deploy Sonarr TV management
+	@echo "Deploying Sonarr..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.sonarr \
+		-target=kubernetes_persistent_volume_claim.sonarr_config \
+		-target=kubernetes_persistent_volume.sonarr_media \
+		-target=kubernetes_persistent_volume_claim.sonarr_media \
+		-target=kubernetes_persistent_volume.sonarr_downloads \
+		-target=kubernetes_persistent_volume_claim.sonarr_downloads \
+		-target=kubernetes_deployment.sonarr \
+		-target=kubernetes_service.sonarr
+
+apply-radarr: check-vars check-init ## Deploy Radarr movie management
+	@echo "Deploying Radarr..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.radarr \
+		-target=kubernetes_persistent_volume_claim.radarr_config \
+		-target=kubernetes_persistent_volume.radarr_media \
+		-target=kubernetes_persistent_volume_claim.radarr_media \
+		-target=kubernetes_persistent_volume.radarr_downloads \
+		-target=kubernetes_persistent_volume_claim.radarr_downloads \
+		-target=kubernetes_deployment.radarr \
+		-target=kubernetes_service.radarr
+
+apply-qbittorrent: check-vars check-init ## Deploy qBittorrent + VPN
+	@echo "Deploying qBittorrent..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.qbittorrent \
+		-target=kubernetes_secret.gluetun_vpn \
+		-target=kubernetes_persistent_volume_claim.qbittorrent_config \
+		-target=kubernetes_persistent_volume_claim.qbittorrent_scratch \
+		-target=kubernetes_persistent_volume.qbittorrent_downloads \
+		-target=kubernetes_persistent_volume_claim.qbittorrent_downloads \
+		-target=kubernetes_deployment.qbittorrent \
+		-target=kubernetes_service.qbittorrent
+
+apply-emby: check-vars check-init ## Deploy Emby media server
+	@echo "Deploying Emby..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.emby \
+		-target=kubernetes_persistent_volume_claim.emby_config \
+		-target=kubernetes_persistent_volume.emby_media \
+		-target=kubernetes_persistent_volume_claim.emby_media \
+		-target=kubernetes_deployment.emby \
+		-target=kubernetes_service.emby
 
 apply-traefik: check-vars check-init ## Deploy Traefik reverse proxy
 	@echo "Deploying Traefik..."

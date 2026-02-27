@@ -52,6 +52,11 @@ locals {
     dashboard    = "dashboard"
     auth         = "auth"
     n8n          = "n8n"
+    prowlarr     = "prowlarr"
+    sonarr       = "sonarr"
+    radarr       = "radarr"
+    qbit         = "qbit"
+    emby         = "emby"
   }
 }
 
