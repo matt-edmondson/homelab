@@ -149,24 +149,7 @@ resource "kubernetes_job" "crowdsec_register_bouncer" {
         container {
           name    = "register-bouncer"
           image   = "bitnami/kubectl:latest"
-          command = ["/bin/sh", "-c"]
-          args = [
-            <<-EOT
-            # Wait for LAPI to be ready
-            echo "Waiting for CrowdSec LAPI to be ready..."
-            kubectl wait --for=condition=available deployment/crowdsec-lapi -n crowdsec --timeout=120s
-
-            # Check if bouncer already exists
-            EXISTING=$(kubectl exec deploy/crowdsec-lapi -n crowdsec -- cscli bouncers list -o raw 2>/dev/null | grep "traefik-bouncer" || true)
-            if [ -n "$EXISTING" ]; then
-              echo "Bouncer 'traefik-bouncer' already registered, skipping."
-            else
-              echo "Registering bouncer 'traefik-bouncer'..."
-              kubectl exec deploy/crowdsec-lapi -n crowdsec -- cscli bouncers add traefik-bouncer --key "$BOUNCER_KEY"
-              echo "Bouncer registered successfully."
-            fi
-            EOT
-          ]
+          command = ["/bin/sh", "-c", "echo 'Waiting for CrowdSec LAPI...' && kubectl wait --for=condition=available deployment/crowdsec-lapi -n crowdsec --timeout=120s && EXISTING=$(kubectl exec deploy/crowdsec-lapi -n crowdsec -- cscli bouncers list -o raw 2>/dev/null | grep traefik-bouncer || true) && if [ -n \"$EXISTING\" ]; then echo 'Bouncer already registered'; else echo 'Registering bouncer...' && kubectl exec deploy/crowdsec-lapi -n crowdsec -- cscli bouncers add traefik-bouncer --key \"$BOUNCER_KEY\" && echo 'Done'; fi"]
 
           env {
             name = "BOUNCER_KEY"
@@ -191,7 +174,7 @@ resource "kubernetes_job" "crowdsec_register_bouncer" {
 
   depends_on = [
     helm_release.crowdsec,
-    kubernetes_cluster_role_binding.crowdsec_bouncer_registrar,
+    kubernetes_role_binding.crowdsec_bouncer_registrar,
   ]
 }
 
