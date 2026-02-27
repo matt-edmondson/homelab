@@ -25,6 +25,19 @@
 #nfs_media_share       = "/volume2/media"
 #nfs_downloads_share   = "/volume2/downloads"
 
+# CrowdSec Security Engine
+#crowdsec_chart_version = "0.22.0"
+#crowdsec_bouncer_key   = "generate-with-openssl-rand-hex-32"  # openssl rand -hex 32
+#crowdsec_enroll_key    = ""                                    # Optional: from app.crowdsec.net
+
+# OAuth2 Proxy (GitHub SSO)
+#oauth_enabled              = true
+#oauth2_proxy_chart_version = "10.1.4"
+#oauth_github_client_id     = "your-github-oauth-app-client-id"
+#oauth_github_client_secret = "your-github-oauth-app-client-secret"
+#oauth_cookie_secret        = "generate-with-openssl-rand-base64-32"  # openssl rand -base64 32 | head -c 32
+#oauth_github_user          = "your-github-username"
+
 # Resource Configuration
 #baget_memory_request = "256Mi"
 #baget_memory_limit   = "512Mi"
