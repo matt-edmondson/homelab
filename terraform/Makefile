@@ -8,6 +8,7 @@
 	status-networking status-storage status-monitoring status-applications status-dns status-traefik status-ingress \
 	list-components deploy-core deploy-apps plan-all-components status-all-components \
 	plan-static-sites apply-static-sites debug-static-sites status-static-sites \
+	plan-nfs apply-nfs \
 	show-structure quick-debug taint-component
 
 # Default target
@@ -471,6 +472,13 @@ plan-static-sites: check-vars check-init ## Plan static sites components
 		-target=kubernetes_deployment.static_sites \
 		-target=kubernetes_service.static_sites
 
+plan-nfs: check-vars check-init ## Plan NFS CSI driver
+	@echo "Planning NFS CSI driver..."
+	terraform plan \
+		-target=helm_release.nfs_csi_driver \
+		-target=kubernetes_storage_class.nfs_media \
+		-target=kubernetes_storage_class.nfs_downloads
+
 plan-traefik: check-vars check-init ## Plan Traefik reverse proxy
 	@echo "Planning Traefik components..."
 	terraform plan \
@@ -556,6 +564,13 @@ apply-static-sites: check-vars check-init ## Deploy static sites components
 		-target=kubernetes_config_map.static_sites_config \
 		-target=kubernetes_deployment.static_sites \
 		-target=kubernetes_service.static_sites
+
+apply-nfs: check-vars check-init ## Deploy NFS CSI driver
+	@echo "Deploying NFS CSI driver..."
+	terraform apply -auto-approve \
+		-target=helm_release.nfs_csi_driver \
+		-target=kubernetes_storage_class.nfs_media \
+		-target=kubernetes_storage_class.nfs_downloads
 
 apply-traefik: check-vars check-init ## Deploy Traefik reverse proxy
 	@echo "Deploying Traefik..."
