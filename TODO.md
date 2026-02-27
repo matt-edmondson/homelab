@@ -15,6 +15,7 @@
 - SABnzbd
 - CrowdSec
 - Traefik Bouncer
+- Traefik github oath
 - n8n
 - ollama
 - qdrant
