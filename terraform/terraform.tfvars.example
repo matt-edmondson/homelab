@@ -19,6 +19,12 @@
 #grafana_storage_size      = "10Gi"
 #alertmanager_storage_size = "5Gi"
 
+# NFS Storage Configuration (Synology NAS)
+#nfs_csi_chart_version = "4.11.0"
+#nfs_server            = "192.168.0.148"
+#nfs_media_share       = "/volume2/media"
+#nfs_downloads_share   = "/volume2/downloads"
+
 # Resource Configuration
 #baget_memory_request = "256Mi"
 #baget_memory_limit   = "512Mi"
