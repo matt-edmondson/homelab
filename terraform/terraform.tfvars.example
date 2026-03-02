@@ -160,6 +160,47 @@
 #emby_image               = "emby/embyserver"    # Override for custom fork
 #emby_image_tag           = "latest"
 
+# Bazarr Subtitle Management (Wave 4)
+#bazarr_storage_size   = "1Gi"
+#bazarr_memory_request = "128Mi"
+#bazarr_memory_limit   = "512Mi"
+#bazarr_image_tag      = "latest"
+
+# Jackett Indexer Support (Wave 4)
+#jackett_storage_size   = "1Gi"
+#jackett_memory_request = "128Mi"
+#jackett_memory_limit   = "512Mi"
+#jackett_image_tag      = "latest"
+
+# Huntarr Missing Media Hunter (Wave 4)
+#huntarr_storage_size   = "512Mi"
+#huntarr_memory_request = "64Mi"
+#huntarr_memory_limit   = "256Mi"
+#huntarr_image_tag      = "latest"
+
+# Cleanuparr Library Cleanup (Wave 4)
+#cleanuparr_memory_request = "64Mi"
+#cleanuparr_memory_limit   = "256Mi"
+#cleanuparr_image_tag      = "latest"
+
+# SABnzbd Usenet Client (Wave 4)
+#sabnzbd_storage_size   = "1Gi"
+#sabnzbd_memory_request = "256Mi"
+#sabnzbd_memory_limit   = "1Gi"
+#sabnzbd_image_tag      = "latest"
+
+# Notifiarr Rich Notifications (Wave 4)
+#notifiarr_storage_size   = "1Gi"
+#notifiarr_memory_request = "64Mi"
+#notifiarr_memory_limit   = "256Mi"
+#notifiarr_image_tag      = "latest"
+#notifiarr_config         = ""    # Paste notifiarr.conf contents from LXC 101
+
+# Flaresolverr CAPTCHA Solver (Wave 4 — internal only)
+#flaresolverr_memory_request = "256Mi"
+#flaresolverr_memory_limit   = "1Gi"
+#flaresolverr_image_tag      = "latest"
+
 # Labels
 #common_labels = {
 #  "managed-by"  = "terraform"

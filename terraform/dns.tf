@@ -57,6 +57,12 @@ locals {
     radarr       = "radarr"
     qbit         = "qbit"
     emby         = "emby"
+    bazarr       = "bazarr"
+    jackett      = "jackett"
+    huntarr      = "huntarr"
+    cleanuparr   = "cleanuparr"
+    sabnzbd      = "sabnzbd"
+    notifiarr    = "notifiarr"
   }
 }
 

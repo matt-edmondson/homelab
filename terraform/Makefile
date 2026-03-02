@@ -16,6 +16,9 @@ SHELL := /bin/bash
 	plan-n8n apply-n8n plan-postfix apply-postfix plan-squid apply-squid \
 	plan-prowlarr apply-prowlarr plan-sonarr apply-sonarr plan-radarr apply-radarr \
 	plan-qbittorrent apply-qbittorrent plan-emby apply-emby \
+	plan-bazarr apply-bazarr plan-jackett apply-jackett plan-huntarr apply-huntarr \
+	plan-cleanuparr apply-cleanuparr plan-sabnzbd apply-sabnzbd plan-notifiarr apply-notifiarr \
+	plan-flaresolverr apply-flaresolverr \
 	show-structure quick-debug taint-component
 
 # Default target
@@ -522,6 +525,65 @@ plan-emby: check-vars check-init ## Plan Emby media server
 		-target=kubernetes_deployment.emby \
 		-target=kubernetes_service.emby
 
+plan-bazarr: check-vars check-init ## Plan Bazarr subtitle management
+	@echo "Planning Bazarr components..."
+	terraform plan \
+		-target=kubernetes_namespace.bazarr \
+		-target=kubernetes_persistent_volume_claim.bazarr_config \
+		-target=kubernetes_persistent_volume.bazarr_media \
+		-target=kubernetes_persistent_volume_claim.bazarr_media \
+		-target=kubernetes_deployment.bazarr \
+		-target=kubernetes_service.bazarr
+
+plan-jackett: check-vars check-init ## Plan Jackett indexer support
+	@echo "Planning Jackett components..."
+	terraform plan \
+		-target=kubernetes_namespace.jackett \
+		-target=kubernetes_persistent_volume_claim.jackett_config \
+		-target=kubernetes_deployment.jackett \
+		-target=kubernetes_service.jackett
+
+plan-huntarr: check-vars check-init ## Plan Huntarr missing media hunter
+	@echo "Planning Huntarr components..."
+	terraform plan \
+		-target=kubernetes_namespace.huntarr \
+		-target=kubernetes_persistent_volume_claim.huntarr_config \
+		-target=kubernetes_deployment.huntarr \
+		-target=kubernetes_service.huntarr
+
+plan-cleanuparr: check-vars check-init ## Plan Cleanuparr library cleanup
+	@echo "Planning Cleanuparr components..."
+	terraform plan \
+		-target=kubernetes_namespace.cleanuparr \
+		-target=kubernetes_deployment.cleanuparr \
+		-target=kubernetes_service.cleanuparr
+
+plan-sabnzbd: check-vars check-init ## Plan SABnzbd Usenet client
+	@echo "Planning SABnzbd components..."
+	terraform plan \
+		-target=kubernetes_namespace.sabnzbd \
+		-target=kubernetes_persistent_volume_claim.sabnzbd_config \
+		-target=kubernetes_persistent_volume.sabnzbd_downloads \
+		-target=kubernetes_persistent_volume_claim.sabnzbd_downloads \
+		-target=kubernetes_deployment.sabnzbd \
+		-target=kubernetes_service.sabnzbd
+
+plan-notifiarr: check-vars check-init ## Plan Notifiarr notifications
+	@echo "Planning Notifiarr components..."
+	terraform plan \
+		-target=kubernetes_namespace.notifiarr \
+		-target=kubernetes_secret.notifiarr_config \
+		-target=kubernetes_persistent_volume_claim.notifiarr_config \
+		-target=kubernetes_deployment.notifiarr \
+		-target=kubernetes_service.notifiarr
+
+plan-flaresolverr: check-vars check-init ## Plan Flaresolverr CAPTCHA solver
+	@echo "Planning Flaresolverr components..."
+	terraform plan \
+		-target=kubernetes_namespace.flaresolverr \
+		-target=kubernetes_deployment.flaresolverr \
+		-target=kubernetes_service.flaresolverr
+
 plan-traefik: check-vars check-init ## Plan Traefik reverse proxy
 	@echo "Planning Traefik components..."
 	terraform plan \
@@ -704,6 +766,65 @@ apply-emby: check-vars check-init ## Deploy Emby media server
 		-target=kubernetes_persistent_volume_claim.emby_media \
 		-target=kubernetes_deployment.emby \
 		-target=kubernetes_service.emby
+
+apply-bazarr: check-vars check-init ## Deploy Bazarr subtitle management
+	@echo "Deploying Bazarr..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.bazarr \
+		-target=kubernetes_persistent_volume_claim.bazarr_config \
+		-target=kubernetes_persistent_volume.bazarr_media \
+		-target=kubernetes_persistent_volume_claim.bazarr_media \
+		-target=kubernetes_deployment.bazarr \
+		-target=kubernetes_service.bazarr
+
+apply-jackett: check-vars check-init ## Deploy Jackett indexer support
+	@echo "Deploying Jackett..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.jackett \
+		-target=kubernetes_persistent_volume_claim.jackett_config \
+		-target=kubernetes_deployment.jackett \
+		-target=kubernetes_service.jackett
+
+apply-huntarr: check-vars check-init ## Deploy Huntarr missing media hunter
+	@echo "Deploying Huntarr..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.huntarr \
+		-target=kubernetes_persistent_volume_claim.huntarr_config \
+		-target=kubernetes_deployment.huntarr \
+		-target=kubernetes_service.huntarr
+
+apply-cleanuparr: check-vars check-init ## Deploy Cleanuparr library cleanup
+	@echo "Deploying Cleanuparr..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.cleanuparr \
+		-target=kubernetes_deployment.cleanuparr \
+		-target=kubernetes_service.cleanuparr
+
+apply-sabnzbd: check-vars check-init ## Deploy SABnzbd Usenet client
+	@echo "Deploying SABnzbd..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.sabnzbd \
+		-target=kubernetes_persistent_volume_claim.sabnzbd_config \
+		-target=kubernetes_persistent_volume.sabnzbd_downloads \
+		-target=kubernetes_persistent_volume_claim.sabnzbd_downloads \
+		-target=kubernetes_deployment.sabnzbd \
+		-target=kubernetes_service.sabnzbd
+
+apply-notifiarr: check-vars check-init ## Deploy Notifiarr notifications
+	@echo "Deploying Notifiarr..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.notifiarr \
+		-target=kubernetes_secret.notifiarr_config \
+		-target=kubernetes_persistent_volume_claim.notifiarr_config \
+		-target=kubernetes_deployment.notifiarr \
+		-target=kubernetes_service.notifiarr
+
+apply-flaresolverr: check-vars check-init ## Deploy Flaresolverr CAPTCHA solver
+	@echo "Deploying Flaresolverr..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.flaresolverr \
+		-target=kubernetes_deployment.flaresolverr \
+		-target=kubernetes_service.flaresolverr
 
 apply-traefik: check-vars check-init ## Deploy Traefik reverse proxy
 	@echo "Deploying Traefik..."
