@@ -1,6 +1,9 @@
 # Force bash shell for cross-platform compatibility (works in Git Bash on Windows and native Linux)
 SHELL := /bin/bash
 
+# Fix $(MAKE) on Windows when make is installed in a path with spaces (e.g. Program Files)
+MAKE := "$(MAKE)"
+
 # Cross-platform help - Simple approach that works everywhere
 # We'll hardcode the help sections for reliability
 
