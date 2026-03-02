@@ -935,6 +935,330 @@ resource "kubernetes_manifest" "ingressroute_emby" {
   ]
 }
 
+# Bazarr
+resource "kubernetes_manifest" "ingressroute_bazarr" {
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "IngressRoute"
+    metadata = {
+      name      = "bazarr"
+      namespace = kubernetes_namespace.traefik.metadata[0].name
+      labels    = var.common_labels
+    }
+    spec = {
+      entryPoints = ["websecure"]
+      routes = [{
+        match = "Host(`bazarr.${var.traefik_domain}`)"
+        kind  = "Rule"
+        middlewares = [
+          {
+            name      = "rate-limit"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "crowdsec-bouncer"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "oauth-forward-auth"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+        ]
+        services = [{
+          name      = kubernetes_service.bazarr.metadata[0].name
+          namespace = kubernetes_namespace.bazarr.metadata[0].name
+          port      = 80
+        }]
+      }]
+      tls = {
+        certResolver = "letsencrypt"
+        domains = [{
+          main = var.traefik_domain
+          sans = ["*.${var.traefik_domain}"]
+        }]
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.traefik,
+    kubernetes_service.bazarr,
+    kubernetes_manifest.middleware_rate_limit,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
+    kubernetes_manifest.middleware_oauth_forward_auth,
+  ]
+}
+
+# Jackett
+resource "kubernetes_manifest" "ingressroute_jackett" {
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "IngressRoute"
+    metadata = {
+      name      = "jackett"
+      namespace = kubernetes_namespace.traefik.metadata[0].name
+      labels    = var.common_labels
+    }
+    spec = {
+      entryPoints = ["websecure"]
+      routes = [{
+        match = "Host(`jackett.${var.traefik_domain}`)"
+        kind  = "Rule"
+        middlewares = [
+          {
+            name      = "rate-limit"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "crowdsec-bouncer"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "oauth-forward-auth"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+        ]
+        services = [{
+          name      = kubernetes_service.jackett.metadata[0].name
+          namespace = kubernetes_namespace.jackett.metadata[0].name
+          port      = 80
+        }]
+      }]
+      tls = {
+        certResolver = "letsencrypt"
+        domains = [{
+          main = var.traefik_domain
+          sans = ["*.${var.traefik_domain}"]
+        }]
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.traefik,
+    kubernetes_service.jackett,
+    kubernetes_manifest.middleware_rate_limit,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
+    kubernetes_manifest.middleware_oauth_forward_auth,
+  ]
+}
+
+# Huntarr
+resource "kubernetes_manifest" "ingressroute_huntarr" {
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "IngressRoute"
+    metadata = {
+      name      = "huntarr"
+      namespace = kubernetes_namespace.traefik.metadata[0].name
+      labels    = var.common_labels
+    }
+    spec = {
+      entryPoints = ["websecure"]
+      routes = [{
+        match = "Host(`huntarr.${var.traefik_domain}`)"
+        kind  = "Rule"
+        middlewares = [
+          {
+            name      = "rate-limit"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "crowdsec-bouncer"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "oauth-forward-auth"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+        ]
+        services = [{
+          name      = kubernetes_service.huntarr.metadata[0].name
+          namespace = kubernetes_namespace.huntarr.metadata[0].name
+          port      = 80
+        }]
+      }]
+      tls = {
+        certResolver = "letsencrypt"
+        domains = [{
+          main = var.traefik_domain
+          sans = ["*.${var.traefik_domain}"]
+        }]
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.traefik,
+    kubernetes_service.huntarr,
+    kubernetes_manifest.middleware_rate_limit,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
+    kubernetes_manifest.middleware_oauth_forward_auth,
+  ]
+}
+
+# Cleanuparr
+resource "kubernetes_manifest" "ingressroute_cleanuparr" {
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "IngressRoute"
+    metadata = {
+      name      = "cleanuparr"
+      namespace = kubernetes_namespace.traefik.metadata[0].name
+      labels    = var.common_labels
+    }
+    spec = {
+      entryPoints = ["websecure"]
+      routes = [{
+        match = "Host(`cleanuparr.${var.traefik_domain}`)"
+        kind  = "Rule"
+        middlewares = [
+          {
+            name      = "rate-limit"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "crowdsec-bouncer"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "oauth-forward-auth"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+        ]
+        services = [{
+          name      = kubernetes_service.cleanuparr.metadata[0].name
+          namespace = kubernetes_namespace.cleanuparr.metadata[0].name
+          port      = 80
+        }]
+      }]
+      tls = {
+        certResolver = "letsencrypt"
+        domains = [{
+          main = var.traefik_domain
+          sans = ["*.${var.traefik_domain}"]
+        }]
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.traefik,
+    kubernetes_service.cleanuparr,
+    kubernetes_manifest.middleware_rate_limit,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
+    kubernetes_manifest.middleware_oauth_forward_auth,
+  ]
+}
+
+# SABnzbd
+resource "kubernetes_manifest" "ingressroute_sabnzbd" {
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "IngressRoute"
+    metadata = {
+      name      = "sabnzbd"
+      namespace = kubernetes_namespace.traefik.metadata[0].name
+      labels    = var.common_labels
+    }
+    spec = {
+      entryPoints = ["websecure"]
+      routes = [{
+        match = "Host(`sabnzbd.${var.traefik_domain}`)"
+        kind  = "Rule"
+        middlewares = [
+          {
+            name      = "rate-limit"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "crowdsec-bouncer"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "oauth-forward-auth"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+        ]
+        services = [{
+          name      = kubernetes_service.sabnzbd.metadata[0].name
+          namespace = kubernetes_namespace.sabnzbd.metadata[0].name
+          port      = 80
+        }]
+      }]
+      tls = {
+        certResolver = "letsencrypt"
+        domains = [{
+          main = var.traefik_domain
+          sans = ["*.${var.traefik_domain}"]
+        }]
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.traefik,
+    kubernetes_service.sabnzbd,
+    kubernetes_manifest.middleware_rate_limit,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
+    kubernetes_manifest.middleware_oauth_forward_auth,
+  ]
+}
+
+# Notifiarr
+resource "kubernetes_manifest" "ingressroute_notifiarr" {
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "IngressRoute"
+    metadata = {
+      name      = "notifiarr"
+      namespace = kubernetes_namespace.traefik.metadata[0].name
+      labels    = var.common_labels
+    }
+    spec = {
+      entryPoints = ["websecure"]
+      routes = [{
+        match = "Host(`notifiarr.${var.traefik_domain}`)"
+        kind  = "Rule"
+        middlewares = [
+          {
+            name      = "rate-limit"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "crowdsec-bouncer"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "oauth-forward-auth"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+        ]
+        services = [{
+          name      = kubernetes_service.notifiarr.metadata[0].name
+          namespace = kubernetes_namespace.notifiarr.metadata[0].name
+          port      = 80
+        }]
+      }]
+      tls = {
+        certResolver = "letsencrypt"
+        domains = [{
+          main = var.traefik_domain
+          sans = ["*.${var.traefik_domain}"]
+        }]
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.traefik,
+    kubernetes_service.notifiarr,
+    kubernetes_manifest.middleware_rate_limit,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
+    kubernetes_manifest.middleware_oauth_forward_auth,
+  ]
+}
+
 # --- Static Sites ---
 
 # IngressRoute per static site (each on its own primary domain)
