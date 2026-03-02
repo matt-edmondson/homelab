@@ -201,6 +201,36 @@
 #flaresolverr_memory_limit   = "1Gi"
 #flaresolverr_image_tag      = "latest"
 
+# NVIDIA Device Plugin (Wave 5 — enable after GPU passthrough is configured)
+#nvidia_device_plugin_enabled       = false
+#nvidia_device_plugin_chart_version = "0.17.0"
+
+# Ollama LLM Inference (Wave 5)
+#ollama_config_storage_size = "1Gi"
+#ollama_memory_request      = "2Gi"
+#ollama_memory_limit        = "8Gi"
+#ollama_image_tag           = "latest"
+#ollama_gpu_enabled         = false    # Set to true after NVIDIA device plugin is running
+
+# Qdrant Vector Database (Wave 5)
+#qdrant_storage_size   = "4Gi"
+#qdrant_memory_request = "256Mi"
+#qdrant_memory_limit   = "1Gi"
+#qdrant_image_tag      = "latest"
+
+# ChromaDB Vector Database (Wave 5)
+#chromadb_storage_size   = "4Gi"
+#chromadb_memory_request = "256Mi"
+#chromadb_memory_limit   = "1Gi"
+#chromadb_image_tag      = "latest"
+
+# ComfyUI Image Generation (Wave 5)
+#comfyui_config_storage_size = "1Gi"
+#comfyui_memory_request      = "2Gi"
+#comfyui_memory_limit        = "8Gi"
+#comfyui_image_tag           = "latest"
+#comfyui_gpu_enabled         = false    # Set to true after NVIDIA device plugin is running
+
 # Labels
 #common_labels = {
 #  "managed-by"  = "terraform"

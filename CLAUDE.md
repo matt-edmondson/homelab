@@ -89,6 +89,11 @@ Copy `terraform.tfvars.example` to `terraform.tfvars` and populate values. The `
 - [sabnzbd.tf](terraform/sabnzbd.tf) — SABnzbd Usenet client (Longhorn config PVC + NFS downloads mount, linuxserver/sabnzbd)
 - [notifiarr.tf](terraform/notifiarr.tf) — Notifiarr rich notifications (Longhorn config PVC + config Secret, golift/notifiarr)
 - [flaresolverr.tf](terraform/flaresolverr.tf) — Flaresolverr CAPTCHA solver (stateless, internal-only — no IngressRoute/DNS)
+- [nvidia.tf](terraform/nvidia.tf) — NVIDIA device plugin via Helm (GPU resource scheduling, conditional on `nvidia_device_plugin_enabled`)
+- [ollama.tf](terraform/ollama.tf) — Ollama LLM inference (Longhorn config PVC + NFS models mount, GPU nodeSelector, ollama/ollama)
+- [qdrant.tf](terraform/qdrant.tf) — Qdrant vector database (Longhorn data PVC, qdrant/qdrant)
+- [chromadb.tf](terraform/chromadb.tf) — ChromaDB vector database (Longhorn data PVC, chromadb/chroma)
+- [comfyui.tf](terraform/comfyui.tf) — ComfyUI image generation (Longhorn config PVC + NFS models mount, GPU nodeSelector, yanwk/comfyui-boot)
 
 ### Networking Model
 

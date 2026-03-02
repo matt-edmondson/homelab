@@ -63,6 +63,10 @@ locals {
     cleanuparr   = "cleanuparr"
     sabnzbd      = "sabnzbd"
     notifiarr    = "notifiarr"
+    ollama       = "ollama"
+    qdrant       = "qdrant"
+    chromadb     = "chromadb"
+    comfyui      = "comfyui"
   }
 }
 

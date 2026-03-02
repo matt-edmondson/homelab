@@ -19,6 +19,8 @@ SHELL := /bin/bash
 	plan-bazarr apply-bazarr plan-jackett apply-jackett plan-huntarr apply-huntarr \
 	plan-cleanuparr apply-cleanuparr plan-sabnzbd apply-sabnzbd plan-notifiarr apply-notifiarr \
 	plan-flaresolverr apply-flaresolverr \
+	plan-nvidia apply-nvidia plan-ollama apply-ollama plan-qdrant apply-qdrant \
+	plan-chromadb apply-chromadb plan-comfyui apply-comfyui \
 	show-structure quick-debug taint-component
 
 # Default target
@@ -584,6 +586,47 @@ plan-flaresolverr: check-vars check-init ## Plan Flaresolverr CAPTCHA solver
 		-target=kubernetes_deployment.flaresolverr \
 		-target=kubernetes_service.flaresolverr
 
+plan-nvidia: check-vars check-init ## Plan NVIDIA device plugin
+	@echo "Planning NVIDIA device plugin..."
+	terraform plan \
+		-target=helm_release.nvidia_device_plugin
+
+plan-ollama: check-vars check-init ## Plan Ollama LLM inference
+	@echo "Planning Ollama components..."
+	terraform plan \
+		-target=kubernetes_namespace.ollama \
+		-target=kubernetes_persistent_volume_claim.ollama_config \
+		-target=kubernetes_persistent_volume.ollama_models \
+		-target=kubernetes_persistent_volume_claim.ollama_models \
+		-target=kubernetes_deployment.ollama \
+		-target=kubernetes_service.ollama
+
+plan-qdrant: check-vars check-init ## Plan Qdrant vector database
+	@echo "Planning Qdrant components..."
+	terraform plan \
+		-target=kubernetes_namespace.qdrant \
+		-target=kubernetes_persistent_volume_claim.qdrant_data \
+		-target=kubernetes_deployment.qdrant \
+		-target=kubernetes_service.qdrant
+
+plan-chromadb: check-vars check-init ## Plan ChromaDB vector database
+	@echo "Planning ChromaDB components..."
+	terraform plan \
+		-target=kubernetes_namespace.chromadb \
+		-target=kubernetes_persistent_volume_claim.chromadb_data \
+		-target=kubernetes_deployment.chromadb \
+		-target=kubernetes_service.chromadb
+
+plan-comfyui: check-vars check-init ## Plan ComfyUI image generation
+	@echo "Planning ComfyUI components..."
+	terraform plan \
+		-target=kubernetes_namespace.comfyui \
+		-target=kubernetes_persistent_volume_claim.comfyui_config \
+		-target=kubernetes_persistent_volume.comfyui_models \
+		-target=kubernetes_persistent_volume_claim.comfyui_models \
+		-target=kubernetes_deployment.comfyui \
+		-target=kubernetes_service.comfyui
+
 plan-traefik: check-vars check-init ## Plan Traefik reverse proxy
 	@echo "Planning Traefik components..."
 	terraform plan \
@@ -825,6 +868,47 @@ apply-flaresolverr: check-vars check-init ## Deploy Flaresolverr CAPTCHA solver
 		-target=kubernetes_namespace.flaresolverr \
 		-target=kubernetes_deployment.flaresolverr \
 		-target=kubernetes_service.flaresolverr
+
+apply-nvidia: check-vars check-init ## Deploy NVIDIA device plugin
+	@echo "Deploying NVIDIA device plugin..."
+	terraform apply -auto-approve \
+		-target=helm_release.nvidia_device_plugin
+
+apply-ollama: check-vars check-init ## Deploy Ollama LLM inference
+	@echo "Deploying Ollama..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.ollama \
+		-target=kubernetes_persistent_volume_claim.ollama_config \
+		-target=kubernetes_persistent_volume.ollama_models \
+		-target=kubernetes_persistent_volume_claim.ollama_models \
+		-target=kubernetes_deployment.ollama \
+		-target=kubernetes_service.ollama
+
+apply-qdrant: check-vars check-init ## Deploy Qdrant vector database
+	@echo "Deploying Qdrant..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.qdrant \
+		-target=kubernetes_persistent_volume_claim.qdrant_data \
+		-target=kubernetes_deployment.qdrant \
+		-target=kubernetes_service.qdrant
+
+apply-chromadb: check-vars check-init ## Deploy ChromaDB vector database
+	@echo "Deploying ChromaDB..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.chromadb \
+		-target=kubernetes_persistent_volume_claim.chromadb_data \
+		-target=kubernetes_deployment.chromadb \
+		-target=kubernetes_service.chromadb
+
+apply-comfyui: check-vars check-init ## Deploy ComfyUI image generation
+	@echo "Deploying ComfyUI..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.comfyui \
+		-target=kubernetes_persistent_volume_claim.comfyui_config \
+		-target=kubernetes_persistent_volume.comfyui_models \
+		-target=kubernetes_persistent_volume_claim.comfyui_models \
+		-target=kubernetes_deployment.comfyui \
+		-target=kubernetes_service.comfyui
 
 apply-traefik: check-vars check-init ## Deploy Traefik reverse proxy
 	@echo "Deploying Traefik..."
