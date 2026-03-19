@@ -156,8 +156,6 @@ resource "kubernetes_daemonset" "kube_vip" {
 
           args = [
             "manager",
-            "--interface=${var.kube_vip_interface}",
-            "--serviceInterface=${var.kube_vip_interface}",
             "--services",
             "--enableLoadBalancer",
             "--arp",
