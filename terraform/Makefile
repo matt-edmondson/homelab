@@ -1,6 +1,12 @@
 # Force bash shell for cross-platform compatibility (works in Git Bash on Windows and native Linux)
 SHELL := /bin/bash
 
+# Bail out early if make is not using bash (e.g. GnuWin32 make from PowerShell falls back to cmd.exe)
+BASH_CHECK := $(shell echo $$BASH_VERSION)
+ifeq ($(BASH_CHECK),)
+$(error This Makefile requires bash. Please run 'make' from Git Bash, not PowerShell or cmd.exe)
+endif
+
 # Fix $(MAKE) on Windows when make is installed in a path with spaces (e.g. Program Files)
 MAKE := "$(MAKE)"
 
