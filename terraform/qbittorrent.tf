@@ -10,6 +10,12 @@
 # =============================================================================
 
 # Variables
+variable "qbittorrent_enabled" {
+  description = "Enable qBittorrent deployment"
+  type        = bool
+  default     = true
+}
+
 variable "qbittorrent_config_storage_size" {
   description = "Storage size for qBittorrent config"
   type        = string
@@ -105,6 +111,8 @@ variable "gluetun_memory_limit" {
 
 # Namespace
 resource "kubernetes_namespace" "qbittorrent" {
+  count = var.qbittorrent_enabled ? 1 : 0
+
   metadata {
     name = "qbittorrent"
     labels = merge(var.common_labels, {
@@ -115,9 +123,11 @@ resource "kubernetes_namespace" "qbittorrent" {
 
 # Secret — VPN credentials
 resource "kubernetes_secret" "gluetun_vpn" {
+  count = var.qbittorrent_enabled ? 1 : 0
+
   metadata {
     name      = "gluetun-vpn"
-    namespace = kubernetes_namespace.qbittorrent.metadata[0].name
+    namespace = kubernetes_namespace.qbittorrent[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -135,6 +145,8 @@ resource "kubernetes_secret" "gluetun_vpn" {
 
 # Persistent Volume Claim — Config (Longhorn)
 resource "kubernetes_persistent_volume_claim" "qbittorrent_config" {
+  count = var.qbittorrent_enabled ? 1 : 0
+
   depends_on = [
     helm_release.longhorn,
     data.kubernetes_storage_class.longhorn
@@ -142,7 +154,7 @@ resource "kubernetes_persistent_volume_claim" "qbittorrent_config" {
 
   metadata {
     name      = "qbittorrent-config"
-    namespace = kubernetes_namespace.qbittorrent.metadata[0].name
+    namespace = kubernetes_namespace.qbittorrent[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -159,6 +171,8 @@ resource "kubernetes_persistent_volume_claim" "qbittorrent_config" {
 
 # Persistent Volume Claim — Scratch (Longhorn — active downloads)
 resource "kubernetes_persistent_volume_claim" "qbittorrent_scratch" {
+  count = var.qbittorrent_enabled ? 1 : 0
+
   depends_on = [
     helm_release.longhorn,
     data.kubernetes_storage_class.longhorn
@@ -166,7 +180,7 @@ resource "kubernetes_persistent_volume_claim" "qbittorrent_scratch" {
 
   metadata {
     name      = "qbittorrent-scratch"
-    namespace = kubernetes_namespace.qbittorrent.metadata[0].name
+    namespace = kubernetes_namespace.qbittorrent[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -183,6 +197,8 @@ resource "kubernetes_persistent_volume_claim" "qbittorrent_scratch" {
 
 # Persistent Volume — NFS Downloads (static PV)
 resource "kubernetes_persistent_volume" "qbittorrent_downloads" {
+  count = var.qbittorrent_enabled ? 1 : 0
+
   metadata {
     name   = "qbittorrent-downloads-pv"
     labels = var.common_labels
@@ -208,16 +224,18 @@ resource "kubernetes_persistent_volume" "qbittorrent_downloads" {
 }
 
 resource "kubernetes_persistent_volume_claim" "qbittorrent_downloads" {
+  count = var.qbittorrent_enabled ? 1 : 0
+
   metadata {
     name      = "qbittorrent-downloads"
-    namespace = kubernetes_namespace.qbittorrent.metadata[0].name
+    namespace = kubernetes_namespace.qbittorrent[0].metadata[0].name
     labels    = var.common_labels
   }
 
   spec {
     access_modes       = ["ReadWriteMany"]
     storage_class_name = "nfs-downloads"
-    volume_name        = kubernetes_persistent_volume.qbittorrent_downloads.metadata[0].name
+    volume_name        = kubernetes_persistent_volume.qbittorrent_downloads[0].metadata[0].name
     resources {
       requests = {
         storage = "1Ti"
@@ -228,6 +246,8 @@ resource "kubernetes_persistent_volume_claim" "qbittorrent_downloads" {
 
 # Deployment (qBittorrent + gluetun VPN sidecar)
 resource "kubernetes_deployment" "qbittorrent" {
+  count = var.qbittorrent_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_persistent_volume_claim.qbittorrent_config,
     kubernetes_persistent_volume_claim.qbittorrent_scratch,
@@ -238,7 +258,7 @@ resource "kubernetes_deployment" "qbittorrent" {
 
   metadata {
     name      = "qbittorrent"
-    namespace = kubernetes_namespace.qbittorrent.metadata[0].name
+    namespace = kubernetes_namespace.qbittorrent[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "qbittorrent"
     })
@@ -273,7 +293,7 @@ resource "kubernetes_deployment" "qbittorrent" {
 
           env_from {
             secret_ref {
-              name = kubernetes_secret.gluetun_vpn.metadata[0].name
+              name = kubernetes_secret.gluetun_vpn[0].metadata[0].name
             }
           }
 
@@ -366,21 +386,21 @@ resource "kubernetes_deployment" "qbittorrent" {
         volume {
           name = "qbittorrent-config"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.qbittorrent_config.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.qbittorrent_config[0].metadata[0].name
           }
         }
 
         volume {
           name = "scratch"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.qbittorrent_scratch.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.qbittorrent_scratch[0].metadata[0].name
           }
         }
 
         volume {
           name = "downloads"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.qbittorrent_downloads.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.qbittorrent_downloads[0].metadata[0].name
           }
         }
       }
@@ -390,13 +410,15 @@ resource "kubernetes_deployment" "qbittorrent" {
 
 # Service (points to gluetun's exposed port since it owns the network namespace)
 resource "kubernetes_service" "qbittorrent" {
+  count = var.qbittorrent_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.qbittorrent
   ]
 
   metadata {
     name      = "qbittorrent-service"
-    namespace = kubernetes_namespace.qbittorrent.metadata[0].name
+    namespace = kubernetes_namespace.qbittorrent[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "qbittorrent"
     })
@@ -419,9 +441,9 @@ resource "kubernetes_service" "qbittorrent" {
 # Outputs
 output "qbittorrent_info" {
   description = "qBittorrent torrent client information"
-  value = {
-    namespace    = kubernetes_namespace.qbittorrent.metadata[0].name
-    service_name = kubernetes_service.qbittorrent.metadata[0].name
+  value = var.qbittorrent_enabled ? {
+    namespace    = kubernetes_namespace.qbittorrent[0].metadata[0].name
+    service_name = kubernetes_service.qbittorrent[0].metadata[0].name
     config_size  = var.qbittorrent_config_storage_size
     scratch_size = var.qbittorrent_scratch_storage_size
     vpn_provider = var.gluetun_vpn_service_provider
@@ -437,13 +459,13 @@ output "qbittorrent_info" {
     }
 
     commands = {
-      check_pods   = "kubectl get pods -n ${kubernetes_namespace.qbittorrent.metadata[0].name}"
-      check_pvc    = "kubectl get pvc -n ${kubernetes_namespace.qbittorrent.metadata[0].name}"
-      logs_qbit    = "kubectl logs -n ${kubernetes_namespace.qbittorrent.metadata[0].name} -l app=qbittorrent -c qbittorrent -f"
-      logs_vpn     = "kubectl logs -n ${kubernetes_namespace.qbittorrent.metadata[0].name} -l app=qbittorrent -c gluetun -f"
-      check_vpn_ip = "kubectl exec -n ${kubernetes_namespace.qbittorrent.metadata[0].name} deploy/qbittorrent -c gluetun -- wget -qO- ifconfig.me"
+      check_pods   = "kubectl get pods -n ${kubernetes_namespace.qbittorrent[0].metadata[0].name}"
+      check_pvc    = "kubectl get pvc -n ${kubernetes_namespace.qbittorrent[0].metadata[0].name}"
+      logs_qbit    = "kubectl logs -n ${kubernetes_namespace.qbittorrent[0].metadata[0].name} -l app=qbittorrent -c qbittorrent -f"
+      logs_vpn     = "kubectl logs -n ${kubernetes_namespace.qbittorrent[0].metadata[0].name} -l app=qbittorrent -c gluetun -f"
+      check_vpn_ip = "kubectl exec -n ${kubernetes_namespace.qbittorrent[0].metadata[0].name} deploy/qbittorrent -c gluetun -- wget -qO- ifconfig.me"
     }
-  }
+  } : null
 
   sensitive = true
 }

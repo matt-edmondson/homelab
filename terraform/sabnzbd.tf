@@ -7,6 +7,12 @@
 # =============================================================================
 
 # Variables
+variable "sabnzbd_enabled" {
+  description = "Enable SABnzbd deployment"
+  type        = bool
+  default     = true
+}
+
 variable "sabnzbd_storage_size" {
   description = "Storage size for SABnzbd config"
   type        = string
@@ -45,6 +51,8 @@ variable "sabnzbd_image_tag" {
 
 # Namespace
 resource "kubernetes_namespace" "sabnzbd" {
+  count = var.sabnzbd_enabled ? 1 : 0
+
   metadata {
     name = "sabnzbd"
     labels = merge(var.common_labels, {
@@ -55,6 +63,8 @@ resource "kubernetes_namespace" "sabnzbd" {
 
 # Persistent Volume Claim — Config (Longhorn)
 resource "kubernetes_persistent_volume_claim" "sabnzbd_config" {
+  count = var.sabnzbd_enabled ? 1 : 0
+
   depends_on = [
     helm_release.longhorn,
     data.kubernetes_storage_class.longhorn
@@ -62,7 +72,7 @@ resource "kubernetes_persistent_volume_claim" "sabnzbd_config" {
 
   metadata {
     name      = "sabnzbd-config"
-    namespace = kubernetes_namespace.sabnzbd.metadata[0].name
+    namespace = kubernetes_namespace.sabnzbd[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -79,6 +89,8 @@ resource "kubernetes_persistent_volume_claim" "sabnzbd_config" {
 
 # Persistent Volume — NFS Downloads (static PV)
 resource "kubernetes_persistent_volume" "sabnzbd_downloads" {
+  count = var.sabnzbd_enabled ? 1 : 0
+
   metadata {
     name   = "sabnzbd-downloads-pv"
     labels = var.common_labels
@@ -104,16 +116,18 @@ resource "kubernetes_persistent_volume" "sabnzbd_downloads" {
 }
 
 resource "kubernetes_persistent_volume_claim" "sabnzbd_downloads" {
+  count = var.sabnzbd_enabled ? 1 : 0
+
   metadata {
     name      = "sabnzbd-downloads"
-    namespace = kubernetes_namespace.sabnzbd.metadata[0].name
+    namespace = kubernetes_namespace.sabnzbd[0].metadata[0].name
     labels    = var.common_labels
   }
 
   spec {
     access_modes       = ["ReadWriteMany"]
     storage_class_name = "nfs-downloads"
-    volume_name        = kubernetes_persistent_volume.sabnzbd_downloads.metadata[0].name
+    volume_name        = kubernetes_persistent_volume.sabnzbd_downloads[0].metadata[0].name
     resources {
       requests = {
         storage = "1Ti"
@@ -124,6 +138,8 @@ resource "kubernetes_persistent_volume_claim" "sabnzbd_downloads" {
 
 # Deployment
 resource "kubernetes_deployment" "sabnzbd" {
+  count = var.sabnzbd_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_persistent_volume_claim.sabnzbd_config,
     kubernetes_persistent_volume_claim.sabnzbd_downloads,
@@ -132,7 +148,7 @@ resource "kubernetes_deployment" "sabnzbd" {
 
   metadata {
     name      = "sabnzbd"
-    namespace = kubernetes_namespace.sabnzbd.metadata[0].name
+    namespace = kubernetes_namespace.sabnzbd[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "sabnzbd"
     })
@@ -225,14 +241,14 @@ resource "kubernetes_deployment" "sabnzbd" {
         volume {
           name = "sabnzbd-config"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.sabnzbd_config.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.sabnzbd_config[0].metadata[0].name
           }
         }
 
         volume {
           name = "downloads"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.sabnzbd_downloads.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.sabnzbd_downloads[0].metadata[0].name
           }
         }
       }
@@ -242,13 +258,15 @@ resource "kubernetes_deployment" "sabnzbd" {
 
 # Service
 resource "kubernetes_service" "sabnzbd" {
+  count = var.sabnzbd_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.sabnzbd
   ]
 
   metadata {
     name      = "sabnzbd-service"
-    namespace = kubernetes_namespace.sabnzbd.metadata[0].name
+    namespace = kubernetes_namespace.sabnzbd[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "sabnzbd"
     })
@@ -271,9 +289,9 @@ resource "kubernetes_service" "sabnzbd" {
 # Outputs
 output "sabnzbd_info" {
   description = "SABnzbd Usenet download client information"
-  value = {
-    namespace    = kubernetes_namespace.sabnzbd.metadata[0].name
-    service_name = kubernetes_service.sabnzbd.metadata[0].name
+  value = var.sabnzbd_enabled ? {
+    namespace    = kubernetes_namespace.sabnzbd[0].metadata[0].name
+    service_name = kubernetes_service.sabnzbd[0].metadata[0].name
     config_size  = var.sabnzbd_storage_size
 
     access = {
@@ -285,11 +303,11 @@ output "sabnzbd_info" {
     }
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.sabnzbd.metadata[0].name}"
-      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.sabnzbd.metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.sabnzbd.metadata[0].name} -l app=sabnzbd -f"
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.sabnzbd[0].metadata[0].name}"
+      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.sabnzbd[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.sabnzbd[0].metadata[0].name} -l app=sabnzbd -f"
     }
-  }
+  } : null
 
   sensitive = true
 }

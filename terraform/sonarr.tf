@@ -6,6 +6,12 @@
 # =============================================================================
 
 # Variables
+variable "sonarr_enabled" {
+  description = "Enable Sonarr deployment"
+  type        = bool
+  default     = true
+}
+
 variable "sonarr_config_storage_size" {
   description = "Storage size for Sonarr config/database"
   type        = string
@@ -44,6 +50,8 @@ variable "sonarr_image_tag" {
 
 # Namespace
 resource "kubernetes_namespace" "sonarr" {
+  count = var.sonarr_enabled ? 1 : 0
+
   metadata {
     name = "sonarr"
     labels = merge(var.common_labels, {
@@ -54,6 +62,8 @@ resource "kubernetes_namespace" "sonarr" {
 
 # Persistent Volume Claim — Config (Longhorn)
 resource "kubernetes_persistent_volume_claim" "sonarr_config" {
+  count = var.sonarr_enabled ? 1 : 0
+
   depends_on = [
     helm_release.longhorn,
     data.kubernetes_storage_class.longhorn
@@ -61,7 +71,7 @@ resource "kubernetes_persistent_volume_claim" "sonarr_config" {
 
   metadata {
     name      = "sonarr-config"
-    namespace = kubernetes_namespace.sonarr.metadata[0].name
+    namespace = kubernetes_namespace.sonarr[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -78,6 +88,8 @@ resource "kubernetes_persistent_volume_claim" "sonarr_config" {
 
 # Persistent Volume — NFS Media (static PV, not dynamically provisioned)
 resource "kubernetes_persistent_volume" "sonarr_media" {
+  count = var.sonarr_enabled ? 1 : 0
+
   metadata {
     name   = "sonarr-media-pv"
     labels = var.common_labels
@@ -103,16 +115,18 @@ resource "kubernetes_persistent_volume" "sonarr_media" {
 }
 
 resource "kubernetes_persistent_volume_claim" "sonarr_media" {
+  count = var.sonarr_enabled ? 1 : 0
+
   metadata {
     name      = "sonarr-media"
-    namespace = kubernetes_namespace.sonarr.metadata[0].name
+    namespace = kubernetes_namespace.sonarr[0].metadata[0].name
     labels    = var.common_labels
   }
 
   spec {
     access_modes       = ["ReadWriteMany"]
     storage_class_name = "nfs-media"
-    volume_name        = kubernetes_persistent_volume.sonarr_media.metadata[0].name
+    volume_name        = kubernetes_persistent_volume.sonarr_media[0].metadata[0].name
     resources {
       requests = {
         storage = "1Ti"
@@ -123,6 +137,8 @@ resource "kubernetes_persistent_volume_claim" "sonarr_media" {
 
 # Persistent Volume — NFS Downloads (static PV)
 resource "kubernetes_persistent_volume" "sonarr_downloads" {
+  count = var.sonarr_enabled ? 1 : 0
+
   metadata {
     name   = "sonarr-downloads-pv"
     labels = var.common_labels
@@ -148,16 +164,18 @@ resource "kubernetes_persistent_volume" "sonarr_downloads" {
 }
 
 resource "kubernetes_persistent_volume_claim" "sonarr_downloads" {
+  count = var.sonarr_enabled ? 1 : 0
+
   metadata {
     name      = "sonarr-downloads"
-    namespace = kubernetes_namespace.sonarr.metadata[0].name
+    namespace = kubernetes_namespace.sonarr[0].metadata[0].name
     labels    = var.common_labels
   }
 
   spec {
     access_modes       = ["ReadWriteMany"]
     storage_class_name = "nfs-downloads"
-    volume_name        = kubernetes_persistent_volume.sonarr_downloads.metadata[0].name
+    volume_name        = kubernetes_persistent_volume.sonarr_downloads[0].metadata[0].name
     resources {
       requests = {
         storage = "1Ti"
@@ -168,6 +186,8 @@ resource "kubernetes_persistent_volume_claim" "sonarr_downloads" {
 
 # Deployment
 resource "kubernetes_deployment" "sonarr" {
+  count = var.sonarr_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_persistent_volume_claim.sonarr_config,
     kubernetes_persistent_volume_claim.sonarr_media,
@@ -177,7 +197,7 @@ resource "kubernetes_deployment" "sonarr" {
 
   metadata {
     name      = "sonarr"
-    namespace = kubernetes_namespace.sonarr.metadata[0].name
+    namespace = kubernetes_namespace.sonarr[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "sonarr"
     })
@@ -275,21 +295,21 @@ resource "kubernetes_deployment" "sonarr" {
         volume {
           name = "sonarr-config"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.sonarr_config.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.sonarr_config[0].metadata[0].name
           }
         }
 
         volume {
           name = "media"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.sonarr_media.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.sonarr_media[0].metadata[0].name
           }
         }
 
         volume {
           name = "downloads"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.sonarr_downloads.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.sonarr_downloads[0].metadata[0].name
           }
         }
       }
@@ -299,13 +319,15 @@ resource "kubernetes_deployment" "sonarr" {
 
 # Service
 resource "kubernetes_service" "sonarr" {
+  count = var.sonarr_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.sonarr
   ]
 
   metadata {
     name      = "sonarr-service"
-    namespace = kubernetes_namespace.sonarr.metadata[0].name
+    namespace = kubernetes_namespace.sonarr[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "sonarr"
     })
@@ -328,9 +350,9 @@ resource "kubernetes_service" "sonarr" {
 # Outputs
 output "sonarr_info" {
   description = "Sonarr TV show management information"
-  value = {
-    namespace    = kubernetes_namespace.sonarr.metadata[0].name
-    service_name = kubernetes_service.sonarr.metadata[0].name
+  value = var.sonarr_enabled ? {
+    namespace    = kubernetes_namespace.sonarr[0].metadata[0].name
+    service_name = kubernetes_service.sonarr[0].metadata[0].name
     config_size  = var.sonarr_config_storage_size
 
     access = {
@@ -343,11 +365,11 @@ output "sonarr_info" {
     }
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.sonarr.metadata[0].name}"
-      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.sonarr.metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.sonarr.metadata[0].name} -l app=sonarr -f"
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.sonarr[0].metadata[0].name}"
+      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.sonarr[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.sonarr[0].metadata[0].name} -l app=sonarr -f"
     }
-  }
+  } : null
 
   sensitive = true
 }

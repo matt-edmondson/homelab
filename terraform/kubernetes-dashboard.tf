@@ -7,6 +7,12 @@
 # =============================================================================
 
 # Variables
+variable "kubernetes_dashboard_enabled" {
+  description = "Enable Kubernetes dashboard deployment"
+  type        = bool
+  default     = true
+}
+
 variable "headlamp_chart_version" {
   description = "Version of Headlamp Helm chart"
   type        = string
@@ -15,6 +21,8 @@ variable "headlamp_chart_version" {
 
 # Namespace
 resource "kubernetes_namespace" "headlamp" {
+  count = var.kubernetes_dashboard_enabled ? 1 : 0
+
   metadata {
     name = "headlamp"
     labels = merge(var.common_labels, {
@@ -25,11 +33,13 @@ resource "kubernetes_namespace" "headlamp" {
 
 # Headlamp Helm Release
 resource "helm_release" "headlamp" {
+  count = var.kubernetes_dashboard_enabled ? 1 : 0
+
   name       = "headlamp"
   repository = "https://kubernetes-sigs.github.io/headlamp/"
   chart      = "headlamp"
   version    = var.headlamp_chart_version
-  namespace  = kubernetes_namespace.headlamp.metadata[0].name
+  namespace  = kubernetes_namespace.headlamp[0].metadata[0].name
 
   values = [
     yamlencode({
@@ -75,21 +85,25 @@ resource "helm_release" "headlamp" {
 
 # Admin service account for Headlamp API access
 resource "kubernetes_service_account" "headlamp_admin" {
+  count = var.kubernetes_dashboard_enabled ? 1 : 0
+
   metadata {
     name      = "headlamp-admin"
-    namespace = kubernetes_namespace.headlamp.metadata[0].name
+    namespace = kubernetes_namespace.headlamp[0].metadata[0].name
     labels    = var.common_labels
   }
 }
 
 # Long-lived token for the admin service account
 resource "kubernetes_secret" "headlamp_admin_token" {
+  count = var.kubernetes_dashboard_enabled ? 1 : 0
+
   metadata {
     name      = "headlamp-admin-token"
-    namespace = kubernetes_namespace.headlamp.metadata[0].name
+    namespace = kubernetes_namespace.headlamp[0].metadata[0].name
     labels    = var.common_labels
     annotations = {
-      "kubernetes.io/service-account.name" = kubernetes_service_account.headlamp_admin.metadata[0].name
+      "kubernetes.io/service-account.name" = kubernetes_service_account.headlamp_admin[0].metadata[0].name
     }
   }
 
@@ -98,6 +112,8 @@ resource "kubernetes_secret" "headlamp_admin_token" {
 
 # Grant cluster-admin to the Headlamp admin service account
 resource "kubernetes_cluster_role_binding" "headlamp_admin" {
+  count = var.kubernetes_dashboard_enabled ? 1 : 0
+
   metadata {
     name   = "headlamp-admin-terraform"
     labels = var.common_labels
@@ -111,31 +127,31 @@ resource "kubernetes_cluster_role_binding" "headlamp_admin" {
 
   subject {
     kind      = "ServiceAccount"
-    name      = kubernetes_service_account.headlamp_admin.metadata[0].name
-    namespace = kubernetes_namespace.headlamp.metadata[0].name
+    name      = kubernetes_service_account.headlamp_admin[0].metadata[0].name
+    namespace = kubernetes_namespace.headlamp[0].metadata[0].name
   }
 }
 
 # Outputs
 output "headlamp_info" {
   description = "Headlamp dashboard information"
-  value = {
-    namespace     = kubernetes_namespace.headlamp.metadata[0].name
+  value = var.kubernetes_dashboard_enabled ? {
+    namespace     = kubernetes_namespace.headlamp[0].metadata[0].name
     chart_version = var.headlamp_chart_version
 
     access = {
       web_ui = "https://dashboard.${var.traefik_domain}"
     }
 
-    admin_token = kubernetes_secret.headlamp_admin_token.data["token"]
+    admin_token = kubernetes_secret.headlamp_admin_token[0].data["token"]
 
     commands = {
-      check_pods    = "kubectl get pods -n ${kubernetes_namespace.headlamp.metadata[0].name}"
-      check_service = "kubectl get svc -n ${kubernetes_namespace.headlamp.metadata[0].name}"
-      view_logs     = "kubectl logs -n ${kubernetes_namespace.headlamp.metadata[0].name} -l app.kubernetes.io/name=headlamp -f"
-      get_token     = "kubectl get secret -n ${kubernetes_namespace.headlamp.metadata[0].name} headlamp-admin-token -o jsonpath='{.data.token}' | base64 --decode"
+      check_pods    = "kubectl get pods -n ${kubernetes_namespace.headlamp[0].metadata[0].name}"
+      check_service = "kubectl get svc -n ${kubernetes_namespace.headlamp[0].metadata[0].name}"
+      view_logs     = "kubectl logs -n ${kubernetes_namespace.headlamp[0].metadata[0].name} -l app.kubernetes.io/name=headlamp -f"
+      get_token     = "kubectl get secret -n ${kubernetes_namespace.headlamp[0].metadata[0].name} headlamp-admin-token -o jsonpath='{.data.token}' | base64 --decode"
     }
-  }
+  } : null
 
   sensitive = true
 }

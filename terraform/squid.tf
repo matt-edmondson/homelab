@@ -30,7 +30,7 @@ variable "squid_memory_request" {
 variable "squid_memory_limit" {
   description = "Memory limit for Squid container"
   type        = string
-  default     = "256Mi"
+  default     = "768Mi"
 }
 
 variable "squid_cpu_request" {
@@ -86,6 +86,7 @@ resource "kubernetes_config_map" "squid_config" {
       acl Safe_ports port 80
       acl Safe_ports port 443
       acl Safe_ports port 1025-65535
+      acl CONNECT method CONNECT
 
       http_access deny !Safe_ports
       http_access deny CONNECT !SSL_ports
@@ -93,10 +94,10 @@ resource "kubernetes_config_map" "squid_config" {
       http_access allow localhost
       http_access deny all
 
-      # Cache configuration
-      cache_dir ufs /var/spool/squid ${var.squid_max_cache_size_mb} 16 256
-      maximum_object_size 256 MB
-      cache_mem 128 MB
+      # Cache configuration (memory-only, no disk cache to reduce OOM risk)
+      cache_dir null /tmp
+      maximum_object_size 64 MB
+      cache_mem 64 MB
 
       # Logging
       access_log daemon:/var/log/squid/access.log squid
@@ -174,9 +175,20 @@ resource "kubernetes_deployment" "squid" {
       }
 
       spec {
+        init_container {
+          name    = "fix-permissions"
+          image   = "busybox:latest"
+          command = ["sh", "-c", "chown -R 13:13 /var/spool/squid && chmod -R 755 /var/spool/squid"]
+
+          volume_mount {
+            name       = "squid-cache"
+            mount_path = "/var/spool/squid"
+          }
+        }
+
         container {
           name  = "squid"
-          image = "ubuntu/squid:latest"
+          image = "sameersbn/squid:3.5.27-2"
 
           port {
             container_port = 3128

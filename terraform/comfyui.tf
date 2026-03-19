@@ -7,6 +7,12 @@
 # =============================================================================
 
 # Variables
+variable "comfyui_enabled" {
+  description = "Enable ComfyUI deployment"
+  type        = bool
+  default     = true
+}
+
 variable "comfyui_config_storage_size" {
   description = "Storage size for ComfyUI config"
   type        = string
@@ -16,13 +22,13 @@ variable "comfyui_config_storage_size" {
 variable "comfyui_memory_request" {
   description = "Memory request for ComfyUI container"
   type        = string
-  default     = "2Gi"
+  default     = "512Mi"
 }
 
 variable "comfyui_memory_limit" {
   description = "Memory limit for ComfyUI container"
   type        = string
-  default     = "8Gi"
+  default     = "2Gi"
 }
 
 variable "comfyui_cpu_request" {
@@ -51,6 +57,8 @@ variable "comfyui_gpu_enabled" {
 
 # Namespace
 resource "kubernetes_namespace" "comfyui" {
+  count = var.comfyui_enabled ? 1 : 0
+
   metadata {
     name = "comfyui"
     labels = merge(var.common_labels, {
@@ -61,6 +69,8 @@ resource "kubernetes_namespace" "comfyui" {
 
 # Persistent Volume Claim — Config (Longhorn)
 resource "kubernetes_persistent_volume_claim" "comfyui_config" {
+  count = var.comfyui_enabled ? 1 : 0
+
   depends_on = [
     helm_release.longhorn,
     data.kubernetes_storage_class.longhorn
@@ -68,7 +78,7 @@ resource "kubernetes_persistent_volume_claim" "comfyui_config" {
 
   metadata {
     name      = "comfyui-config"
-    namespace = kubernetes_namespace.comfyui.metadata[0].name
+    namespace = kubernetes_namespace.comfyui[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -85,6 +95,8 @@ resource "kubernetes_persistent_volume_claim" "comfyui_config" {
 
 # Persistent Volume — NFS Models (static PV, subpath of media share)
 resource "kubernetes_persistent_volume" "comfyui_models" {
+  count = var.comfyui_enabled ? 1 : 0
+
   metadata {
     name   = "comfyui-models-pv"
     labels = var.common_labels
@@ -110,16 +122,18 @@ resource "kubernetes_persistent_volume" "comfyui_models" {
 }
 
 resource "kubernetes_persistent_volume_claim" "comfyui_models" {
+  count = var.comfyui_enabled ? 1 : 0
+
   metadata {
     name      = "comfyui-models"
-    namespace = kubernetes_namespace.comfyui.metadata[0].name
+    namespace = kubernetes_namespace.comfyui[0].metadata[0].name
     labels    = var.common_labels
   }
 
   spec {
     access_modes       = ["ReadWriteMany"]
     storage_class_name = "nfs-media"
-    volume_name        = kubernetes_persistent_volume.comfyui_models.metadata[0].name
+    volume_name        = kubernetes_persistent_volume.comfyui_models[0].metadata[0].name
     resources {
       requests = {
         storage = "1Ti"
@@ -130,6 +144,8 @@ resource "kubernetes_persistent_volume_claim" "comfyui_models" {
 
 # Deployment
 resource "kubernetes_deployment" "comfyui" {
+  count = var.comfyui_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_persistent_volume_claim.comfyui_config,
     kubernetes_persistent_volume_claim.comfyui_models,
@@ -138,7 +154,7 @@ resource "kubernetes_deployment" "comfyui" {
 
   metadata {
     name      = "comfyui"
-    namespace = kubernetes_namespace.comfyui.metadata[0].name
+    namespace = kubernetes_namespace.comfyui[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "comfyui"
     })
@@ -227,14 +243,14 @@ resource "kubernetes_deployment" "comfyui" {
         volume {
           name = "comfyui-config"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.comfyui_config.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.comfyui_config[0].metadata[0].name
           }
         }
 
         volume {
           name = "models"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.comfyui_models.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.comfyui_models[0].metadata[0].name
           }
         }
       }
@@ -244,13 +260,15 @@ resource "kubernetes_deployment" "comfyui" {
 
 # Service
 resource "kubernetes_service" "comfyui" {
+  count = var.comfyui_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.comfyui
   ]
 
   metadata {
     name      = "comfyui-service"
-    namespace = kubernetes_namespace.comfyui.metadata[0].name
+    namespace = kubernetes_namespace.comfyui[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "comfyui"
     })
@@ -273,9 +291,9 @@ resource "kubernetes_service" "comfyui" {
 # Outputs
 output "comfyui_info" {
   description = "ComfyUI image generation information"
-  value = {
-    namespace    = kubernetes_namespace.comfyui.metadata[0].name
-    service_name = kubernetes_service.comfyui.metadata[0].name
+  value = var.comfyui_enabled ? {
+    namespace    = kubernetes_namespace.comfyui[0].metadata[0].name
+    service_name = kubernetes_service.comfyui[0].metadata[0].name
     config_size  = var.comfyui_config_storage_size
     gpu_enabled  = var.comfyui_gpu_enabled
 
@@ -288,11 +306,11 @@ output "comfyui_info" {
     }
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.comfyui.metadata[0].name}"
-      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.comfyui.metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.comfyui.metadata[0].name} -l app=comfyui -f"
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.comfyui[0].metadata[0].name}"
+      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.comfyui[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.comfyui[0].metadata[0].name} -l app=comfyui -f"
     }
-  }
+  } : null
 
   sensitive = true
 }

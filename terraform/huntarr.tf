@@ -6,6 +6,12 @@
 # =============================================================================
 
 # Variables
+variable "huntarr_enabled" {
+  description = "Enable Huntarr deployment"
+  type        = bool
+  default     = true
+}
+
 variable "huntarr_storage_size" {
   description = "Storage size for Huntarr config"
   type        = string
@@ -44,6 +50,8 @@ variable "huntarr_image_tag" {
 
 # Namespace
 resource "kubernetes_namespace" "huntarr" {
+  count = var.huntarr_enabled ? 1 : 0
+
   metadata {
     name = "huntarr"
     labels = merge(var.common_labels, {
@@ -54,6 +62,8 @@ resource "kubernetes_namespace" "huntarr" {
 
 # Persistent Volume Claim — Config (Longhorn)
 resource "kubernetes_persistent_volume_claim" "huntarr_config" {
+  count = var.huntarr_enabled ? 1 : 0
+
   depends_on = [
     helm_release.longhorn,
     data.kubernetes_storage_class.longhorn
@@ -61,7 +71,7 @@ resource "kubernetes_persistent_volume_claim" "huntarr_config" {
 
   metadata {
     name      = "huntarr-config"
-    namespace = kubernetes_namespace.huntarr.metadata[0].name
+    namespace = kubernetes_namespace.huntarr[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -78,6 +88,8 @@ resource "kubernetes_persistent_volume_claim" "huntarr_config" {
 
 # Deployment
 resource "kubernetes_deployment" "huntarr" {
+  count = var.huntarr_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_persistent_volume_claim.huntarr_config,
     helm_release.longhorn
@@ -85,7 +97,7 @@ resource "kubernetes_deployment" "huntarr" {
 
   metadata {
     name      = "huntarr"
-    namespace = kubernetes_namespace.huntarr.metadata[0].name
+    namespace = kubernetes_namespace.huntarr[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "huntarr"
     })
@@ -114,7 +126,7 @@ resource "kubernetes_deployment" "huntarr" {
       spec {
         container {
           name  = "huntarr"
-          image = "huntarr/huntarr:${var.huntarr_image_tag}"
+          image = "ghcr.io/plexguide/huntarr:${var.huntarr_image_tag}"
 
           port {
             container_port = 9705
@@ -163,7 +175,7 @@ resource "kubernetes_deployment" "huntarr" {
         volume {
           name = "huntarr-config"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.huntarr_config.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.huntarr_config[0].metadata[0].name
           }
         }
       }
@@ -173,13 +185,15 @@ resource "kubernetes_deployment" "huntarr" {
 
 # Service
 resource "kubernetes_service" "huntarr" {
+  count = var.huntarr_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.huntarr
   ]
 
   metadata {
     name      = "huntarr-service"
-    namespace = kubernetes_namespace.huntarr.metadata[0].name
+    namespace = kubernetes_namespace.huntarr[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "huntarr"
     })
@@ -202,9 +216,9 @@ resource "kubernetes_service" "huntarr" {
 # Outputs
 output "huntarr_info" {
   description = "Huntarr missing media hunter information"
-  value = {
-    namespace    = kubernetes_namespace.huntarr.metadata[0].name
-    service_name = kubernetes_service.huntarr.metadata[0].name
+  value = var.huntarr_enabled ? {
+    namespace    = kubernetes_namespace.huntarr[0].metadata[0].name
+    service_name = kubernetes_service.huntarr[0].metadata[0].name
     storage_size = var.huntarr_storage_size
 
     access = {
@@ -212,11 +226,11 @@ output "huntarr_info" {
     }
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.huntarr.metadata[0].name}"
-      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.huntarr.metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.huntarr.metadata[0].name} -l app=huntarr -f"
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.huntarr[0].metadata[0].name}"
+      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.huntarr[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.huntarr[0].metadata[0].name} -l app=huntarr -f"
     }
-  }
+  } : null
 
   sensitive = true
 }

@@ -1,5 +1,4 @@
 #!/bin/sh
-set -e
 
 echo "Starting git pull loop (interval: ${interval}s)"
 

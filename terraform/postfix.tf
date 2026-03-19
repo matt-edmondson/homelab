@@ -8,6 +8,12 @@
 # =============================================================================
 
 # Variables
+variable "postfix_enabled" {
+  description = "Enable Postfix SMTP relay deployment"
+  type        = bool
+  default     = true
+}
+
 variable "postfix_memory_request" {
   description = "Memory request for Postfix container"
   type        = string
@@ -59,6 +65,8 @@ variable "postfix_virtual_aliases" {
 
 # Namespace
 resource "kubernetes_namespace" "postfix" {
+  count = var.postfix_enabled ? 1 : 0
+
   metadata {
     name = "postfix"
     labels = merge(var.common_labels, {
@@ -69,9 +77,11 @@ resource "kubernetes_namespace" "postfix" {
 
 # ConfigMap — main.cf
 resource "kubernetes_config_map" "postfix_config" {
+  count = var.postfix_enabled ? 1 : 0
+
   metadata {
     name      = "postfix-config"
-    namespace = kubernetes_namespace.postfix.metadata[0].name
+    namespace = kubernetes_namespace.postfix[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -112,13 +122,15 @@ resource "kubernetes_config_map" "postfix_config" {
 
 # Deployment
 resource "kubernetes_deployment" "postfix" {
+  count = var.postfix_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_config_map.postfix_config,
   ]
 
   metadata {
     name      = "postfix"
-    namespace = kubernetes_namespace.postfix.metadata[0].name
+    namespace = kubernetes_namespace.postfix[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "postfix"
     })
@@ -145,6 +157,22 @@ resource "kubernetes_deployment" "postfix" {
       }
 
       spec {
+        init_container {
+          name    = "copy-config"
+          image   = "boky/postfix:latest"
+          command = ["sh", "-c", "cp -a /etc/postfix/* /postfix-writable/ && cp /config-source/main.cf /postfix-writable/main.cf && cp /config-source/virtual /postfix-writable/virtual"]
+
+          volume_mount {
+            name       = "postfix-config-source"
+            mount_path = "/config-source"
+          }
+
+          volume_mount {
+            name       = "postfix-config-writable"
+            mount_path = "/postfix-writable"
+          }
+        }
+
         container {
           name  = "postfix"
           image = "boky/postfix:latest"
@@ -170,15 +198,8 @@ resource "kubernetes_deployment" "postfix" {
           }
 
           volume_mount {
-            name       = "postfix-config"
-            mount_path = "/etc/postfix/main.cf"
-            sub_path   = "main.cf"
-          }
-
-          volume_mount {
-            name       = "postfix-config"
-            mount_path = "/etc/postfix/virtual"
-            sub_path   = "virtual"
+            name       = "postfix-config-writable"
+            mount_path = "/etc/postfix"
           }
 
           resources {
@@ -210,10 +231,15 @@ resource "kubernetes_deployment" "postfix" {
         }
 
         volume {
-          name = "postfix-config"
+          name = "postfix-config-source"
           config_map {
-            name = kubernetes_config_map.postfix_config.metadata[0].name
+            name = kubernetes_config_map.postfix_config[0].metadata[0].name
           }
+        }
+
+        volume {
+          name = "postfix-config-writable"
+          empty_dir {}
         }
       }
     }
@@ -222,13 +248,15 @@ resource "kubernetes_deployment" "postfix" {
 
 # Service (ClusterIP — internal SMTP only)
 resource "kubernetes_service" "postfix" {
+  count = var.postfix_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.postfix
   ]
 
   metadata {
     name      = "postfix-service"
-    namespace = kubernetes_namespace.postfix.metadata[0].name
+    namespace = kubernetes_namespace.postfix[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "postfix"
     })
@@ -259,23 +287,23 @@ resource "kubernetes_service" "postfix" {
 # Outputs
 output "postfix_info" {
   description = "Postfix SMTP relay information"
-  value = {
-    namespace    = kubernetes_namespace.postfix.metadata[0].name
-    service_name = kubernetes_service.postfix.metadata[0].name
+  value = var.postfix_enabled ? {
+    namespace    = kubernetes_namespace.postfix[0].metadata[0].name
+    service_name = kubernetes_service.postfix[0].metadata[0].name
 
     access = {
-      smtp_internal = "postfix-service.${kubernetes_namespace.postfix.metadata[0].name}.svc.cluster.local:25"
-      submission    = "postfix-service.${kubernetes_namespace.postfix.metadata[0].name}.svc.cluster.local:587"
+      smtp_internal = "postfix-service.${kubernetes_namespace.postfix[0].metadata[0].name}.svc.cluster.local:25"
+      submission    = "postfix-service.${kubernetes_namespace.postfix[0].metadata[0].name}.svc.cluster.local:587"
     }
 
     virtual_domains = var.postfix_virtual_domains
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.postfix.metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.postfix.metadata[0].name} -l app=postfix -f"
-      test_smtp  = "kubectl exec -n ${kubernetes_namespace.postfix.metadata[0].name} -it deploy/postfix -- postfix status"
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.postfix[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.postfix[0].metadata[0].name} -l app=postfix -f"
+      test_smtp  = "kubectl exec -n ${kubernetes_namespace.postfix[0].metadata[0].name} -it deploy/postfix -- postfix status"
     }
-  }
+  } : null
 
   sensitive = true
 }

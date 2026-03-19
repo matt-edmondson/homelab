@@ -11,6 +11,12 @@
 # =============================================================================
 
 # Variables
+variable "crowdsec_enabled" {
+  description = "Enable CrowdSec security engine deployment"
+  type        = bool
+  default     = true
+}
+
 variable "crowdsec_chart_version" {
   description = "CrowdSec Helm chart version"
   type        = string
@@ -31,6 +37,8 @@ variable "crowdsec_enroll_key" {
 
 # Namespace
 resource "kubernetes_namespace" "crowdsec" {
+  count = var.crowdsec_enabled ? 1 : 0
+
   metadata {
     name = "crowdsec"
     labels = merge(var.common_labels, {
@@ -41,11 +49,13 @@ resource "kubernetes_namespace" "crowdsec" {
 
 # Helm Release — CrowdSec
 resource "helm_release" "crowdsec" {
+  count = var.crowdsec_enabled ? 1 : 0
+
   name       = "crowdsec"
   repository = "https://crowdsecurity.github.io/helm-charts"
   chart      = "crowdsec"
   version    = var.crowdsec_chart_version
-  namespace  = kubernetes_namespace.crowdsec.metadata[0].name
+  namespace  = kubernetes_namespace.crowdsec[0].metadata[0].name
 
   values = [
     yamlencode({
@@ -129,9 +139,11 @@ resource "helm_release" "crowdsec" {
 # Register the Traefik bouncer API key with CrowdSec LAPI
 # Uses cscli to add the bouncer (idempotent: checks if already registered)
 resource "kubernetes_job" "crowdsec_register_bouncer" {
+  count = var.crowdsec_enabled ? 1 : 0
+
   metadata {
     name      = "crowdsec-register-bouncer"
-    namespace = kubernetes_namespace.crowdsec.metadata[0].name
+    namespace = kubernetes_namespace.crowdsec[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -155,14 +167,14 @@ resource "kubernetes_job" "crowdsec_register_bouncer" {
             name = "BOUNCER_KEY"
             value_from {
               secret_key_ref {
-                name = kubernetes_secret.crowdsec_bouncer_secret.metadata[0].name
+                name = kubernetes_secret.crowdsec_bouncer_secret[0].metadata[0].name
                 key  = "bouncer-key"
               }
             }
           }
         }
 
-        service_account_name = kubernetes_service_account.crowdsec_bouncer_registrar.metadata[0].name
+        service_account_name = kubernetes_service_account.crowdsec_bouncer_registrar[0].metadata[0].name
       }
     }
   }
@@ -180,18 +192,22 @@ resource "kubernetes_job" "crowdsec_register_bouncer" {
 
 # Service account for the bouncer registration job
 resource "kubernetes_service_account" "crowdsec_bouncer_registrar" {
+  count = var.crowdsec_enabled ? 1 : 0
+
   metadata {
     name      = "crowdsec-bouncer-registrar"
-    namespace = kubernetes_namespace.crowdsec.metadata[0].name
+    namespace = kubernetes_namespace.crowdsec[0].metadata[0].name
     labels    = var.common_labels
   }
 }
 
 # RBAC: allow the job to exec into pods and wait for deployments in the crowdsec namespace
 resource "kubernetes_role" "crowdsec_bouncer_registrar" {
+  count = var.crowdsec_enabled ? 1 : 0
+
   metadata {
     name      = "crowdsec-bouncer-registrar"
-    namespace = kubernetes_namespace.crowdsec.metadata[0].name
+    namespace = kubernetes_namespace.crowdsec[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -209,30 +225,34 @@ resource "kubernetes_role" "crowdsec_bouncer_registrar" {
 }
 
 resource "kubernetes_role_binding" "crowdsec_bouncer_registrar" {
+  count = var.crowdsec_enabled ? 1 : 0
+
   metadata {
     name      = "crowdsec-bouncer-registrar"
-    namespace = kubernetes_namespace.crowdsec.metadata[0].name
+    namespace = kubernetes_namespace.crowdsec[0].metadata[0].name
     labels    = var.common_labels
   }
 
   role_ref {
     api_group = "rbac.authorization.k8s.io"
     kind      = "Role"
-    name      = kubernetes_role.crowdsec_bouncer_registrar.metadata[0].name
+    name      = kubernetes_role.crowdsec_bouncer_registrar[0].metadata[0].name
   }
 
   subject {
     kind      = "ServiceAccount"
-    name      = kubernetes_service_account.crowdsec_bouncer_registrar.metadata[0].name
-    namespace = kubernetes_namespace.crowdsec.metadata[0].name
+    name      = kubernetes_service_account.crowdsec_bouncer_registrar[0].metadata[0].name
+    namespace = kubernetes_namespace.crowdsec[0].metadata[0].name
   }
 }
 
 # Secret to hold the bouncer API key
 resource "kubernetes_secret" "crowdsec_bouncer_secret" {
+  count = var.crowdsec_enabled ? 1 : 0
+
   metadata {
     name      = "crowdsec-bouncer-key"
-    namespace = kubernetes_namespace.crowdsec.metadata[0].name
+    namespace = kubernetes_namespace.crowdsec[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -246,15 +266,15 @@ resource "kubernetes_secret" "crowdsec_bouncer_secret" {
 # Outputs
 output "crowdsec_info" {
   description = "CrowdSec security engine information"
-  value = {
-    namespace    = kubernetes_namespace.crowdsec.metadata[0].name
-    lapi_service = "crowdsec-service.${kubernetes_namespace.crowdsec.metadata[0].name}.svc.cluster.local:8080"
+  value = var.crowdsec_enabled ? {
+    namespace    = kubernetes_namespace.crowdsec[0].metadata[0].name
+    lapi_service = "crowdsec-service.${kubernetes_namespace.crowdsec[0].metadata[0].name}.svc.cluster.local:8080"
 
     commands = {
-      check_pods    = "kubectl get pods -n ${kubernetes_namespace.crowdsec.metadata[0].name}"
-      check_lapi    = "kubectl exec -n ${kubernetes_namespace.crowdsec.metadata[0].name} -it deploy/crowdsec-lapi -- cscli decisions list"
-      list_bouncers = "kubectl exec -n ${kubernetes_namespace.crowdsec.metadata[0].name} -it deploy/crowdsec-lapi -- cscli bouncers list"
-      add_bouncer   = "kubectl exec -n ${kubernetes_namespace.crowdsec.metadata[0].name} -it deploy/crowdsec-lapi -- cscli bouncers add traefik-bouncer"
+      check_pods    = "kubectl get pods -n ${kubernetes_namespace.crowdsec[0].metadata[0].name}"
+      check_lapi    = "kubectl exec -n ${kubernetes_namespace.crowdsec[0].metadata[0].name} -it deploy/crowdsec-lapi -- cscli decisions list"
+      list_bouncers = "kubectl exec -n ${kubernetes_namespace.crowdsec[0].metadata[0].name} -it deploy/crowdsec-lapi -- cscli bouncers list"
+      add_bouncer   = "kubectl exec -n ${kubernetes_namespace.crowdsec[0].metadata[0].name} -it deploy/crowdsec-lapi -- cscli bouncers add traefik-bouncer"
     }
-  }
+  } : null
 }

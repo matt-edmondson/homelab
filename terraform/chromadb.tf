@@ -7,6 +7,12 @@
 # =============================================================================
 
 # Variables
+variable "chromadb_enabled" {
+  description = "Enable ChromaDB deployment"
+  type        = bool
+  default     = true
+}
+
 variable "chromadb_storage_size" {
   description = "Storage size for ChromaDB data"
   type        = string
@@ -45,6 +51,8 @@ variable "chromadb_image_tag" {
 
 # Namespace
 resource "kubernetes_namespace" "chromadb" {
+  count = var.chromadb_enabled ? 1 : 0
+
   metadata {
     name = "chromadb"
     labels = merge(var.common_labels, {
@@ -55,6 +63,8 @@ resource "kubernetes_namespace" "chromadb" {
 
 # Persistent Volume Claim — Data (Longhorn)
 resource "kubernetes_persistent_volume_claim" "chromadb_data" {
+  count = var.chromadb_enabled ? 1 : 0
+
   depends_on = [
     helm_release.longhorn,
     data.kubernetes_storage_class.longhorn
@@ -62,7 +72,7 @@ resource "kubernetes_persistent_volume_claim" "chromadb_data" {
 
   metadata {
     name      = "chromadb-data"
-    namespace = kubernetes_namespace.chromadb.metadata[0].name
+    namespace = kubernetes_namespace.chromadb[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -79,6 +89,8 @@ resource "kubernetes_persistent_volume_claim" "chromadb_data" {
 
 # Deployment
 resource "kubernetes_deployment" "chromadb" {
+  count = var.chromadb_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_persistent_volume_claim.chromadb_data,
     helm_release.longhorn
@@ -86,7 +98,7 @@ resource "kubernetes_deployment" "chromadb" {
 
   metadata {
     name      = "chromadb"
-    namespace = kubernetes_namespace.chromadb.metadata[0].name
+    namespace = kubernetes_namespace.chromadb[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "chromadb"
     })
@@ -155,16 +167,17 @@ resource "kubernetes_deployment" "chromadb" {
 
           liveness_probe {
             http_get {
-              path = "/api/v1/heartbeat"
+              path = "/api/v2/heartbeat"
               port = 8000
             }
             initial_delay_seconds = 15
             period_seconds        = 10
+            failure_threshold     = 5
           }
 
           readiness_probe {
             http_get {
-              path = "/api/v1/heartbeat"
+              path = "/api/v2/heartbeat"
               port = 8000
             }
             initial_delay_seconds = 5
@@ -175,7 +188,7 @@ resource "kubernetes_deployment" "chromadb" {
         volume {
           name = "chromadb-data"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.chromadb_data.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.chromadb_data[0].metadata[0].name
           }
         }
       }
@@ -185,13 +198,15 @@ resource "kubernetes_deployment" "chromadb" {
 
 # Service
 resource "kubernetes_service" "chromadb" {
+  count = var.chromadb_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.chromadb
   ]
 
   metadata {
     name      = "chromadb-service"
-    namespace = kubernetes_namespace.chromadb.metadata[0].name
+    namespace = kubernetes_namespace.chromadb[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "chromadb"
     })
@@ -214,22 +229,22 @@ resource "kubernetes_service" "chromadb" {
 # Outputs
 output "chromadb_info" {
   description = "ChromaDB vector database information"
-  value = {
-    namespace    = kubernetes_namespace.chromadb.metadata[0].name
-    service_name = kubernetes_service.chromadb.metadata[0].name
+  value = var.chromadb_enabled ? {
+    namespace    = kubernetes_namespace.chromadb[0].metadata[0].name
+    service_name = kubernetes_service.chromadb[0].metadata[0].name
     storage_size = var.chromadb_storage_size
 
     access = {
       web_ui      = "https://chromadb.${var.traefik_domain}"
-      cluster_api = "chromadb-service.${kubernetes_namespace.chromadb.metadata[0].name}.svc.cluster.local:80"
+      cluster_api = "chromadb-service.${kubernetes_namespace.chromadb[0].metadata[0].name}.svc.cluster.local:80"
     }
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.chromadb.metadata[0].name}"
-      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.chromadb.metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.chromadb.metadata[0].name} -l app=chromadb -f"
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.chromadb[0].metadata[0].name}"
+      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.chromadb[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.chromadb[0].metadata[0].name} -l app=chromadb -f"
     }
-  }
+  } : null
 
   sensitive = true
 }

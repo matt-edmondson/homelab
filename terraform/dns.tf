@@ -41,33 +41,44 @@ data "azurerm_dns_zone" "main" {
 }
 
 locals {
-  # All service subdomains that need A records
-  dns_records = {
-    traefik      = "traefik"
-    grafana      = "grafana"
-    prometheus   = "prometheus"
-    alertmanager = "alertmanager"
-    packages     = "packages"
-    longhorn     = "longhorn"
-    dashboard    = "dashboard"
-    auth         = "auth"
-    n8n          = "n8n"
-    prowlarr     = "prowlarr"
-    sonarr       = "sonarr"
-    radarr       = "radarr"
-    qbit         = "qbit"
-    emby         = "emby"
-    bazarr       = "bazarr"
-    jackett      = "jackett"
-    huntarr      = "huntarr"
-    cleanuparr   = "cleanuparr"
-    sabnzbd      = "sabnzbd"
-    notifiarr    = "notifiarr"
-    ollama       = "ollama"
-    qdrant       = "qdrant"
-    chromadb     = "chromadb"
-    comfyui      = "comfyui"
-  }
+  # All service subdomains that need A records (filtered by enabled state)
+  dns_records = merge(
+    # Core infrastructure (always on)
+    {
+      traefik  = "traefik"
+      longhorn = "longhorn"
+    },
+    # OAuth
+    var.oauth_enabled ? { auth = "auth" } : {},
+    # Monitoring
+    var.monitoring_enabled ? {
+      grafana      = "grafana"
+      prometheus   = "prometheus"
+      alertmanager = "alertmanager"
+    } : {},
+    # Kubernetes Dashboard
+    var.kubernetes_dashboard_enabled ? { dashboard = "dashboard" } : {},
+    # Applications
+    var.baget_enabled ? { packages = "packages" } : {},
+    var.n8n_enabled ? { n8n = "n8n" } : {},
+    # Media Stack
+    var.prowlarr_enabled ? { prowlarr = "prowlarr" } : {},
+    var.sonarr_enabled ? { sonarr = "sonarr" } : {},
+    var.radarr_enabled ? { radarr = "radarr" } : {},
+    var.qbittorrent_enabled ? { qbit = "qbit" } : {},
+    var.emby_enabled ? { emby = "emby" } : {},
+    var.bazarr_enabled ? { bazarr = "bazarr" } : {},
+    var.jackett_enabled ? { jackett = "jackett" } : {},
+    var.huntarr_enabled ? { huntarr = "huntarr" } : {},
+    var.cleanuparr_enabled ? { cleanuparr = "cleanuparr" } : {},
+    var.sabnzbd_enabled ? { sabnzbd = "sabnzbd" } : {},
+    var.notifiarr_enabled ? { notifiarr = "notifiarr" } : {},
+    # AI/ML Stack
+    var.ollama_enabled ? { ollama = "ollama" } : {},
+    var.qdrant_enabled ? { qdrant = "qdrant" } : {},
+    var.chromadb_enabled ? { chromadb = "chromadb" } : {},
+    var.comfyui_enabled ? { comfyui = "comfyui" } : {},
+  )
 }
 
 # Create A records for each service subdomain

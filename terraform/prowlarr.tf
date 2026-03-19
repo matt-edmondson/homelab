@@ -6,6 +6,12 @@
 # =============================================================================
 
 # Variables
+variable "prowlarr_enabled" {
+  description = "Enable Prowlarr deployment"
+  type        = bool
+  default     = true
+}
+
 variable "prowlarr_storage_size" {
   description = "Storage size for Prowlarr config/database"
   type        = string
@@ -44,6 +50,8 @@ variable "prowlarr_image_tag" {
 
 # Namespace
 resource "kubernetes_namespace" "prowlarr" {
+  count = var.prowlarr_enabled ? 1 : 0
+
   metadata {
     name = "prowlarr"
     labels = merge(var.common_labels, {
@@ -54,6 +62,8 @@ resource "kubernetes_namespace" "prowlarr" {
 
 # Persistent Volume Claim (Longhorn — config/DB)
 resource "kubernetes_persistent_volume_claim" "prowlarr_config" {
+  count = var.prowlarr_enabled ? 1 : 0
+
   depends_on = [
     helm_release.longhorn,
     data.kubernetes_storage_class.longhorn
@@ -61,7 +71,7 @@ resource "kubernetes_persistent_volume_claim" "prowlarr_config" {
 
   metadata {
     name      = "prowlarr-config"
-    namespace = kubernetes_namespace.prowlarr.metadata[0].name
+    namespace = kubernetes_namespace.prowlarr[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -78,6 +88,8 @@ resource "kubernetes_persistent_volume_claim" "prowlarr_config" {
 
 # Deployment
 resource "kubernetes_deployment" "prowlarr" {
+  count = var.prowlarr_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_persistent_volume_claim.prowlarr_config,
     helm_release.longhorn
@@ -85,7 +97,7 @@ resource "kubernetes_deployment" "prowlarr" {
 
   metadata {
     name      = "prowlarr"
-    namespace = kubernetes_namespace.prowlarr.metadata[0].name
+    namespace = kubernetes_namespace.prowlarr[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "prowlarr"
     })
@@ -173,7 +185,7 @@ resource "kubernetes_deployment" "prowlarr" {
         volume {
           name = "prowlarr-config"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.prowlarr_config.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.prowlarr_config[0].metadata[0].name
           }
         }
       }
@@ -183,13 +195,15 @@ resource "kubernetes_deployment" "prowlarr" {
 
 # Service
 resource "kubernetes_service" "prowlarr" {
+  count = var.prowlarr_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.prowlarr
   ]
 
   metadata {
     name      = "prowlarr-service"
-    namespace = kubernetes_namespace.prowlarr.metadata[0].name
+    namespace = kubernetes_namespace.prowlarr[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "prowlarr"
     })
@@ -212,9 +226,9 @@ resource "kubernetes_service" "prowlarr" {
 # Outputs
 output "prowlarr_info" {
   description = "Prowlarr indexer aggregation information"
-  value = {
-    namespace    = kubernetes_namespace.prowlarr.metadata[0].name
-    service_name = kubernetes_service.prowlarr.metadata[0].name
+  value = var.prowlarr_enabled ? {
+    namespace    = kubernetes_namespace.prowlarr[0].metadata[0].name
+    service_name = kubernetes_service.prowlarr[0].metadata[0].name
     storage_size = var.prowlarr_storage_size
 
     access = {
@@ -222,11 +236,11 @@ output "prowlarr_info" {
     }
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.prowlarr.metadata[0].name}"
-      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.prowlarr.metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.prowlarr.metadata[0].name} -l app=prowlarr -f"
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.prowlarr[0].metadata[0].name}"
+      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.prowlarr[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.prowlarr[0].metadata[0].name} -l app=prowlarr -f"
     }
-  }
+  } : null
 
   sensitive = true
 }

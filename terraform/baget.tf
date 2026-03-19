@@ -1,8 +1,14 @@
 # =============================================================================
-# Baget NuGet Server - Self-Contained Module  
+# Baget NuGet Server - Self-Contained Module
 # =============================================================================
 
 # Variables
+variable "baget_enabled" {
+  description = "Enable BaGet NuGet server deployment"
+  type        = bool
+  default     = true
+}
+
 variable "baget_api_key" {
   description = "API key for Baget NuGet server (generate a secure random key)"
   type        = string
@@ -42,6 +48,8 @@ variable "baget_cpu_limit" {
 
 # Namespace
 resource "kubernetes_namespace" "baget" {
+  count = var.baget_enabled ? 1 : 0
+
   metadata {
     name = "baget"
     labels = merge(var.common_labels, {
@@ -52,9 +60,11 @@ resource "kubernetes_namespace" "baget" {
 
 # Baget Secret for API Key
 resource "kubernetes_secret" "baget_secrets" {
+  count = var.baget_enabled ? 1 : 0
+
   metadata {
     name      = "baget-secrets"
-    namespace = kubernetes_namespace.baget.metadata[0].name
+    namespace = kubernetes_namespace.baget[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -67,9 +77,11 @@ resource "kubernetes_secret" "baget_secrets" {
 
 # Baget ConfigMap
 resource "kubernetes_config_map" "baget_config" {
+  count = var.baget_enabled ? 1 : 0
+
   metadata {
     name      = "baget-config"
-    namespace = kubernetes_namespace.baget.metadata[0].name
+    namespace = kubernetes_namespace.baget[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -98,6 +110,8 @@ resource "kubernetes_config_map" "baget_config" {
 
 # Baget Persistent Volume Claim
 resource "kubernetes_persistent_volume_claim" "baget_data" {
+  count = var.baget_enabled ? 1 : 0
+
   depends_on = [
     helm_release.longhorn,                 # Ensure storage backend is available
     data.kubernetes_storage_class.longhorn # Ensure default storage class exists
@@ -105,7 +119,7 @@ resource "kubernetes_persistent_volume_claim" "baget_data" {
 
   metadata {
     name      = "baget-data"
-    namespace = kubernetes_namespace.baget.metadata[0].name
+    namespace = kubernetes_namespace.baget[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -122,6 +136,8 @@ resource "kubernetes_persistent_volume_claim" "baget_data" {
 
 # Baget Deployment
 resource "kubernetes_deployment" "baget" {
+  count = var.baget_enabled ? 1 : 0
+
   # Ensure storage, secrets, and config are ready
   depends_on = [
     kubernetes_persistent_volume_claim.baget_data,
@@ -132,7 +148,7 @@ resource "kubernetes_deployment" "baget" {
 
   metadata {
     name      = "baget"
-    namespace = kubernetes_namespace.baget.metadata[0].name
+    namespace = kubernetes_namespace.baget[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "baget"
     })
@@ -181,7 +197,7 @@ resource "kubernetes_deployment" "baget" {
             name = "ApiKey"
             value_from {
               secret_key_ref {
-                name = kubernetes_secret.baget_secrets.metadata[0].name
+                name = kubernetes_secret.baget_secrets[0].metadata[0].name
                 key  = "ApiKey"
               }
             }
@@ -231,14 +247,14 @@ resource "kubernetes_deployment" "baget" {
         volume {
           name = "baget-data"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.baget_data.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.baget_data[0].metadata[0].name
           }
         }
 
         volume {
           name = "baget-config"
           config_map {
-            name = kubernetes_config_map.baget_config.metadata[0].name
+            name = kubernetes_config_map.baget_config[0].metadata[0].name
           }
         }
       }
@@ -248,13 +264,15 @@ resource "kubernetes_deployment" "baget" {
 
 # Baget Service
 resource "kubernetes_service" "baget" {
+  count = var.baget_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.baget
   ]
 
   metadata {
     name      = "baget-service"
-    namespace = kubernetes_namespace.baget.metadata[0].name
+    namespace = kubernetes_namespace.baget[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "baget"
     })
@@ -277,9 +295,9 @@ resource "kubernetes_service" "baget" {
 # Outputs
 output "baget_info" {
   description = "Baget NuGet server information"
-  value = {
-    namespace    = kubernetes_namespace.baget.metadata[0].name
-    service_name = kubernetes_service.baget.metadata[0].name
+  value = var.baget_enabled ? {
+    namespace    = kubernetes_namespace.baget[0].metadata[0].name
+    service_name = kubernetes_service.baget[0].metadata[0].name
     storage_size = var.baget_storage_size
 
     access = {
@@ -293,11 +311,11 @@ output "baget_info" {
     }
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.baget.metadata[0].name}"
-      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.baget.metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.baget.metadata[0].name} -l app=baget -f"
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.baget[0].metadata[0].name}"
+      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.baget[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.baget[0].metadata[0].name} -l app=baget -f"
     }
-  }
+  } : null
 
   sensitive = true
 }

@@ -6,6 +6,12 @@
 # =============================================================================
 
 # Variables
+variable "cleanuparr_enabled" {
+  description = "Enable Cleanuparr deployment"
+  type        = bool
+  default     = true
+}
+
 variable "cleanuparr_memory_request" {
   description = "Memory request for Cleanuparr container"
   type        = string
@@ -38,6 +44,8 @@ variable "cleanuparr_image_tag" {
 
 # Namespace
 resource "kubernetes_namespace" "cleanuparr" {
+  count = var.cleanuparr_enabled ? 1 : 0
+
   metadata {
     name = "cleanuparr"
     labels = merge(var.common_labels, {
@@ -48,9 +56,11 @@ resource "kubernetes_namespace" "cleanuparr" {
 
 # Deployment
 resource "kubernetes_deployment" "cleanuparr" {
+  count = var.cleanuparr_enabled ? 1 : 0
+
   metadata {
     name      = "cleanuparr"
-    namespace = kubernetes_namespace.cleanuparr.metadata[0].name
+    namespace = kubernetes_namespace.cleanuparr[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "cleanuparr"
     })
@@ -79,10 +89,10 @@ resource "kubernetes_deployment" "cleanuparr" {
       spec {
         container {
           name  = "cleanuparr"
-          image = "flmedicmento/cleanuparr:${var.cleanuparr_image_tag}"
+          image = "ghcr.io/cleanuparr/cleanuparr:${var.cleanuparr_image_tag}"
 
           port {
-            container_port = 80
+            container_port = 11011
           }
 
           env {
@@ -102,18 +112,16 @@ resource "kubernetes_deployment" "cleanuparr" {
           }
 
           liveness_probe {
-            http_get {
-              path = "/"
-              port = 80
+            tcp_socket {
+              port = 11011
             }
             initial_delay_seconds = 15
             period_seconds        = 10
           }
 
           readiness_probe {
-            http_get {
-              path = "/"
-              port = 80
+            tcp_socket {
+              port = 11011
             }
             initial_delay_seconds = 5
             period_seconds        = 5
@@ -126,13 +134,15 @@ resource "kubernetes_deployment" "cleanuparr" {
 
 # Service
 resource "kubernetes_service" "cleanuparr" {
+  count = var.cleanuparr_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.cleanuparr
   ]
 
   metadata {
     name      = "cleanuparr-service"
-    namespace = kubernetes_namespace.cleanuparr.metadata[0].name
+    namespace = kubernetes_namespace.cleanuparr[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "cleanuparr"
     })
@@ -147,7 +157,7 @@ resource "kubernetes_service" "cleanuparr" {
     port {
       protocol    = "TCP"
       port        = 80
-      target_port = 80
+      target_port = 11011
     }
   }
 }
@@ -155,19 +165,19 @@ resource "kubernetes_service" "cleanuparr" {
 # Outputs
 output "cleanuparr_info" {
   description = "Cleanuparr library cleanup information"
-  value = {
-    namespace    = kubernetes_namespace.cleanuparr.metadata[0].name
-    service_name = kubernetes_service.cleanuparr.metadata[0].name
+  value = var.cleanuparr_enabled ? {
+    namespace    = kubernetes_namespace.cleanuparr[0].metadata[0].name
+    service_name = kubernetes_service.cleanuparr[0].metadata[0].name
 
     access = {
       web_ui = "https://cleanuparr.${var.traefik_domain}"
     }
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.cleanuparr.metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.cleanuparr.metadata[0].name} -l app=cleanuparr -f"
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.cleanuparr[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.cleanuparr[0].metadata[0].name} -l app=cleanuparr -f"
     }
-  }
+  } : null
 
   sensitive = true
 }

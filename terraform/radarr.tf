@@ -6,6 +6,12 @@
 # =============================================================================
 
 # Variables
+variable "radarr_enabled" {
+  description = "Enable Radarr deployment"
+  type        = bool
+  default     = true
+}
+
 variable "radarr_config_storage_size" {
   description = "Storage size for Radarr config/database"
   type        = string
@@ -44,6 +50,8 @@ variable "radarr_image_tag" {
 
 # Namespace
 resource "kubernetes_namespace" "radarr" {
+  count = var.radarr_enabled ? 1 : 0
+
   metadata {
     name = "radarr"
     labels = merge(var.common_labels, {
@@ -54,6 +62,8 @@ resource "kubernetes_namespace" "radarr" {
 
 # Persistent Volume Claim — Config (Longhorn)
 resource "kubernetes_persistent_volume_claim" "radarr_config" {
+  count = var.radarr_enabled ? 1 : 0
+
   depends_on = [
     helm_release.longhorn,
     data.kubernetes_storage_class.longhorn
@@ -61,7 +71,7 @@ resource "kubernetes_persistent_volume_claim" "radarr_config" {
 
   metadata {
     name      = "radarr-config"
-    namespace = kubernetes_namespace.radarr.metadata[0].name
+    namespace = kubernetes_namespace.radarr[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -78,6 +88,8 @@ resource "kubernetes_persistent_volume_claim" "radarr_config" {
 
 # Persistent Volume — NFS Media (static PV)
 resource "kubernetes_persistent_volume" "radarr_media" {
+  count = var.radarr_enabled ? 1 : 0
+
   metadata {
     name   = "radarr-media-pv"
     labels = var.common_labels
@@ -103,16 +115,18 @@ resource "kubernetes_persistent_volume" "radarr_media" {
 }
 
 resource "kubernetes_persistent_volume_claim" "radarr_media" {
+  count = var.radarr_enabled ? 1 : 0
+
   metadata {
     name      = "radarr-media"
-    namespace = kubernetes_namespace.radarr.metadata[0].name
+    namespace = kubernetes_namespace.radarr[0].metadata[0].name
     labels    = var.common_labels
   }
 
   spec {
     access_modes       = ["ReadWriteMany"]
     storage_class_name = "nfs-media"
-    volume_name        = kubernetes_persistent_volume.radarr_media.metadata[0].name
+    volume_name        = kubernetes_persistent_volume.radarr_media[0].metadata[0].name
     resources {
       requests = {
         storage = "1Ti"
@@ -123,6 +137,8 @@ resource "kubernetes_persistent_volume_claim" "radarr_media" {
 
 # Persistent Volume — NFS Downloads (static PV)
 resource "kubernetes_persistent_volume" "radarr_downloads" {
+  count = var.radarr_enabled ? 1 : 0
+
   metadata {
     name   = "radarr-downloads-pv"
     labels = var.common_labels
@@ -148,16 +164,18 @@ resource "kubernetes_persistent_volume" "radarr_downloads" {
 }
 
 resource "kubernetes_persistent_volume_claim" "radarr_downloads" {
+  count = var.radarr_enabled ? 1 : 0
+
   metadata {
     name      = "radarr-downloads"
-    namespace = kubernetes_namespace.radarr.metadata[0].name
+    namespace = kubernetes_namespace.radarr[0].metadata[0].name
     labels    = var.common_labels
   }
 
   spec {
     access_modes       = ["ReadWriteMany"]
     storage_class_name = "nfs-downloads"
-    volume_name        = kubernetes_persistent_volume.radarr_downloads.metadata[0].name
+    volume_name        = kubernetes_persistent_volume.radarr_downloads[0].metadata[0].name
     resources {
       requests = {
         storage = "1Ti"
@@ -168,6 +186,8 @@ resource "kubernetes_persistent_volume_claim" "radarr_downloads" {
 
 # Deployment
 resource "kubernetes_deployment" "radarr" {
+  count = var.radarr_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_persistent_volume_claim.radarr_config,
     kubernetes_persistent_volume_claim.radarr_media,
@@ -177,7 +197,7 @@ resource "kubernetes_deployment" "radarr" {
 
   metadata {
     name      = "radarr"
-    namespace = kubernetes_namespace.radarr.metadata[0].name
+    namespace = kubernetes_namespace.radarr[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "radarr"
     })
@@ -275,21 +295,21 @@ resource "kubernetes_deployment" "radarr" {
         volume {
           name = "radarr-config"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.radarr_config.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.radarr_config[0].metadata[0].name
           }
         }
 
         volume {
           name = "media"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.radarr_media.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.radarr_media[0].metadata[0].name
           }
         }
 
         volume {
           name = "downloads"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.radarr_downloads.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.radarr_downloads[0].metadata[0].name
           }
         }
       }
@@ -299,13 +319,15 @@ resource "kubernetes_deployment" "radarr" {
 
 # Service
 resource "kubernetes_service" "radarr" {
+  count = var.radarr_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.radarr
   ]
 
   metadata {
     name      = "radarr-service"
-    namespace = kubernetes_namespace.radarr.metadata[0].name
+    namespace = kubernetes_namespace.radarr[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "radarr"
     })
@@ -328,9 +350,9 @@ resource "kubernetes_service" "radarr" {
 # Outputs
 output "radarr_info" {
   description = "Radarr movie management information"
-  value = {
-    namespace    = kubernetes_namespace.radarr.metadata[0].name
-    service_name = kubernetes_service.radarr.metadata[0].name
+  value = var.radarr_enabled ? {
+    namespace    = kubernetes_namespace.radarr[0].metadata[0].name
+    service_name = kubernetes_service.radarr[0].metadata[0].name
     config_size  = var.radarr_config_storage_size
 
     access = {
@@ -343,11 +365,11 @@ output "radarr_info" {
     }
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.radarr.metadata[0].name}"
-      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.radarr.metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.radarr.metadata[0].name} -l app=radarr -f"
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.radarr[0].metadata[0].name}"
+      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.radarr[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.radarr[0].metadata[0].name} -l app=radarr -f"
     }
-  }
+  } : null
 
   sensitive = true
 }

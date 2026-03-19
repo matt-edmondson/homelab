@@ -7,6 +7,12 @@
 # =============================================================================
 
 # Variables
+variable "ollama_enabled" {
+  description = "Enable Ollama deployment"
+  type        = bool
+  default     = true
+}
+
 variable "ollama_config_storage_size" {
   description = "Storage size for Ollama config"
   type        = string
@@ -16,13 +22,13 @@ variable "ollama_config_storage_size" {
 variable "ollama_memory_request" {
   description = "Memory request for Ollama container"
   type        = string
-  default     = "2Gi"
+  default     = "512Mi"
 }
 
 variable "ollama_memory_limit" {
   description = "Memory limit for Ollama container"
   type        = string
-  default     = "8Gi"
+  default     = "2Gi"
 }
 
 variable "ollama_cpu_request" {
@@ -51,6 +57,8 @@ variable "ollama_gpu_enabled" {
 
 # Namespace
 resource "kubernetes_namespace" "ollama" {
+  count = var.ollama_enabled ? 1 : 0
+
   metadata {
     name = "ollama"
     labels = merge(var.common_labels, {
@@ -61,6 +69,8 @@ resource "kubernetes_namespace" "ollama" {
 
 # Persistent Volume Claim — Config (Longhorn)
 resource "kubernetes_persistent_volume_claim" "ollama_config" {
+  count = var.ollama_enabled ? 1 : 0
+
   depends_on = [
     helm_release.longhorn,
     data.kubernetes_storage_class.longhorn
@@ -68,7 +78,7 @@ resource "kubernetes_persistent_volume_claim" "ollama_config" {
 
   metadata {
     name      = "ollama-config"
-    namespace = kubernetes_namespace.ollama.metadata[0].name
+    namespace = kubernetes_namespace.ollama[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -85,6 +95,8 @@ resource "kubernetes_persistent_volume_claim" "ollama_config" {
 
 # Persistent Volume — NFS Models (static PV, subpath of media share)
 resource "kubernetes_persistent_volume" "ollama_models" {
+  count = var.ollama_enabled ? 1 : 0
+
   metadata {
     name   = "ollama-models-pv"
     labels = var.common_labels
@@ -110,16 +122,18 @@ resource "kubernetes_persistent_volume" "ollama_models" {
 }
 
 resource "kubernetes_persistent_volume_claim" "ollama_models" {
+  count = var.ollama_enabled ? 1 : 0
+
   metadata {
     name      = "ollama-models"
-    namespace = kubernetes_namespace.ollama.metadata[0].name
+    namespace = kubernetes_namespace.ollama[0].metadata[0].name
     labels    = var.common_labels
   }
 
   spec {
     access_modes       = ["ReadWriteMany"]
     storage_class_name = "nfs-media"
-    volume_name        = kubernetes_persistent_volume.ollama_models.metadata[0].name
+    volume_name        = kubernetes_persistent_volume.ollama_models[0].metadata[0].name
     resources {
       requests = {
         storage = "1Ti"
@@ -130,6 +144,8 @@ resource "kubernetes_persistent_volume_claim" "ollama_models" {
 
 # Deployment
 resource "kubernetes_deployment" "ollama" {
+  count = var.ollama_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_persistent_volume_claim.ollama_config,
     kubernetes_persistent_volume_claim.ollama_models,
@@ -138,7 +154,7 @@ resource "kubernetes_deployment" "ollama" {
 
   metadata {
     name      = "ollama"
-    namespace = kubernetes_namespace.ollama.metadata[0].name
+    namespace = kubernetes_namespace.ollama[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "ollama"
     })
@@ -225,14 +241,14 @@ resource "kubernetes_deployment" "ollama" {
         volume {
           name = "ollama-config"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.ollama_config.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.ollama_config[0].metadata[0].name
           }
         }
 
         volume {
           name = "models"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.ollama_models.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.ollama_models[0].metadata[0].name
           }
         }
       }
@@ -242,13 +258,15 @@ resource "kubernetes_deployment" "ollama" {
 
 # Service
 resource "kubernetes_service" "ollama" {
+  count = var.ollama_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.ollama
   ]
 
   metadata {
     name      = "ollama-service"
-    namespace = kubernetes_namespace.ollama.metadata[0].name
+    namespace = kubernetes_namespace.ollama[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "ollama"
     })
@@ -271,15 +289,15 @@ resource "kubernetes_service" "ollama" {
 # Outputs
 output "ollama_info" {
   description = "Ollama LLM inference information"
-  value = {
-    namespace    = kubernetes_namespace.ollama.metadata[0].name
-    service_name = kubernetes_service.ollama.metadata[0].name
+  value = var.ollama_enabled ? {
+    namespace    = kubernetes_namespace.ollama[0].metadata[0].name
+    service_name = kubernetes_service.ollama[0].metadata[0].name
     config_size  = var.ollama_config_storage_size
     gpu_enabled  = var.ollama_gpu_enabled
 
     access = {
       web_ui      = "https://ollama.${var.traefik_domain}"
-      cluster_api = "ollama-service.${kubernetes_namespace.ollama.metadata[0].name}.svc.cluster.local:80"
+      cluster_api = "ollama-service.${kubernetes_namespace.ollama[0].metadata[0].name}.svc.cluster.local:80"
     }
 
     nfs_mounts = {
@@ -287,13 +305,13 @@ output "ollama_info" {
     }
 
     commands = {
-      check_pods  = "kubectl get pods -n ${kubernetes_namespace.ollama.metadata[0].name}"
-      check_pvc   = "kubectl get pvc -n ${kubernetes_namespace.ollama.metadata[0].name}"
-      logs        = "kubectl logs -n ${kubernetes_namespace.ollama.metadata[0].name} -l app=ollama -f"
-      pull_model  = "kubectl exec -n ${kubernetes_namespace.ollama.metadata[0].name} deploy/ollama -- ollama pull llama3.2"
-      list_models = "kubectl exec -n ${kubernetes_namespace.ollama.metadata[0].name} deploy/ollama -- ollama list"
+      check_pods  = "kubectl get pods -n ${kubernetes_namespace.ollama[0].metadata[0].name}"
+      check_pvc   = "kubectl get pvc -n ${kubernetes_namespace.ollama[0].metadata[0].name}"
+      logs        = "kubectl logs -n ${kubernetes_namespace.ollama[0].metadata[0].name} -l app=ollama -f"
+      pull_model  = "kubectl exec -n ${kubernetes_namespace.ollama[0].metadata[0].name} deploy/ollama -- ollama pull llama3.2"
+      list_models = "kubectl exec -n ${kubernetes_namespace.ollama[0].metadata[0].name} deploy/ollama -- ollama list"
     }
-  }
+  } : null
 
   sensitive = true
 }

@@ -7,6 +7,12 @@
 # =============================================================================
 
 # Variables
+variable "qdrant_enabled" {
+  description = "Enable Qdrant deployment"
+  type        = bool
+  default     = true
+}
+
 variable "qdrant_storage_size" {
   description = "Storage size for Qdrant data"
   type        = string
@@ -45,6 +51,8 @@ variable "qdrant_image_tag" {
 
 # Namespace
 resource "kubernetes_namespace" "qdrant" {
+  count = var.qdrant_enabled ? 1 : 0
+
   metadata {
     name = "qdrant"
     labels = merge(var.common_labels, {
@@ -55,6 +63,8 @@ resource "kubernetes_namespace" "qdrant" {
 
 # Persistent Volume Claim — Data (Longhorn)
 resource "kubernetes_persistent_volume_claim" "qdrant_data" {
+  count = var.qdrant_enabled ? 1 : 0
+
   depends_on = [
     helm_release.longhorn,
     data.kubernetes_storage_class.longhorn
@@ -62,7 +72,7 @@ resource "kubernetes_persistent_volume_claim" "qdrant_data" {
 
   metadata {
     name      = "qdrant-data"
-    namespace = kubernetes_namespace.qdrant.metadata[0].name
+    namespace = kubernetes_namespace.qdrant[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -79,6 +89,8 @@ resource "kubernetes_persistent_volume_claim" "qdrant_data" {
 
 # Deployment
 resource "kubernetes_deployment" "qdrant" {
+  count = var.qdrant_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_persistent_volume_claim.qdrant_data,
     helm_release.longhorn
@@ -86,7 +98,7 @@ resource "kubernetes_deployment" "qdrant" {
 
   metadata {
     name      = "qdrant"
-    namespace = kubernetes_namespace.qdrant.metadata[0].name
+    namespace = kubernetes_namespace.qdrant[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "qdrant"
     })
@@ -165,7 +177,7 @@ resource "kubernetes_deployment" "qdrant" {
         volume {
           name = "qdrant-data"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.qdrant_data.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.qdrant_data[0].metadata[0].name
           }
         }
       }
@@ -175,13 +187,15 @@ resource "kubernetes_deployment" "qdrant" {
 
 # Service
 resource "kubernetes_service" "qdrant" {
+  count = var.qdrant_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.qdrant
   ]
 
   metadata {
     name      = "qdrant-service"
-    namespace = kubernetes_namespace.qdrant.metadata[0].name
+    namespace = kubernetes_namespace.qdrant[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "qdrant"
     })
@@ -212,23 +226,23 @@ resource "kubernetes_service" "qdrant" {
 # Outputs
 output "qdrant_info" {
   description = "Qdrant vector database information"
-  value = {
-    namespace    = kubernetes_namespace.qdrant.metadata[0].name
-    service_name = kubernetes_service.qdrant.metadata[0].name
+  value = var.qdrant_enabled ? {
+    namespace    = kubernetes_namespace.qdrant[0].metadata[0].name
+    service_name = kubernetes_service.qdrant[0].metadata[0].name
     storage_size = var.qdrant_storage_size
 
     access = {
       web_ui       = "https://qdrant.${var.traefik_domain}"
-      cluster_rest = "qdrant-service.${kubernetes_namespace.qdrant.metadata[0].name}.svc.cluster.local:80"
-      cluster_grpc = "qdrant-service.${kubernetes_namespace.qdrant.metadata[0].name}.svc.cluster.local:6334"
+      cluster_rest = "qdrant-service.${kubernetes_namespace.qdrant[0].metadata[0].name}.svc.cluster.local:80"
+      cluster_grpc = "qdrant-service.${kubernetes_namespace.qdrant[0].metadata[0].name}.svc.cluster.local:6334"
     }
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.qdrant.metadata[0].name}"
-      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.qdrant.metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.qdrant.metadata[0].name} -l app=qdrant -f"
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.qdrant[0].metadata[0].name}"
+      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.qdrant[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.qdrant[0].metadata[0].name} -l app=qdrant -f"
     }
-  }
+  } : null
 
   sensitive = true
 }

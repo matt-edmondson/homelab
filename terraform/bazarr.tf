@@ -7,6 +7,12 @@
 # =============================================================================
 
 # Variables
+variable "bazarr_enabled" {
+  description = "Enable Bazarr deployment"
+  type        = bool
+  default     = true
+}
+
 variable "bazarr_storage_size" {
   description = "Storage size for Bazarr config/database"
   type        = string
@@ -45,6 +51,8 @@ variable "bazarr_image_tag" {
 
 # Namespace
 resource "kubernetes_namespace" "bazarr" {
+  count = var.bazarr_enabled ? 1 : 0
+
   metadata {
     name = "bazarr"
     labels = merge(var.common_labels, {
@@ -55,6 +63,8 @@ resource "kubernetes_namespace" "bazarr" {
 
 # Persistent Volume Claim — Config (Longhorn)
 resource "kubernetes_persistent_volume_claim" "bazarr_config" {
+  count = var.bazarr_enabled ? 1 : 0
+
   depends_on = [
     helm_release.longhorn,
     data.kubernetes_storage_class.longhorn
@@ -62,7 +72,7 @@ resource "kubernetes_persistent_volume_claim" "bazarr_config" {
 
   metadata {
     name      = "bazarr-config"
-    namespace = kubernetes_namespace.bazarr.metadata[0].name
+    namespace = kubernetes_namespace.bazarr[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -79,6 +89,8 @@ resource "kubernetes_persistent_volume_claim" "bazarr_config" {
 
 # Persistent Volume — NFS Media (static PV, read-write for subtitle files)
 resource "kubernetes_persistent_volume" "bazarr_media" {
+  count = var.bazarr_enabled ? 1 : 0
+
   metadata {
     name   = "bazarr-media-pv"
     labels = var.common_labels
@@ -104,16 +116,18 @@ resource "kubernetes_persistent_volume" "bazarr_media" {
 }
 
 resource "kubernetes_persistent_volume_claim" "bazarr_media" {
+  count = var.bazarr_enabled ? 1 : 0
+
   metadata {
     name      = "bazarr-media"
-    namespace = kubernetes_namespace.bazarr.metadata[0].name
+    namespace = kubernetes_namespace.bazarr[0].metadata[0].name
     labels    = var.common_labels
   }
 
   spec {
     access_modes       = ["ReadWriteMany"]
     storage_class_name = "nfs-media"
-    volume_name        = kubernetes_persistent_volume.bazarr_media.metadata[0].name
+    volume_name        = kubernetes_persistent_volume.bazarr_media[0].metadata[0].name
     resources {
       requests = {
         storage = "1Ti"
@@ -124,6 +138,8 @@ resource "kubernetes_persistent_volume_claim" "bazarr_media" {
 
 # Deployment
 resource "kubernetes_deployment" "bazarr" {
+  count = var.bazarr_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_persistent_volume_claim.bazarr_config,
     kubernetes_persistent_volume_claim.bazarr_media,
@@ -132,7 +148,7 @@ resource "kubernetes_deployment" "bazarr" {
 
   metadata {
     name      = "bazarr"
-    namespace = kubernetes_namespace.bazarr.metadata[0].name
+    namespace = kubernetes_namespace.bazarr[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "bazarr"
     })
@@ -225,14 +241,14 @@ resource "kubernetes_deployment" "bazarr" {
         volume {
           name = "bazarr-config"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.bazarr_config.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.bazarr_config[0].metadata[0].name
           }
         }
 
         volume {
           name = "media"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.bazarr_media.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.bazarr_media[0].metadata[0].name
           }
         }
       }
@@ -242,13 +258,15 @@ resource "kubernetes_deployment" "bazarr" {
 
 # Service
 resource "kubernetes_service" "bazarr" {
+  count = var.bazarr_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.bazarr
   ]
 
   metadata {
     name      = "bazarr-service"
-    namespace = kubernetes_namespace.bazarr.metadata[0].name
+    namespace = kubernetes_namespace.bazarr[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "bazarr"
     })
@@ -271,9 +289,9 @@ resource "kubernetes_service" "bazarr" {
 # Outputs
 output "bazarr_info" {
   description = "Bazarr subtitle management information"
-  value = {
-    namespace    = kubernetes_namespace.bazarr.metadata[0].name
-    service_name = kubernetes_service.bazarr.metadata[0].name
+  value = var.bazarr_enabled ? {
+    namespace    = kubernetes_namespace.bazarr[0].metadata[0].name
+    service_name = kubernetes_service.bazarr[0].metadata[0].name
     storage_size = var.bazarr_storage_size
 
     access = {
@@ -285,11 +303,11 @@ output "bazarr_info" {
     }
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.bazarr.metadata[0].name}"
-      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.bazarr.metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.bazarr.metadata[0].name} -l app=bazarr -f"
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.bazarr[0].metadata[0].name}"
+      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.bazarr[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.bazarr[0].metadata[0].name} -l app=bazarr -f"
     }
-  }
+  } : null
 
   sensitive = true
 }

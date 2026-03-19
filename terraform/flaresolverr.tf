@@ -7,6 +7,12 @@
 # =============================================================================
 
 # Variables
+variable "flaresolverr_enabled" {
+  description = "Enable Flaresolverr deployment"
+  type        = bool
+  default     = true
+}
+
 variable "flaresolverr_memory_request" {
   description = "Memory request for Flaresolverr container"
   type        = string
@@ -39,6 +45,8 @@ variable "flaresolverr_image_tag" {
 
 # Namespace
 resource "kubernetes_namespace" "flaresolverr" {
+  count = var.flaresolverr_enabled ? 1 : 0
+
   metadata {
     name = "flaresolverr"
     labels = merge(var.common_labels, {
@@ -49,9 +57,11 @@ resource "kubernetes_namespace" "flaresolverr" {
 
 # Deployment (stateless — no PVC)
 resource "kubernetes_deployment" "flaresolverr" {
+  count = var.flaresolverr_enabled ? 1 : 0
+
   metadata {
     name      = "flaresolverr"
-    namespace = kubernetes_namespace.flaresolverr.metadata[0].name
+    namespace = kubernetes_namespace.flaresolverr[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "flaresolverr"
     })
@@ -132,13 +142,15 @@ resource "kubernetes_deployment" "flaresolverr" {
 
 # Service (internal-only — no IngressRoute)
 resource "kubernetes_service" "flaresolverr" {
+  count = var.flaresolverr_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.flaresolverr
   ]
 
   metadata {
     name      = "flaresolverr-service"
-    namespace = kubernetes_namespace.flaresolverr.metadata[0].name
+    namespace = kubernetes_namespace.flaresolverr[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "flaresolverr"
     })
@@ -161,16 +173,16 @@ resource "kubernetes_service" "flaresolverr" {
 # Outputs
 output "flaresolverr_info" {
   description = "Flaresolverr CAPTCHA solver information"
-  value = {
-    namespace     = kubernetes_namespace.flaresolverr.metadata[0].name
-    service_name  = kubernetes_service.flaresolverr.metadata[0].name
-    cluster_dns   = "flaresolverr-service.${kubernetes_namespace.flaresolverr.metadata[0].name}.svc.cluster.local:8191"
+  value = var.flaresolverr_enabled ? {
+    namespace     = kubernetes_namespace.flaresolverr[0].metadata[0].name
+    service_name  = kubernetes_service.flaresolverr[0].metadata[0].name
+    cluster_dns   = "flaresolverr-service.${kubernetes_namespace.flaresolverr[0].metadata[0].name}.svc.cluster.local:8191"
     internal_only = true
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.flaresolverr.metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.flaresolverr.metadata[0].name} -l app=flaresolverr -f"
-      test       = "kubectl exec -n ${kubernetes_namespace.flaresolverr.metadata[0].name} -it deploy/flaresolverr -- wget -qO- http://localhost:8191/health"
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.flaresolverr[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.flaresolverr[0].metadata[0].name} -l app=flaresolverr -f"
+      test       = "kubectl exec -n ${kubernetes_namespace.flaresolverr[0].metadata[0].name} -it deploy/flaresolverr -- wget -qO- http://localhost:8191/health"
     }
-  }
+  } : null
 }

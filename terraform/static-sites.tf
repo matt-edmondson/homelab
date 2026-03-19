@@ -3,6 +3,12 @@
 # =============================================================================
 
 # Variables
+variable "static_sites_enabled" {
+  description = "Enable static sites deployment"
+  type        = bool
+  default     = true
+}
+
 variable "static_sites" {
   description = "List of static sites to host. Each site needs a domain, git repo URL, and branch."
   type = list(object({
@@ -64,7 +70,7 @@ variable "static_sites_git_credentials" {
 
 # Namespace
 resource "kubernetes_namespace" "static_sites" {
-  count = length(var.static_sites) > 0 ? 1 : 0
+  count = var.static_sites_enabled && length(var.static_sites) > 0 ? 1 : 0
 
   metadata {
     name = "static-sites"
@@ -76,7 +82,7 @@ resource "kubernetes_namespace" "static_sites" {
 
 # Nginx virtual host configuration (generated from static_sites list)
 resource "kubernetes_config_map" "static_sites_config" {
-  count = length(var.static_sites) > 0 ? 1 : 0
+  count = var.static_sites_enabled && length(var.static_sites) > 0 ? 1 : 0
 
   metadata {
     name      = "static-sites-config"
@@ -98,7 +104,7 @@ resource "kubernetes_config_map" "static_sites_config" {
 
 # Deployment
 resource "kubernetes_deployment" "static_sites" {
-  count = length(var.static_sites) > 0 ? 1 : 0
+  count = var.static_sites_enabled && length(var.static_sites) > 0 ? 1 : 0
 
   depends_on = [
     kubernetes_config_map.static_sites_config,
@@ -134,7 +140,7 @@ resource "kubernetes_deployment" "static_sites" {
           content {
             name    = "git-clone-${replace(init_container.value.domain, ".", "-")}"
             image   = var.static_sites_git_image
-            command = ["sh", "-c", "git clone --branch ${init_container.value.branch} --single-branch --depth 1 ${init_container.value.repo_url} /sites/${init_container.value.domain}"]
+            command = ["sh", "-c", "if [ -d /sites/${init_container.value.domain}/.git ]; then git -C /sites/${init_container.value.domain} fetch --depth 1 && git -C /sites/${init_container.value.domain} reset --hard origin/${init_container.value.branch}; else git clone --branch ${init_container.value.branch} --single-branch --depth 1 ${init_container.value.repo_url} /sites/${init_container.value.domain}; fi"]
 
             volume_mount {
               name       = "sites"
@@ -243,7 +249,7 @@ resource "kubernetes_deployment" "static_sites" {
 
 # Service
 resource "kubernetes_service" "static_sites" {
-  count = length(var.static_sites) > 0 ? 1 : 0
+  count = var.static_sites_enabled && length(var.static_sites) > 0 ? 1 : 0
 
   depends_on = [
     kubernetes_deployment.static_sites,
@@ -274,7 +280,7 @@ resource "kubernetes_service" "static_sites" {
 # Outputs
 output "static_sites_info" {
   description = "Static sites hosting information"
-  value = length(var.static_sites) > 0 ? {
+  value = var.static_sites_enabled && length(var.static_sites) > 0 ? {
     namespace     = kubernetes_namespace.static_sites[0].metadata[0].name
     service_name  = kubernetes_service.static_sites[0].metadata[0].name
     sites         = { for site in var.static_sites : site.domain => site.repo_url }

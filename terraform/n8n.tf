@@ -6,6 +6,12 @@
 # =============================================================================
 
 # Variables
+variable "n8n_enabled" {
+  description = "Enable n8n workflow automation deployment"
+  type        = bool
+  default     = true
+}
+
 variable "n8n_storage_size" {
   description = "Storage size for n8n data (SQLite DB, credentials, workflows)"
   type        = string
@@ -44,6 +50,8 @@ variable "n8n_image_tag" {
 
 # Namespace
 resource "kubernetes_namespace" "n8n" {
+  count = var.n8n_enabled ? 1 : 0
+
   metadata {
     name = "n8n"
     labels = merge(var.common_labels, {
@@ -54,6 +62,8 @@ resource "kubernetes_namespace" "n8n" {
 
 # Persistent Volume Claim (Longhorn)
 resource "kubernetes_persistent_volume_claim" "n8n_data" {
+  count = var.n8n_enabled ? 1 : 0
+
   depends_on = [
     helm_release.longhorn,
     data.kubernetes_storage_class.longhorn
@@ -61,7 +71,7 @@ resource "kubernetes_persistent_volume_claim" "n8n_data" {
 
   metadata {
     name      = "n8n-data"
-    namespace = kubernetes_namespace.n8n.metadata[0].name
+    namespace = kubernetes_namespace.n8n[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -78,6 +88,8 @@ resource "kubernetes_persistent_volume_claim" "n8n_data" {
 
 # Deployment
 resource "kubernetes_deployment" "n8n" {
+  count = var.n8n_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_persistent_volume_claim.n8n_data,
     helm_release.longhorn
@@ -85,7 +97,7 @@ resource "kubernetes_deployment" "n8n" {
 
   metadata {
     name      = "n8n"
-    namespace = kubernetes_namespace.n8n.metadata[0].name
+    namespace = kubernetes_namespace.n8n[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "n8n"
     })
@@ -112,6 +124,12 @@ resource "kubernetes_deployment" "n8n" {
       }
 
       spec {
+        security_context {
+          run_as_user  = 1000
+          run_as_group = 1000
+          fs_group     = 1000
+        }
+
         container {
           name  = "n8n"
           image = "n8nio/n8n:${var.n8n_image_tag}"
@@ -183,7 +201,7 @@ resource "kubernetes_deployment" "n8n" {
         volume {
           name = "n8n-data"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.n8n_data.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.n8n_data[0].metadata[0].name
           }
         }
       }
@@ -193,13 +211,15 @@ resource "kubernetes_deployment" "n8n" {
 
 # Service
 resource "kubernetes_service" "n8n" {
+  count = var.n8n_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.n8n
   ]
 
   metadata {
     name      = "n8n-service"
-    namespace = kubernetes_namespace.n8n.metadata[0].name
+    namespace = kubernetes_namespace.n8n[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "n8n"
     })
@@ -222,9 +242,9 @@ resource "kubernetes_service" "n8n" {
 # Outputs
 output "n8n_info" {
   description = "n8n workflow automation information"
-  value = {
-    namespace    = kubernetes_namespace.n8n.metadata[0].name
-    service_name = kubernetes_service.n8n.metadata[0].name
+  value = var.n8n_enabled ? {
+    namespace    = kubernetes_namespace.n8n[0].metadata[0].name
+    service_name = kubernetes_service.n8n[0].metadata[0].name
     storage_size = var.n8n_storage_size
 
     access = {
@@ -232,11 +252,11 @@ output "n8n_info" {
     }
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.n8n.metadata[0].name}"
-      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.n8n.metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.n8n.metadata[0].name} -l app=n8n -f"
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.n8n[0].metadata[0].name}"
+      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.n8n[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.n8n[0].metadata[0].name} -l app=n8n -f"
     }
-  }
+  } : null
 
   sensitive = true
 }

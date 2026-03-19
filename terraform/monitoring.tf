@@ -3,6 +3,12 @@
 # =============================================================================
 
 # Variables
+variable "monitoring_enabled" {
+  description = "Enable monitoring stack deployment"
+  type        = bool
+  default     = true
+}
+
 variable "prometheus_stack_chart_version" {
   description = "Version of kube-prometheus-stack Helm chart"
   type        = string
@@ -48,6 +54,8 @@ variable "enable_storage_dashboards" {
 
 # Namespace
 resource "kubernetes_namespace" "monitoring" {
+  count = var.monitoring_enabled ? 1 : 0
+
   metadata {
     name = "monitoring"
     labels = merge(var.common_labels, {
@@ -58,11 +66,13 @@ resource "kubernetes_namespace" "monitoring" {
 
 # Prometheus & Grafana Stack using kube-prometheus-stack
 resource "helm_release" "prometheus_stack" {
+  count = var.monitoring_enabled ? 1 : 0
+
   name       = "prometheus-stack"
   repository = "https://prometheus-community.github.io/helm-charts"
   chart      = "kube-prometheus-stack"
   version    = var.prometheus_stack_chart_version
-  namespace  = kubernetes_namespace.monitoring.metadata[0].name
+  namespace  = kubernetes_namespace.monitoring[0].metadata[0].name
 
   values = [
     yamlencode({
@@ -153,24 +163,24 @@ resource "helm_release" "prometheus_stack" {
 
   depends_on = [
     kubernetes_namespace.monitoring,
-    helm_release.longhorn,                  # Ensure storage backend is available
-    data.kubernetes_storage_class.longhorn, # Ensure default storage class exists
+    helm_release.longhorn,
+    data.kubernetes_storage_class.longhorn,
   ]
 }
 
 # Outputs
 output "monitoring_info" {
   description = "Monitoring stack information"
-  value = {
-    namespace          = kubernetes_namespace.monitoring.metadata[0].name
+  value = var.monitoring_enabled ? {
+    namespace          = kubernetes_namespace.monitoring[0].metadata[0].name
     chart_version      = var.prometheus_stack_chart_version
     prometheus_storage = var.prometheus_storage_size
     grafana_storage    = var.grafana_storage_size
     retention_period   = var.prometheus_retention
 
     services = {
-      prometheus = "${helm_release.prometheus_stack.name}-kube-prom-prometheus"
-      grafana    = "${helm_release.prometheus_stack.name}-grafana"
+      prometheus = "${helm_release.prometheus_stack[0].name}-kube-prom-prometheus"
+      grafana    = "${helm_release.prometheus_stack[0].name}-grafana"
     }
 
     access = {
@@ -179,10 +189,10 @@ output "monitoring_info" {
     }
 
     commands = {
-      check_pods     = "kubectl get pods -n ${kubernetes_namespace.monitoring.metadata[0].name}"
-      check_services = "kubectl get svc -n ${kubernetes_namespace.monitoring.metadata[0].name}"
+      check_pods     = "kubectl get pods -n ${kubernetes_namespace.monitoring[0].metadata[0].name}"
+      check_services = "kubectl get svc -n ${kubernetes_namespace.monitoring[0].metadata[0].name}"
     }
-  }
+  } : null
 
   sensitive = true # Contains password
 }

@@ -7,6 +7,12 @@
 # =============================================================================
 
 # Variables
+variable "notifiarr_enabled" {
+  description = "Enable Notifiarr deployment"
+  type        = bool
+  default     = true
+}
+
 variable "notifiarr_storage_size" {
   description = "Storage size for Notifiarr config"
   type        = string
@@ -52,6 +58,8 @@ variable "notifiarr_config" {
 
 # Namespace
 resource "kubernetes_namespace" "notifiarr" {
+  count = var.notifiarr_enabled ? 1 : 0
+
   metadata {
     name = "notifiarr"
     labels = merge(var.common_labels, {
@@ -62,11 +70,11 @@ resource "kubernetes_namespace" "notifiarr" {
 
 # Secret — Config file (from LXC 101 migration)
 resource "kubernetes_secret" "notifiarr_config" {
-  count = var.notifiarr_config != "" ? 1 : 0
+  count = var.notifiarr_enabled && var.notifiarr_config != "" ? 1 : 0
 
   metadata {
     name      = "notifiarr-config"
-    namespace = kubernetes_namespace.notifiarr.metadata[0].name
+    namespace = kubernetes_namespace.notifiarr[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -77,6 +85,8 @@ resource "kubernetes_secret" "notifiarr_config" {
 
 # Persistent Volume Claim — Config (Longhorn)
 resource "kubernetes_persistent_volume_claim" "notifiarr_config" {
+  count = var.notifiarr_enabled ? 1 : 0
+
   depends_on = [
     helm_release.longhorn,
     data.kubernetes_storage_class.longhorn
@@ -84,7 +94,7 @@ resource "kubernetes_persistent_volume_claim" "notifiarr_config" {
 
   metadata {
     name      = "notifiarr-config"
-    namespace = kubernetes_namespace.notifiarr.metadata[0].name
+    namespace = kubernetes_namespace.notifiarr[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -101,6 +111,8 @@ resource "kubernetes_persistent_volume_claim" "notifiarr_config" {
 
 # Deployment
 resource "kubernetes_deployment" "notifiarr" {
+  count = var.notifiarr_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_persistent_volume_claim.notifiarr_config,
     helm_release.longhorn
@@ -108,7 +120,7 @@ resource "kubernetes_deployment" "notifiarr" {
 
   metadata {
     name      = "notifiarr"
-    namespace = kubernetes_namespace.notifiarr.metadata[0].name
+    namespace = kubernetes_namespace.notifiarr[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "notifiarr"
     })
@@ -195,7 +207,7 @@ resource "kubernetes_deployment" "notifiarr" {
         volume {
           name = "notifiarr-config"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.notifiarr_config.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.notifiarr_config[0].metadata[0].name
           }
         }
 
@@ -215,13 +227,15 @@ resource "kubernetes_deployment" "notifiarr" {
 
 # Service
 resource "kubernetes_service" "notifiarr" {
+  count = var.notifiarr_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.notifiarr
   ]
 
   metadata {
     name      = "notifiarr-service"
-    namespace = kubernetes_namespace.notifiarr.metadata[0].name
+    namespace = kubernetes_namespace.notifiarr[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "notifiarr"
     })
@@ -244,9 +258,9 @@ resource "kubernetes_service" "notifiarr" {
 # Outputs
 output "notifiarr_info" {
   description = "Notifiarr notification service information"
-  value = {
-    namespace          = kubernetes_namespace.notifiarr.metadata[0].name
-    service_name       = kubernetes_service.notifiarr.metadata[0].name
+  value = var.notifiarr_enabled ? {
+    namespace          = kubernetes_namespace.notifiarr[0].metadata[0].name
+    service_name       = kubernetes_service.notifiarr[0].metadata[0].name
     storage_size       = var.notifiarr_storage_size
     config_from_secret = var.notifiarr_config != ""
 
@@ -255,11 +269,11 @@ output "notifiarr_info" {
     }
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.notifiarr.metadata[0].name}"
-      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.notifiarr.metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.notifiarr.metadata[0].name} -l app=notifiarr -f"
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.notifiarr[0].metadata[0].name}"
+      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.notifiarr[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.notifiarr[0].metadata[0].name} -l app=notifiarr -f"
     }
-  }
+  } : null
 
   sensitive = true
 }

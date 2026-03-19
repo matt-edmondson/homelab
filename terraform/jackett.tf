@@ -6,6 +6,12 @@
 # =============================================================================
 
 # Variables
+variable "jackett_enabled" {
+  description = "Enable Jackett deployment"
+  type        = bool
+  default     = true
+}
+
 variable "jackett_storage_size" {
   description = "Storage size for Jackett config"
   type        = string
@@ -44,6 +50,8 @@ variable "jackett_image_tag" {
 
 # Namespace
 resource "kubernetes_namespace" "jackett" {
+  count = var.jackett_enabled ? 1 : 0
+
   metadata {
     name = "jackett"
     labels = merge(var.common_labels, {
@@ -54,6 +62,8 @@ resource "kubernetes_namespace" "jackett" {
 
 # Persistent Volume Claim — Config (Longhorn)
 resource "kubernetes_persistent_volume_claim" "jackett_config" {
+  count = var.jackett_enabled ? 1 : 0
+
   depends_on = [
     helm_release.longhorn,
     data.kubernetes_storage_class.longhorn
@@ -61,7 +71,7 @@ resource "kubernetes_persistent_volume_claim" "jackett_config" {
 
   metadata {
     name      = "jackett-config"
-    namespace = kubernetes_namespace.jackett.metadata[0].name
+    namespace = kubernetes_namespace.jackett[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -78,6 +88,8 @@ resource "kubernetes_persistent_volume_claim" "jackett_config" {
 
 # Deployment
 resource "kubernetes_deployment" "jackett" {
+  count = var.jackett_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_persistent_volume_claim.jackett_config,
     helm_release.longhorn
@@ -85,7 +97,7 @@ resource "kubernetes_deployment" "jackett" {
 
   metadata {
     name      = "jackett"
-    namespace = kubernetes_namespace.jackett.metadata[0].name
+    namespace = kubernetes_namespace.jackett[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "jackett"
     })
@@ -152,28 +164,27 @@ resource "kubernetes_deployment" "jackett" {
           }
 
           liveness_probe {
-            http_get {
-              path = "/UI/Dashboard"
+            tcp_socket {
               port = 9117
             }
             initial_delay_seconds = 30
             period_seconds        = 10
+            failure_threshold     = 5
           }
 
           readiness_probe {
-            http_get {
-              path = "/UI/Dashboard"
+            tcp_socket {
               port = 9117
             }
-            initial_delay_seconds = 5
-            period_seconds        = 5
+            initial_delay_seconds = 10
+            period_seconds        = 10
           }
         }
 
         volume {
           name = "jackett-config"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.jackett_config.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.jackett_config[0].metadata[0].name
           }
         }
       }
@@ -183,13 +194,15 @@ resource "kubernetes_deployment" "jackett" {
 
 # Service
 resource "kubernetes_service" "jackett" {
+  count = var.jackett_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.jackett
   ]
 
   metadata {
     name      = "jackett-service"
-    namespace = kubernetes_namespace.jackett.metadata[0].name
+    namespace = kubernetes_namespace.jackett[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "jackett"
     })
@@ -212,9 +225,9 @@ resource "kubernetes_service" "jackett" {
 # Outputs
 output "jackett_info" {
   description = "Jackett indexer information"
-  value = {
-    namespace    = kubernetes_namespace.jackett.metadata[0].name
-    service_name = kubernetes_service.jackett.metadata[0].name
+  value = var.jackett_enabled ? {
+    namespace    = kubernetes_namespace.jackett[0].metadata[0].name
+    service_name = kubernetes_service.jackett[0].metadata[0].name
     storage_size = var.jackett_storage_size
 
     access = {
@@ -222,11 +235,11 @@ output "jackett_info" {
     }
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.jackett.metadata[0].name}"
-      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.jackett.metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.jackett.metadata[0].name} -l app=jackett -f"
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.jackett[0].metadata[0].name}"
+      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.jackett[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.jackett[0].metadata[0].name} -l app=jackett -f"
     }
-  }
+  } : null
 
   sensitive = true
 }

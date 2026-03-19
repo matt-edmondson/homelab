@@ -8,6 +8,12 @@
 # =============================================================================
 
 # Variables
+variable "emby_enabled" {
+  description = "Enable Emby deployment"
+  type        = bool
+  default     = true
+}
+
 variable "emby_config_storage_size" {
   description = "Storage size for Emby config/metadata"
   type        = string
@@ -52,6 +58,8 @@ variable "emby_image_tag" {
 
 # Namespace
 resource "kubernetes_namespace" "emby" {
+  count = var.emby_enabled ? 1 : 0
+
   metadata {
     name = "emby"
     labels = merge(var.common_labels, {
@@ -62,6 +70,8 @@ resource "kubernetes_namespace" "emby" {
 
 # Persistent Volume Claim — Config/Metadata (Longhorn)
 resource "kubernetes_persistent_volume_claim" "emby_config" {
+  count = var.emby_enabled ? 1 : 0
+
   depends_on = [
     helm_release.longhorn,
     data.kubernetes_storage_class.longhorn
@@ -69,7 +79,7 @@ resource "kubernetes_persistent_volume_claim" "emby_config" {
 
   metadata {
     name      = "emby-config"
-    namespace = kubernetes_namespace.emby.metadata[0].name
+    namespace = kubernetes_namespace.emby[0].metadata[0].name
     labels    = var.common_labels
   }
 
@@ -86,6 +96,8 @@ resource "kubernetes_persistent_volume_claim" "emby_config" {
 
 # Persistent Volume — NFS Media (static PV)
 resource "kubernetes_persistent_volume" "emby_media" {
+  count = var.emby_enabled ? 1 : 0
+
   metadata {
     name   = "emby-media-pv"
     labels = var.common_labels
@@ -112,16 +124,18 @@ resource "kubernetes_persistent_volume" "emby_media" {
 }
 
 resource "kubernetes_persistent_volume_claim" "emby_media" {
+  count = var.emby_enabled ? 1 : 0
+
   metadata {
     name      = "emby-media"
-    namespace = kubernetes_namespace.emby.metadata[0].name
+    namespace = kubernetes_namespace.emby[0].metadata[0].name
     labels    = var.common_labels
   }
 
   spec {
     access_modes       = ["ReadOnlyMany"]
     storage_class_name = "nfs-media"
-    volume_name        = kubernetes_persistent_volume.emby_media.metadata[0].name
+    volume_name        = kubernetes_persistent_volume.emby_media[0].metadata[0].name
     resources {
       requests = {
         storage = "1Ti"
@@ -132,6 +146,8 @@ resource "kubernetes_persistent_volume_claim" "emby_media" {
 
 # Deployment
 resource "kubernetes_deployment" "emby" {
+  count = var.emby_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_persistent_volume_claim.emby_config,
     kubernetes_persistent_volume_claim.emby_media,
@@ -140,7 +156,7 @@ resource "kubernetes_deployment" "emby" {
 
   metadata {
     name      = "emby"
-    namespace = kubernetes_namespace.emby.metadata[0].name
+    namespace = kubernetes_namespace.emby[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "emby"
     })
@@ -240,14 +256,14 @@ resource "kubernetes_deployment" "emby" {
         volume {
           name = "emby-config"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.emby_config.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.emby_config[0].metadata[0].name
           }
         }
 
         volume {
           name = "media"
           persistent_volume_claim {
-            claim_name = kubernetes_persistent_volume_claim.emby_media.metadata[0].name
+            claim_name = kubernetes_persistent_volume_claim.emby_media[0].metadata[0].name
           }
         }
       }
@@ -257,13 +273,15 @@ resource "kubernetes_deployment" "emby" {
 
 # Service
 resource "kubernetes_service" "emby" {
+  count = var.emby_enabled ? 1 : 0
+
   depends_on = [
     kubernetes_deployment.emby
   ]
 
   metadata {
     name      = "emby-service"
-    namespace = kubernetes_namespace.emby.metadata[0].name
+    namespace = kubernetes_namespace.emby[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "emby"
     })
@@ -287,9 +305,9 @@ resource "kubernetes_service" "emby" {
 # Outputs
 output "emby_info" {
   description = "Emby media server information"
-  value = {
-    namespace    = kubernetes_namespace.emby.metadata[0].name
-    service_name = kubernetes_service.emby.metadata[0].name
+  value = var.emby_enabled ? {
+    namespace    = kubernetes_namespace.emby[0].metadata[0].name
+    service_name = kubernetes_service.emby[0].metadata[0].name
     config_size  = var.emby_config_storage_size
     image        = "${var.emby_image}:${var.emby_image_tag}"
 
@@ -302,11 +320,11 @@ output "emby_info" {
     }
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.emby.metadata[0].name}"
-      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.emby.metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.emby.metadata[0].name} -l app=emby -f"
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.emby[0].metadata[0].name}"
+      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.emby[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.emby[0].metadata[0].name} -l app=emby -f"
     }
-  }
+  } : null
 
   sensitive = true
 }

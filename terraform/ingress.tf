@@ -130,7 +130,7 @@ resource "kubernetes_manifest" "middleware_crowdsec_bouncer" {
         bouncer = {
           Enabled               = "true"
           crowdsecMode          = "stream"
-          crowdsecLapiHost      = "crowdsec-service.${kubernetes_namespace.crowdsec.metadata[0].name}.svc.cluster.local:8080"
+          crowdsecLapiHost      = "crowdsec-service.${kubernetes_namespace.crowdsec[0].metadata[0].name}.svc.cluster.local:8080"
           crowdsecLapiScheme    = "http"
           crowdsecLapiKey       = var.crowdsec_bouncer_key
           updateIntervalSeconds = 15
@@ -304,6 +304,8 @@ resource "kubernetes_manifest" "ingressroute_traefik_dashboard" {
 
 # Grafana
 resource "kubernetes_manifest" "ingressroute_grafana" {
+  count = var.monitoring_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -329,7 +331,7 @@ resource "kubernetes_manifest" "ingressroute_grafana" {
         ]
         services = [{
           name      = "prometheus-stack-grafana"
-          namespace = kubernetes_namespace.monitoring.metadata[0].name
+          namespace = kubernetes_namespace.monitoring[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -353,6 +355,8 @@ resource "kubernetes_manifest" "ingressroute_grafana" {
 
 # Prometheus
 resource "kubernetes_manifest" "ingressroute_prometheus" {
+  count = var.monitoring_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -382,7 +386,7 @@ resource "kubernetes_manifest" "ingressroute_prometheus" {
         ]
         services = [{
           name      = "prometheus-stack-kube-prom-prometheus"
-          namespace = kubernetes_namespace.monitoring.metadata[0].name
+          namespace = kubernetes_namespace.monitoring[0].metadata[0].name
           port      = 9090
         }]
       }]
@@ -407,6 +411,8 @@ resource "kubernetes_manifest" "ingressroute_prometheus" {
 
 # AlertManager
 resource "kubernetes_manifest" "ingressroute_alertmanager" {
+  count = var.monitoring_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -436,7 +442,7 @@ resource "kubernetes_manifest" "ingressroute_alertmanager" {
         ]
         services = [{
           name      = "prometheus-stack-kube-prom-alertmanager"
-          namespace = kubernetes_namespace.monitoring.metadata[0].name
+          namespace = kubernetes_namespace.monitoring[0].metadata[0].name
           port      = 9093
         }]
       }]
@@ -461,6 +467,8 @@ resource "kubernetes_manifest" "ingressroute_alertmanager" {
 
 # BaGet
 resource "kubernetes_manifest" "ingressroute_baget" {
+  count = var.baget_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -485,8 +493,8 @@ resource "kubernetes_manifest" "ingressroute_baget" {
           },
         ]
         services = [{
-          name      = kubernetes_service.baget.metadata[0].name
-          namespace = kubernetes_namespace.baget.metadata[0].name
+          name      = kubernetes_service.baget[0].metadata[0].name
+          namespace = kubernetes_namespace.baget[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -564,6 +572,8 @@ resource "kubernetes_manifest" "ingressroute_longhorn" {
 
 # Headlamp Dashboard
 resource "kubernetes_manifest" "ingressroute_dashboard" {
+  count = var.kubernetes_dashboard_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -593,7 +603,7 @@ resource "kubernetes_manifest" "ingressroute_dashboard" {
         ]
         services = [{
           name      = "headlamp"
-          namespace = kubernetes_namespace.headlamp.metadata[0].name
+          namespace = kubernetes_namespace.headlamp[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -618,6 +628,8 @@ resource "kubernetes_manifest" "ingressroute_dashboard" {
 
 # n8n
 resource "kubernetes_manifest" "ingressroute_n8n" {
+  count = var.n8n_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -646,8 +658,8 @@ resource "kubernetes_manifest" "ingressroute_n8n" {
           },
         ]
         services = [{
-          name      = kubernetes_service.n8n.metadata[0].name
-          namespace = kubernetes_namespace.n8n.metadata[0].name
+          name      = kubernetes_service.n8n[0].metadata[0].name
+          namespace = kubernetes_namespace.n8n[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -672,6 +684,8 @@ resource "kubernetes_manifest" "ingressroute_n8n" {
 
 # Prowlarr
 resource "kubernetes_manifest" "ingressroute_prowlarr" {
+  count = var.prowlarr_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -700,8 +714,8 @@ resource "kubernetes_manifest" "ingressroute_prowlarr" {
           },
         ]
         services = [{
-          name      = kubernetes_service.prowlarr.metadata[0].name
-          namespace = kubernetes_namespace.prowlarr.metadata[0].name
+          name      = kubernetes_service.prowlarr[0].metadata[0].name
+          namespace = kubernetes_namespace.prowlarr[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -726,6 +740,8 @@ resource "kubernetes_manifest" "ingressroute_prowlarr" {
 
 # Sonarr
 resource "kubernetes_manifest" "ingressroute_sonarr" {
+  count = var.sonarr_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -754,8 +770,8 @@ resource "kubernetes_manifest" "ingressroute_sonarr" {
           },
         ]
         services = [{
-          name      = kubernetes_service.sonarr.metadata[0].name
-          namespace = kubernetes_namespace.sonarr.metadata[0].name
+          name      = kubernetes_service.sonarr[0].metadata[0].name
+          namespace = kubernetes_namespace.sonarr[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -780,6 +796,8 @@ resource "kubernetes_manifest" "ingressroute_sonarr" {
 
 # Radarr
 resource "kubernetes_manifest" "ingressroute_radarr" {
+  count = var.radarr_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -808,8 +826,8 @@ resource "kubernetes_manifest" "ingressroute_radarr" {
           },
         ]
         services = [{
-          name      = kubernetes_service.radarr.metadata[0].name
-          namespace = kubernetes_namespace.radarr.metadata[0].name
+          name      = kubernetes_service.radarr[0].metadata[0].name
+          namespace = kubernetes_namespace.radarr[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -834,6 +852,8 @@ resource "kubernetes_manifest" "ingressroute_radarr" {
 
 # qBittorrent
 resource "kubernetes_manifest" "ingressroute_qbittorrent" {
+  count = var.qbittorrent_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -862,8 +882,8 @@ resource "kubernetes_manifest" "ingressroute_qbittorrent" {
           },
         ]
         services = [{
-          name      = kubernetes_service.qbittorrent.metadata[0].name
-          namespace = kubernetes_namespace.qbittorrent.metadata[0].name
+          name      = kubernetes_service.qbittorrent[0].metadata[0].name
+          namespace = kubernetes_namespace.qbittorrent[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -888,6 +908,8 @@ resource "kubernetes_manifest" "ingressroute_qbittorrent" {
 
 # Emby
 resource "kubernetes_manifest" "ingressroute_emby" {
+  count = var.emby_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -912,8 +934,8 @@ resource "kubernetes_manifest" "ingressroute_emby" {
           },
         ]
         services = [{
-          name      = kubernetes_service.emby.metadata[0].name
-          namespace = kubernetes_namespace.emby.metadata[0].name
+          name      = kubernetes_service.emby[0].metadata[0].name
+          namespace = kubernetes_namespace.emby[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -937,6 +959,8 @@ resource "kubernetes_manifest" "ingressroute_emby" {
 
 # Bazarr
 resource "kubernetes_manifest" "ingressroute_bazarr" {
+  count = var.bazarr_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -965,8 +989,8 @@ resource "kubernetes_manifest" "ingressroute_bazarr" {
           },
         ]
         services = [{
-          name      = kubernetes_service.bazarr.metadata[0].name
-          namespace = kubernetes_namespace.bazarr.metadata[0].name
+          name      = kubernetes_service.bazarr[0].metadata[0].name
+          namespace = kubernetes_namespace.bazarr[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -991,6 +1015,8 @@ resource "kubernetes_manifest" "ingressroute_bazarr" {
 
 # Jackett
 resource "kubernetes_manifest" "ingressroute_jackett" {
+  count = var.jackett_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -1019,8 +1045,8 @@ resource "kubernetes_manifest" "ingressroute_jackett" {
           },
         ]
         services = [{
-          name      = kubernetes_service.jackett.metadata[0].name
-          namespace = kubernetes_namespace.jackett.metadata[0].name
+          name      = kubernetes_service.jackett[0].metadata[0].name
+          namespace = kubernetes_namespace.jackett[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -1045,6 +1071,8 @@ resource "kubernetes_manifest" "ingressroute_jackett" {
 
 # Huntarr
 resource "kubernetes_manifest" "ingressroute_huntarr" {
+  count = var.huntarr_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -1073,8 +1101,8 @@ resource "kubernetes_manifest" "ingressroute_huntarr" {
           },
         ]
         services = [{
-          name      = kubernetes_service.huntarr.metadata[0].name
-          namespace = kubernetes_namespace.huntarr.metadata[0].name
+          name      = kubernetes_service.huntarr[0].metadata[0].name
+          namespace = kubernetes_namespace.huntarr[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -1099,6 +1127,8 @@ resource "kubernetes_manifest" "ingressroute_huntarr" {
 
 # Cleanuparr
 resource "kubernetes_manifest" "ingressroute_cleanuparr" {
+  count = var.cleanuparr_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -1127,8 +1157,8 @@ resource "kubernetes_manifest" "ingressroute_cleanuparr" {
           },
         ]
         services = [{
-          name      = kubernetes_service.cleanuparr.metadata[0].name
-          namespace = kubernetes_namespace.cleanuparr.metadata[0].name
+          name      = kubernetes_service.cleanuparr[0].metadata[0].name
+          namespace = kubernetes_namespace.cleanuparr[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -1153,6 +1183,8 @@ resource "kubernetes_manifest" "ingressroute_cleanuparr" {
 
 # SABnzbd
 resource "kubernetes_manifest" "ingressroute_sabnzbd" {
+  count = var.sabnzbd_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -1181,8 +1213,8 @@ resource "kubernetes_manifest" "ingressroute_sabnzbd" {
           },
         ]
         services = [{
-          name      = kubernetes_service.sabnzbd.metadata[0].name
-          namespace = kubernetes_namespace.sabnzbd.metadata[0].name
+          name      = kubernetes_service.sabnzbd[0].metadata[0].name
+          namespace = kubernetes_namespace.sabnzbd[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -1207,6 +1239,8 @@ resource "kubernetes_manifest" "ingressroute_sabnzbd" {
 
 # Notifiarr
 resource "kubernetes_manifest" "ingressroute_notifiarr" {
+  count = var.notifiarr_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -1235,8 +1269,8 @@ resource "kubernetes_manifest" "ingressroute_notifiarr" {
           },
         ]
         services = [{
-          name      = kubernetes_service.notifiarr.metadata[0].name
-          namespace = kubernetes_namespace.notifiarr.metadata[0].name
+          name      = kubernetes_service.notifiarr[0].metadata[0].name
+          namespace = kubernetes_namespace.notifiarr[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -1262,6 +1296,8 @@ resource "kubernetes_manifest" "ingressroute_notifiarr" {
 # --- Wave 5: AI/ML Stack ---
 
 resource "kubernetes_manifest" "ingressroute_ollama" {
+  count = var.ollama_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -1290,8 +1326,8 @@ resource "kubernetes_manifest" "ingressroute_ollama" {
           },
         ]
         services = [{
-          name      = kubernetes_service.ollama.metadata[0].name
-          namespace = kubernetes_namespace.ollama.metadata[0].name
+          name      = kubernetes_service.ollama[0].metadata[0].name
+          namespace = kubernetes_namespace.ollama[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -1315,6 +1351,8 @@ resource "kubernetes_manifest" "ingressroute_ollama" {
 }
 
 resource "kubernetes_manifest" "ingressroute_qdrant" {
+  count = var.qdrant_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -1343,8 +1381,8 @@ resource "kubernetes_manifest" "ingressroute_qdrant" {
           },
         ]
         services = [{
-          name      = kubernetes_service.qdrant.metadata[0].name
-          namespace = kubernetes_namespace.qdrant.metadata[0].name
+          name      = kubernetes_service.qdrant[0].metadata[0].name
+          namespace = kubernetes_namespace.qdrant[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -1368,6 +1406,8 @@ resource "kubernetes_manifest" "ingressroute_qdrant" {
 }
 
 resource "kubernetes_manifest" "ingressroute_chromadb" {
+  count = var.chromadb_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -1396,8 +1436,8 @@ resource "kubernetes_manifest" "ingressroute_chromadb" {
           },
         ]
         services = [{
-          name      = kubernetes_service.chromadb.metadata[0].name
-          namespace = kubernetes_namespace.chromadb.metadata[0].name
+          name      = kubernetes_service.chromadb[0].metadata[0].name
+          namespace = kubernetes_namespace.chromadb[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -1421,6 +1461,8 @@ resource "kubernetes_manifest" "ingressroute_chromadb" {
 }
 
 resource "kubernetes_manifest" "ingressroute_comfyui" {
+  count = var.comfyui_enabled ? 1 : 0
+
   manifest = {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
@@ -1449,8 +1491,8 @@ resource "kubernetes_manifest" "ingressroute_comfyui" {
           },
         ]
         services = [{
-          name      = kubernetes_service.comfyui.metadata[0].name
-          namespace = kubernetes_namespace.comfyui.metadata[0].name
+          name      = kubernetes_service.comfyui[0].metadata[0].name
+          namespace = kubernetes_namespace.comfyui[0].metadata[0].name
           port      = 80
         }]
       }]
@@ -1477,7 +1519,7 @@ resource "kubernetes_manifest" "ingressroute_comfyui" {
 
 # IngressRoute per static site (each on its own primary domain)
 resource "kubernetes_manifest" "ingressroute_static_site" {
-  for_each = { for site in var.static_sites : site.domain => site }
+  for_each = var.static_sites_enabled ? { for site in var.static_sites : site.domain => site } : {}
 
   manifest = {
     apiVersion = "traefik.io/v1alpha1"

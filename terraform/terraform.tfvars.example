@@ -26,6 +26,7 @@
 #nfs_downloads_share   = "/volume2/downloads"
 
 # CrowdSec Security Engine
+#crowdsec_enabled       = true    # Set to false to disable CrowdSec
 #crowdsec_chart_version = "0.22.0"
 #crowdsec_bouncer_key   = "generate-with-openssl-rand-hex-32"  # openssl rand -hex 32
 #crowdsec_enroll_key    = ""                                    # Optional: from app.crowdsec.net
@@ -38,7 +39,8 @@
 #oauth_cookie_secret        = "generate-with-openssl-rand-base64-32"  # openssl rand -base64 32 | head -c 32
 #oauth_github_user          = "your-github-username"
 
-# Resource Configuration
+# BaGet NuGet Server
+#baget_enabled        = true    # Set to false to disable BaGet
 #baget_memory_request = "256Mi"
 #baget_memory_limit   = "512Mi"
 #baget_cpu_request    = "250m"
@@ -49,7 +51,9 @@
 #flannel_cni_plugin_version        = "v1.7.1-flannel2"  # CNI plugin binary version
 #flannel_network_cidr              = "10.244.0.0/16"    # Pod network CIDR
 #longhorn_chart_version            = "1.6.2"
+#monitoring_enabled                = true    # Set to false to disable Prometheus/Grafana/AlertManager
 #prometheus_stack_chart_version    = "57.2.0"
+#kubernetes_dashboard_enabled      = true    # Set to false to disable Headlamp dashboard
 #headlamp_chart_version            = "0.40.0"
 
 # Metrics Server (recommended for kubectl top and HPA)
@@ -86,6 +90,7 @@
 #    Or create individual A records for each service subdomain
 
 # Static Sites Configuration
+#static_sites_enabled = true    # Set to false to disable static site hosting
 # Each site needs a domain, git repo URL, and branch
 #static_sites = [
   # { domain = "example.com", repo_url = "https://github.com/user/site.git", branch = "main" },
@@ -100,6 +105,7 @@
 # static_sites_git_credentials = "https://user:token@github.com"  # For private repos
 
 # n8n Workflow Automation
+#n8n_enabled        = true    # Set to false to disable n8n
 #n8n_storage_size   = "5Gi"
 #n8n_memory_request = "128Mi"
 #n8n_memory_limit   = "512Mi"
@@ -108,6 +114,7 @@
 #n8n_image_tag      = "latest"
 
 # Postfix SMTP Relay (migrated from LXC 102)
+#postfix_enabled         = true    # Set to false to disable Postfix
 #postfix_hostname        = "mail.ktsu.dev"
 #postfix_relay_host      = ""                                          # Empty for direct delivery
 #postfix_virtual_domains = "ktsu.dev ktsu.io matthewedmondson.com"
@@ -121,24 +128,28 @@
 #squid_memory_limit       = "256Mi"
 
 # Prowlarr Indexer (migrated from LXC 110)
+#prowlarr_enabled        = true    # Set to false to disable Prowlarr
 #prowlarr_storage_size   = "2Gi"
 #prowlarr_memory_request = "128Mi"
 #prowlarr_memory_limit   = "512Mi"
 #prowlarr_image_tag      = "latest"
 
 # Sonarr TV Management (migrated from LXC 112)
+#sonarr_enabled             = true    # Set to false to disable Sonarr
 #sonarr_config_storage_size = "2Gi"
 #sonarr_memory_request      = "256Mi"
 #sonarr_memory_limit        = "1Gi"
 #sonarr_image_tag           = "latest"
 
 # Radarr Movie Management (migrated from LXC 111)
+#radarr_enabled             = true    # Set to false to disable Radarr
 #radarr_config_storage_size = "2Gi"
 #radarr_memory_request      = "256Mi"
 #radarr_memory_limit        = "1Gi"
 #radarr_image_tag           = "latest"
 
 # qBittorrent + VPN (migrated from VM 113)
+#qbittorrent_enabled              = true    # Set to false to disable qBittorrent
 #qbittorrent_config_storage_size  = "1Gi"
 #qbittorrent_scratch_storage_size = "100Gi"    # Local scratch for active downloads
 #qbittorrent_memory_request       = "512Mi"
@@ -154,6 +165,7 @@
 #gluetun_vpn_password = "your-pia-password"
 
 # Emby Media Server (migrated from LXC 109)
+#emby_enabled             = true    # Set to false to disable Emby
 #emby_config_storage_size = "10Gi"
 #emby_memory_request      = "512Mi"
 #emby_memory_limit        = "2Gi"
@@ -161,35 +173,41 @@
 #emby_image_tag           = "latest"
 
 # Bazarr Subtitle Management (Wave 4)
+#bazarr_enabled        = true    # Set to false to disable Bazarr
 #bazarr_storage_size   = "1Gi"
 #bazarr_memory_request = "128Mi"
 #bazarr_memory_limit   = "512Mi"
 #bazarr_image_tag      = "latest"
 
 # Jackett Indexer Support (Wave 4)
+#jackett_enabled        = true    # Set to false to disable Jackett
 #jackett_storage_size   = "1Gi"
 #jackett_memory_request = "128Mi"
 #jackett_memory_limit   = "512Mi"
 #jackett_image_tag      = "latest"
 
 # Huntarr Missing Media Hunter (Wave 4)
+#huntarr_enabled        = true    # Set to false to disable Huntarr
 #huntarr_storage_size   = "512Mi"
 #huntarr_memory_request = "64Mi"
 #huntarr_memory_limit   = "256Mi"
 #huntarr_image_tag      = "latest"
 
 # Cleanuparr Library Cleanup (Wave 4)
+#cleanuparr_enabled        = true    # Set to false to disable Cleanuparr
 #cleanuparr_memory_request = "64Mi"
 #cleanuparr_memory_limit   = "256Mi"
 #cleanuparr_image_tag      = "latest"
 
 # SABnzbd Usenet Client (Wave 4)
+#sabnzbd_enabled        = true    # Set to false to disable SABnzbd
 #sabnzbd_storage_size   = "1Gi"
 #sabnzbd_memory_request = "256Mi"
 #sabnzbd_memory_limit   = "1Gi"
 #sabnzbd_image_tag      = "latest"
 
 # Notifiarr Rich Notifications (Wave 4)
+#notifiarr_enabled        = true    # Set to false to disable Notifiarr
 #notifiarr_storage_size   = "1Gi"
 #notifiarr_memory_request = "64Mi"
 #notifiarr_memory_limit   = "256Mi"
@@ -197,6 +215,7 @@
 #notifiarr_config         = ""    # Paste notifiarr.conf contents from LXC 101
 
 # Flaresolverr CAPTCHA Solver (Wave 4 — internal only)
+#flaresolverr_enabled        = true    # Set to false to disable Flaresolverr
 #flaresolverr_memory_request = "256Mi"
 #flaresolverr_memory_limit   = "1Gi"
 #flaresolverr_image_tag      = "latest"
@@ -206,6 +225,7 @@
 #nvidia_device_plugin_chart_version = "0.17.0"
 
 # Ollama LLM Inference (Wave 5)
+#ollama_enabled             = true    # Set to false to disable Ollama
 #ollama_config_storage_size = "1Gi"
 #ollama_memory_request      = "2Gi"
 #ollama_memory_limit        = "8Gi"
@@ -213,18 +233,21 @@
 #ollama_gpu_enabled         = false    # Set to true after NVIDIA device plugin is running
 
 # Qdrant Vector Database (Wave 5)
+#qdrant_enabled        = true    # Set to false to disable Qdrant
 #qdrant_storage_size   = "4Gi"
 #qdrant_memory_request = "256Mi"
 #qdrant_memory_limit   = "1Gi"
 #qdrant_image_tag      = "latest"
 
 # ChromaDB Vector Database (Wave 5)
+#chromadb_enabled        = true    # Set to false to disable ChromaDB
 #chromadb_storage_size   = "4Gi"
 #chromadb_memory_request = "256Mi"
 #chromadb_memory_limit   = "1Gi"
 #chromadb_image_tag      = "latest"
 
 # ComfyUI Image Generation (Wave 5)
+#comfyui_enabled             = true    # Set to false to disable ComfyUI
 #comfyui_config_storage_size = "1Gi"
 #comfyui_memory_request      = "2Gi"
 #comfyui_memory_limit        = "8Gi"
