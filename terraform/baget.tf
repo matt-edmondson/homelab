@@ -231,7 +231,9 @@ resource "kubernetes_deployment" "baget" {
               port = 80
             }
             initial_delay_seconds = 30
-            period_seconds        = 10
+            period_seconds        = 30
+            timeout_seconds       = 10
+            failure_threshold     = 5
           }
 
           readiness_probe {
@@ -239,8 +241,10 @@ resource "kubernetes_deployment" "baget" {
               path = "/"
               port = 80
             }
-            initial_delay_seconds = 5
-            period_seconds        = 5
+            initial_delay_seconds = 10
+            period_seconds        = 10
+            timeout_seconds       = 10
+            failure_threshold     = 3
           }
         }
 

@@ -25,7 +25,7 @@ variable "qbittorrent_config_storage_size" {
 variable "qbittorrent_scratch_storage_size" {
   description = "Storage size for local scratch disk (active downloads)"
   type        = string
-  default     = "100Gi"
+  default     = "40Gi"
 }
 
 variable "qbittorrent_memory_request" {
