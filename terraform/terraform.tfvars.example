@@ -254,6 +254,26 @@
 #comfyui_image_tag           = "latest"
 #comfyui_gpu_enabled         = false    # Set to true after NVIDIA device plugin is running
 
+# Homepage Dashboard (Application Portal)
+#homepage_enabled        = true     # Set to false to disable Homepage
+#homepage_image_tag      = "latest"
+#homepage_memory_request = "128Mi"
+#homepage_memory_limit   = "256Mi"
+#homepage_cpu_request    = "50m"
+#homepage_cpu_limit      = "200m"
+
+# Widget API Keys (optional — widgets degrade gracefully without them)
+#sonarr_api_key       = ""
+#radarr_api_key       = ""
+#prowlarr_api_key     = ""
+#bazarr_api_key       = ""
+#jackett_api_key      = ""
+#huntarr_api_key      = ""
+#sabnzbd_api_key      = ""
+#qbittorrent_username = ""
+#qbittorrent_password = ""
+#emby_api_key         = ""
+
 # Labels
 #common_labels = {
 #  "managed-by"  = "terraform"

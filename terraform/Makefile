@@ -30,6 +30,7 @@ MAKE := "$(MAKE)"
 	plan-flaresolverr apply-flaresolverr \
 	plan-nvidia apply-nvidia plan-ollama apply-ollama plan-qdrant apply-qdrant \
 	plan-chromadb apply-chromadb plan-comfyui apply-comfyui \
+	plan-homepage apply-homepage \
 	show-structure quick-debug taint-component
 
 # Default target
@@ -417,7 +418,15 @@ plan-applications: check-vars check-init ## Plan application components (Baget, 
 		-target=kubernetes_deployment.baget \
 		-target=kubernetes_service.baget \
 		-target=kubernetes_namespace.headlamp \
-		-target=helm_release.headlamp
+		-target=helm_release.headlamp \
+		-target=kubernetes_namespace.homepage \
+		-target=kubernetes_service_account.homepage \
+		-target=kubernetes_cluster_role.homepage \
+		-target=kubernetes_cluster_role_binding.homepage \
+		-target=kubernetes_config_map.homepage_config \
+		-target=kubernetes_secret.homepage_secrets \
+		-target=kubernetes_deployment.homepage \
+		-target=kubernetes_service.homepage
 
 plan-dns: check-vars check-init ## Plan DNS components (Pi-hole sync)
 	@echo "Planning DNS components..."
@@ -636,6 +645,18 @@ plan-comfyui: check-vars check-init ## Plan ComfyUI image generation
 		-target=kubernetes_deployment.comfyui \
 		-target=kubernetes_service.comfyui
 
+plan-homepage: check-vars check-init ## Plan Homepage dashboard
+	@echo "Planning Homepage..."
+	terraform plan \
+		-target=kubernetes_namespace.homepage \
+		-target=kubernetes_service_account.homepage \
+		-target=kubernetes_cluster_role.homepage \
+		-target=kubernetes_cluster_role_binding.homepage \
+		-target=kubernetes_config_map.homepage_config \
+		-target=kubernetes_secret.homepage_secrets \
+		-target=kubernetes_deployment.homepage \
+		-target=kubernetes_service.homepage
+
 plan-traefik: check-vars check-init ## Plan Traefik reverse proxy
 	@echo "Planning Traefik components..."
 	terraform plan \
@@ -700,7 +721,15 @@ apply-applications: check-vars check-init ## Deploy application components (Bage
 		-target=kubernetes_deployment.baget \
 		-target=kubernetes_service.baget \
 		-target=kubernetes_namespace.headlamp \
-		-target=helm_release.headlamp
+		-target=helm_release.headlamp \
+		-target=kubernetes_namespace.homepage \
+		-target=kubernetes_service_account.homepage \
+		-target=kubernetes_cluster_role.homepage \
+		-target=kubernetes_cluster_role_binding.homepage \
+		-target=kubernetes_config_map.homepage_config \
+		-target=kubernetes_secret.homepage_secrets \
+		-target=kubernetes_deployment.homepage \
+		-target=kubernetes_service.homepage
 
 apply-dns: check-vars check-init ## Deploy DNS components (Pi-hole sync)
 	@echo "Deploying DNS components..."
@@ -918,6 +947,18 @@ apply-comfyui: check-vars check-init ## Deploy ComfyUI image generation
 		-target=kubernetes_persistent_volume_claim.comfyui_models \
 		-target=kubernetes_deployment.comfyui \
 		-target=kubernetes_service.comfyui
+
+apply-homepage: check-vars check-init ## Deploy Homepage dashboard
+	@echo "Deploying Homepage..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.homepage \
+		-target=kubernetes_service_account.homepage \
+		-target=kubernetes_cluster_role.homepage \
+		-target=kubernetes_cluster_role_binding.homepage \
+		-target=kubernetes_config_map.homepage_config \
+		-target=kubernetes_secret.homepage_secrets \
+		-target=kubernetes_deployment.homepage \
+		-target=kubernetes_service.homepage
 
 apply-traefik: check-vars check-init ## Deploy Traefik reverse proxy
 	@echo "Deploying Traefik..."
