@@ -97,6 +97,13 @@ variable "gluetun_server_regions" {
   default     = "AU Melbourne"
 }
 
+variable "gluetun_openvpn_custom_config" {
+  description = "Custom OpenVPN configuration file contents for gluetun"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 variable "gluetun_memory_request" {
   description = "Memory request for gluetun VPN sidecar"
   type        = string
@@ -132,16 +139,30 @@ resource "kubernetes_secret" "gluetun_vpn" {
   }
 
   data = {
-    VPN_SERVICE_PROVIDER     = var.gluetun_vpn_service_provider
-    VPN_TYPE                 = var.gluetun_vpn_type
-    OPENVPN_USER             = var.gluetun_vpn_username
-    OPENVPN_PASSWORD         = var.gluetun_vpn_password
-    WIREGUARD_PRIVATE_KEY    = var.gluetun_wireguard_private_key
-    SERVER_REGIONS           = var.gluetun_server_regions
+    VPN_SERVICE_PROVIDER      = "custom"
+    VPN_TYPE                  = "openvpn"
+    OPENVPN_CUSTOM_CONFIG     = "/gluetun/custom.conf"
+    OPENVPN_USER              = var.gluetun_vpn_username
+    OPENVPN_PASSWORD          = var.gluetun_vpn_password
     FIREWALL_OUTBOUND_SUBNETS = "10.244.0.0/16,10.96.0.0/12,192.168.0.0/24"
   }
 
   type = "Opaque"
+}
+
+# ConfigMap — Custom OpenVPN configuration for PIA
+resource "kubernetes_config_map" "gluetun_openvpn_config" {
+  count = var.qbittorrent_enabled ? 1 : 0
+
+  metadata {
+    name      = "gluetun-openvpn-config"
+    namespace = kubernetes_namespace.qbittorrent[0].metadata[0].name
+    labels    = var.common_labels
+  }
+
+  data = {
+    "custom.conf" = join("\n", [for line in split("\n", var.gluetun_openvpn_custom_config) : trimspace(line)])
+  }
 }
 
 # Persistent Volume Claim — Config (Longhorn)
@@ -298,6 +319,13 @@ resource "kubernetes_deployment" "qbittorrent" {
             }
           }
 
+          volume_mount {
+            name       = "openvpn-config"
+            mount_path = "/gluetun/custom.conf"
+            sub_path   = "custom.conf"
+            read_only  = true
+          }
+
           # gluetun needs NET_ADMIN to create the VPN tunnel
           security_context {
             capabilities {
@@ -402,6 +430,13 @@ resource "kubernetes_deployment" "qbittorrent" {
           name = "downloads"
           persistent_volume_claim {
             claim_name = kubernetes_persistent_volume_claim.qbittorrent_downloads[0].metadata[0].name
+          }
+        }
+
+        volume {
+          name = "openvpn-config"
+          config_map {
+            name = kubernetes_config_map.gluetun_openvpn_config[0].metadata[0].name
           }
         }
       }
