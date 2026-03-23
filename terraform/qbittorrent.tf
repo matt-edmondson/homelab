@@ -113,7 +113,7 @@ variable "gluetun_memory_request" {
 variable "gluetun_memory_limit" {
   description = "Memory limit for gluetun VPN sidecar"
   type        = string
-  default     = "512Mi"
+  default     = "1Gi"
 }
 
 # Namespace
