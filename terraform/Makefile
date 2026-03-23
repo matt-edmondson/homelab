@@ -681,7 +681,8 @@ plan-ingress: check-vars check-init ## Plan ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_baget \
 		-target=kubernetes_manifest.ingressroute_longhorn \
 		-target=kubernetes_manifest.ingressroute_dashboard \
-		-target=kubernetes_manifest.ingressroute_oauth2_proxy
+		-target=kubernetes_manifest.ingressroute_oauth2_proxy \
+		-target=kubernetes_manifest.ingressroute_homepage
 
 plan-azure-dns: check-vars check-init ## Plan Azure DNS A records
 	@echo "Planning Azure DNS records..."
@@ -984,7 +985,8 @@ apply-ingress: check-vars check-init ## Deploy ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_baget \
 		-target=kubernetes_manifest.ingressroute_longhorn \
 		-target=kubernetes_manifest.ingressroute_dashboard \
-		-target=kubernetes_manifest.ingressroute_oauth2_proxy
+		-target=kubernetes_manifest.ingressroute_oauth2_proxy \
+		-target=kubernetes_manifest.ingressroute_homepage
 
 apply-azure-dns: check-vars check-init ## Deploy Azure DNS A records
 	@echo "Deploying Azure DNS records..."
