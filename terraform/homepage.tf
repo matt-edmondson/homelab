@@ -566,6 +566,20 @@ resource "kubernetes_deployment" "homepage" {
             container_port = 3000
           }
 
+          env {
+            name = "MY_POD_IP"
+            value_from {
+              field_ref {
+                field_path = "status.podIP"
+              }
+            }
+          }
+
+          env {
+            name  = "HOMEPAGE_ALLOWED_HOSTS"
+            value = "homepage.${var.traefik_domain},homepage-service.homepage.svc.cluster.local,$(MY_POD_IP):3000"
+          }
+
           env_from {
             secret_ref {
               name = kubernetes_secret.homepage_secrets[0].metadata[0].name
