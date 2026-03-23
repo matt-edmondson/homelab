@@ -588,7 +588,20 @@ resource "kubernetes_deployment" "homepage" {
 
           volume_mount {
             name       = "homepage-config"
-            mount_path = "/app/config"
+            mount_path = "/app/config/settings.yaml"
+            sub_path   = "settings.yaml"
+          }
+
+          volume_mount {
+            name       = "homepage-config"
+            mount_path = "/app/config/services.yaml"
+            sub_path   = "services.yaml"
+          }
+
+          volume_mount {
+            name       = "homepage-config"
+            mount_path = "/app/config/widgets.yaml"
+            sub_path   = "widgets.yaml"
           }
 
           resources {
