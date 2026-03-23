@@ -145,6 +145,7 @@ resource "kubernetes_secret" "gluetun_vpn" {
     OPENVPN_USER              = var.gluetun_vpn_username
     OPENVPN_PASSWORD          = var.gluetun_vpn_password
     FIREWALL_OUTBOUND_SUBNETS = "10.244.0.0/16,10.96.0.0/12,192.168.0.0/24"
+    FIREWALL_INPUT_PORTS      = "8080"
   }
 
   type = "Opaque"
