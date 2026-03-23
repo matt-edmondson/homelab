@@ -132,12 +132,13 @@ resource "kubernetes_secret" "gluetun_vpn" {
   }
 
   data = {
-    VPN_SERVICE_PROVIDER  = var.gluetun_vpn_service_provider
-    VPN_TYPE              = var.gluetun_vpn_type
-    OPENVPN_USER          = var.gluetun_vpn_username
-    OPENVPN_PASSWORD      = var.gluetun_vpn_password
-    WIREGUARD_PRIVATE_KEY = var.gluetun_wireguard_private_key
-    SERVER_REGIONS        = var.gluetun_server_regions
+    VPN_SERVICE_PROVIDER     = var.gluetun_vpn_service_provider
+    VPN_TYPE                 = var.gluetun_vpn_type
+    OPENVPN_USER             = var.gluetun_vpn_username
+    OPENVPN_PASSWORD         = var.gluetun_vpn_password
+    WIREGUARD_PRIVATE_KEY    = var.gluetun_wireguard_private_key
+    SERVER_REGIONS           = var.gluetun_server_regions
+    FIREWALL_OUTBOUND_SUBNETS = "10.244.0.0/16,10.96.0.0/12,192.168.0.0/24"
   }
 
   type = "Opaque"
