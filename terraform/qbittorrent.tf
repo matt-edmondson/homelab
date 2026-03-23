@@ -2,7 +2,7 @@
 # qBittorrent — BitTorrent Client with VPN Sidecar
 # =============================================================================
 # Migrated from VM 113. Runs all traffic through a gluetun VPN sidecar
-# (PIA WireGuard). Web UI accessible via Traefik. Downloads go to NFS.
+# (PIA OpenVPN). Web UI accessible via Traefik. Downloads go to NFS.
 #
 # Note: The plan mentions potential NFS performance issues with qBittorrent.
 # A local Longhorn scratch PVC is included for active downloads, with
@@ -67,7 +67,7 @@ variable "gluetun_vpn_service_provider" {
 variable "gluetun_vpn_type" {
   description = "VPN type: wireguard or openvpn"
   type        = string
-  default     = "wireguard"
+  default     = "openvpn"
 }
 
 variable "gluetun_vpn_username" {
