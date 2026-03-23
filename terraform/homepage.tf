@@ -514,3 +514,166 @@ resource "kubernetes_secret" "homepage_secrets" {
     HOMEPAGE_VAR_QBIT_PASS    = var.qbittorrent_password
   }
 }
+
+# -----------------------------------------------------------------------------
+# Deployment
+# -----------------------------------------------------------------------------
+
+resource "kubernetes_deployment" "homepage" {
+  count = var.homepage_enabled ? 1 : 0
+
+  depends_on = [
+    kubernetes_config_map.homepage_config,
+    kubernetes_secret.homepage_secrets,
+  ]
+
+  metadata {
+    name      = "homepage"
+    namespace = kubernetes_namespace.homepage[0].metadata[0].name
+    labels = merge(var.common_labels, {
+      "app.kubernetes.io/name" = "homepage"
+    })
+  }
+
+  spec {
+    replicas = 1
+
+    strategy {
+      type = "Recreate"
+    }
+
+    selector {
+      match_labels = {
+        app = "homepage"
+      }
+    }
+
+    template {
+      metadata {
+        labels = merge(var.common_labels, {
+          app = "homepage"
+        })
+      }
+
+      spec {
+        service_account_name = kubernetes_service_account.homepage[0].metadata[0].name
+
+        container {
+          name  = "homepage"
+          image = "${var.homepage_image}:${var.homepage_image_tag}"
+
+          port {
+            container_port = 3000
+          }
+
+          env_from {
+            secret_ref {
+              name = kubernetes_secret.homepage_secrets[0].metadata[0].name
+            }
+          }
+
+          volume_mount {
+            name       = "homepage-config"
+            mount_path = "/app/config"
+          }
+
+          resources {
+            requests = {
+              memory = var.homepage_memory_request
+              cpu    = var.homepage_cpu_request
+            }
+            limits = {
+              memory = var.homepage_memory_limit
+              cpu    = var.homepage_cpu_limit
+            }
+          }
+
+          liveness_probe {
+            http_get {
+              path = "/api/healthcheck"
+              port = 3000
+            }
+            initial_delay_seconds = 15
+            period_seconds        = 30
+            timeout_seconds       = 5
+            failure_threshold     = 3
+          }
+
+          readiness_probe {
+            http_get {
+              path = "/api/healthcheck"
+              port = 3000
+            }
+            initial_delay_seconds = 10
+            period_seconds        = 15
+            timeout_seconds       = 5
+            failure_threshold     = 3
+          }
+        }
+
+        volume {
+          name = "homepage-config"
+          config_map {
+            name = kubernetes_config_map.homepage_config[0].metadata[0].name
+          }
+        }
+      }
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Service
+# -----------------------------------------------------------------------------
+
+resource "kubernetes_service" "homepage" {
+  count = var.homepage_enabled ? 1 : 0
+
+  depends_on = [
+    kubernetes_deployment.homepage
+  ]
+
+  metadata {
+    name      = "homepage-service"
+    namespace = kubernetes_namespace.homepage[0].metadata[0].name
+    labels = merge(var.common_labels, {
+      "app.kubernetes.io/name" = "homepage"
+    })
+  }
+
+  spec {
+    type = "ClusterIP"
+    selector = {
+      app = "homepage"
+    }
+
+    port {
+      protocol    = "TCP"
+      port        = 80
+      target_port = 3000
+    }
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Output
+# -----------------------------------------------------------------------------
+
+output "homepage_info" {
+  description = "Homepage dashboard information"
+  value = var.homepage_enabled ? {
+    namespace    = kubernetes_namespace.homepage[0].metadata[0].name
+    service_name = kubernetes_service.homepage[0].metadata[0].name
+
+    access = {
+      web_ui = "https://homepage.${var.traefik_domain}"
+    }
+
+    commands = {
+      check_pods = "kubectl get pods -n ${kubernetes_namespace.homepage[0].metadata[0].name}"
+      logs       = "kubectl logs -n ${kubernetes_namespace.homepage[0].metadata[0].name} -l app=homepage -f"
+    }
+  } : null
+
+  sensitive = true
+}
