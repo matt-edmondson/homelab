@@ -1515,6 +1515,62 @@ resource "kubernetes_manifest" "ingressroute_comfyui" {
   ]
 }
 
+# Homepage Dashboard
+resource "kubernetes_manifest" "ingressroute_homepage" {
+  count = var.homepage_enabled ? 1 : 0
+
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "IngressRoute"
+    metadata = {
+      name      = "homepage"
+      namespace = kubernetes_namespace.traefik.metadata[0].name
+      labels    = var.common_labels
+    }
+    spec = {
+      entryPoints = ["websecure"]
+      routes = [{
+        match = "Host(`homepage.${var.traefik_domain}`)"
+        kind  = "Rule"
+        middlewares = [
+          {
+            name      = "rate-limit"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "crowdsec-bouncer"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "oauth-forward-auth"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+        ]
+        services = [{
+          name      = kubernetes_service.homepage[0].metadata[0].name
+          namespace = kubernetes_namespace.homepage[0].metadata[0].name
+          port      = 80
+        }]
+      }]
+      tls = {
+        certResolver = "letsencrypt"
+        domains = [{
+          main = var.traefik_domain
+          sans = ["*.${var.traefik_domain}"]
+        }]
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.traefik,
+    kubernetes_service.homepage,
+    kubernetes_manifest.middleware_rate_limit,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
+    kubernetes_manifest.middleware_oauth_forward_auth,
+  ]
+}
+
 # --- Static Sites ---
 
 # IngressRoute per static site (each on its own primary domain)

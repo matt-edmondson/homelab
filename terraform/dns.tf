@@ -78,6 +78,7 @@ locals {
     var.qdrant_enabled ? { qdrant = "qdrant" } : {},
     var.chromadb_enabled ? { chromadb = "chromadb" } : {},
     var.comfyui_enabled ? { comfyui = "comfyui" } : {},
+    var.homepage_enabled ? { homepage = "homepage" } : {},
   )
 }
 
