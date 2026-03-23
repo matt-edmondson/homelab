@@ -430,15 +430,6 @@ locals {
     }] : [],
   )
 
-  # Build final services list, filtering out empty groups
-  homepage_services = concat(
-    length(local.homepage_media_services) > 0 ? [{ "Media Management" = local.homepage_media_services }] : [],
-    length(local.homepage_download_services) > 0 ? [{ "Downloads" = local.homepage_download_services }] : [],
-    length(local.homepage_streaming_services) > 0 ? [{ "Media Streaming" = local.homepage_streaming_services }] : [],
-    length(local.homepage_monitoring_services) > 0 ? [{ "Monitoring" = local.homepage_monitoring_services }] : [],
-    length(local.homepage_ai_services) > 0 ? [{ "AI / ML" = local.homepage_ai_services }] : [],
-    length(local.homepage_infra_services) > 0 ? [{ "Infrastructure" = local.homepage_infra_services }] : [],
-  )
 }
 
 # -----------------------------------------------------------------------------
@@ -455,38 +446,125 @@ resource "kubernetes_config_map" "homepage_config" {
   }
 
   data = {
-    "settings.yaml" = yamlencode({
-      title       = "Homelab"
-      theme       = "dark"
-      color       = "slate"
-      headerStyle = "clean"
-      layout = {
-        "Media Management" = { style = "row", columns = 4 }
-        "Downloads"        = { style = "row", columns = 2 }
-        "Media Streaming"  = { style = "row", columns = 1 }
-        "Monitoring"       = { style = "row", columns = 3 }
-        "AI / ML"          = { style = "row", columns = 4 }
-        "Infrastructure"   = { style = "row", columns = 3 }
-      }
-    })
+    "settings.yaml" = <<-EOT
+title: Homelab
+theme: dark
+color: slate
+headerStyle: clean
+layout:
+  Media Management:
+    style: row
+    columns: 4
+  Downloads:
+    style: row
+    columns: 2
+  Media Streaming:
+    style: row
+    columns: 1
+  Monitoring:
+    style: row
+    columns: 3
+  AI / ML:
+    style: row
+    columns: 4
+  Infrastructure:
+    style: row
+    columns: 3
+EOT
 
-    "services.yaml" = yamlencode(local.homepage_services)
+    "services.yaml" = join("\n", compact([
+      length(local.homepage_media_services) > 0 ? join("\n", concat(
+        ["- Media Management:"],
+        flatten([for s in local.homepage_media_services : concat(
+          ["    - ${keys(s)[0]}:"],
+          [for k, v in values(s)[0] : "        ${k}: ${v}" if k != "widget"],
+          lookup(values(s)[0], "widget", null) != null ? concat(
+            ["        widget:"],
+            [for wk, wv in values(s)[0]["widget"] : "          ${wk}: ${wv}"]
+          ) : []
+        )])
+      )) : "",
+      length(local.homepage_download_services) > 0 ? join("\n", concat(
+        ["- Downloads:"],
+        flatten([for s in local.homepage_download_services : concat(
+          ["    - ${keys(s)[0]}:"],
+          [for k, v in values(s)[0] : "        ${k}: ${v}" if k != "widget"],
+          lookup(values(s)[0], "widget", null) != null ? concat(
+            ["        widget:"],
+            [for wk, wv in values(s)[0]["widget"] : "          ${wk}: ${wv}"]
+          ) : []
+        )])
+      )) : "",
+      length(local.homepage_streaming_services) > 0 ? join("\n", concat(
+        ["- Media Streaming:"],
+        flatten([for s in local.homepage_streaming_services : concat(
+          ["    - ${keys(s)[0]}:"],
+          [for k, v in values(s)[0] : "        ${k}: ${v}" if k != "widget"],
+          lookup(values(s)[0], "widget", null) != null ? concat(
+            ["        widget:"],
+            [for wk, wv in values(s)[0]["widget"] : "          ${wk}: ${wv}"]
+          ) : []
+        )])
+      )) : "",
+      length(local.homepage_monitoring_services) > 0 ? join("\n", concat(
+        ["- Monitoring:"],
+        flatten([for s in local.homepage_monitoring_services : concat(
+          ["    - ${keys(s)[0]}:"],
+          [for k, v in values(s)[0] : "        ${k}: ${v}" if k != "widget"],
+          lookup(values(s)[0], "widget", null) != null ? concat(
+            ["        widget:"],
+            [for wk, wv in values(s)[0]["widget"] : "          ${wk}: ${wv}"]
+          ) : []
+        )])
+      )) : "",
+      length(local.homepage_ai_services) > 0 ? join("\n", concat(
+        ["- AI / ML:"],
+        flatten([for s in local.homepage_ai_services : concat(
+          ["    - ${keys(s)[0]}:"],
+          [for k, v in values(s)[0] : "        ${k}: ${v}" if k != "widget"],
+          lookup(values(s)[0], "widget", null) != null ? concat(
+            ["        widget:"],
+            [for wk, wv in values(s)[0]["widget"] : "          ${wk}: ${wv}"]
+          ) : []
+        )])
+      )) : "",
+      length(local.homepage_infra_services) > 0 ? join("\n", concat(
+        ["- Infrastructure:"],
+        flatten([for s in local.homepage_infra_services : concat(
+          ["    - ${keys(s)[0]}:"],
+          [for k, v in values(s)[0] : "        ${k}: ${v}" if k != "widget"],
+          lookup(values(s)[0], "widget", null) != null ? concat(
+            ["        widget:"],
+            [for wk, wv in values(s)[0]["widget"] : "          ${wk}: ${wv}"]
+          ) : []
+        )])
+      )) : "",
+    ]))
 
-    "widgets.yaml" = yamlencode([
-      { kubernetes = {
-        cluster = {
-          show      = true
-          cpu       = true
-          memory    = true
-          showLabel = true
-          label     = "cluster"
-        }
-      } },
-      { search = {
-        provider = "duckduckgo"
-        target   = "_blank"
-      } },
-    ])
+    "widgets.yaml" = <<-EOT
+- kubernetes:
+    cluster:
+      show: true
+      cpu: true
+      memory: true
+      showLabel: true
+      label: "cluster"
+    nodes:
+      show: true
+      cpu: true
+      memory: true
+      showLabel: true
+- search:
+    provider: duckduckgo
+    target: _blank
+EOT
+
+    "kubernetes.yaml" = <<-EOT
+mode: cluster
+EOT
+
+    "bookmarks.yaml" = ""
+    "docker.yaml"    = ""
   }
 }
 
@@ -602,6 +680,24 @@ resource "kubernetes_deployment" "homepage" {
             name       = "homepage-config"
             mount_path = "/app/config/widgets.yaml"
             sub_path   = "widgets.yaml"
+          }
+
+          volume_mount {
+            name       = "homepage-config"
+            mount_path = "/app/config/kubernetes.yaml"
+            sub_path   = "kubernetes.yaml"
+          }
+
+          volume_mount {
+            name       = "homepage-config"
+            mount_path = "/app/config/bookmarks.yaml"
+            sub_path   = "bookmarks.yaml"
+          }
+
+          volume_mount {
+            name       = "homepage-config"
+            mount_path = "/app/config/docker.yaml"
+            sub_path   = "docker.yaml"
           }
 
           resources {
