@@ -227,24 +227,24 @@ resource "kubernetes_deployment" "baget" {
 
           liveness_probe {
             http_get {
-              path = "/"
+              path = "/v3/index.json"
               port = 80
             }
             initial_delay_seconds = 30
             period_seconds        = 30
-            timeout_seconds       = 10
-            failure_threshold     = 5
+            timeout_seconds       = 15
+            failure_threshold     = 6
           }
 
           readiness_probe {
             http_get {
-              path = "/"
+              path = "/v3/index.json"
               port = 80
             }
-            initial_delay_seconds = 10
-            period_seconds        = 10
-            timeout_seconds       = 10
-            failure_threshold     = 3
+            initial_delay_seconds = 15
+            period_seconds        = 30
+            timeout_seconds       = 15
+            failure_threshold     = 6
           }
         }
 
