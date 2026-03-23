@@ -682,7 +682,24 @@ plan-ingress: check-vars check-init ## Plan ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_longhorn \
 		-target=kubernetes_manifest.ingressroute_dashboard \
 		-target=kubernetes_manifest.ingressroute_oauth2_proxy \
-		-target=kubernetes_manifest.ingressroute_homepage
+		-target=kubernetes_manifest.ingressroute_n8n \
+		-target=kubernetes_manifest.ingressroute_prowlarr \
+		-target=kubernetes_manifest.ingressroute_sonarr \
+		-target=kubernetes_manifest.ingressroute_radarr \
+		-target=kubernetes_manifest.ingressroute_qbittorrent \
+		-target=kubernetes_manifest.ingressroute_emby \
+		-target=kubernetes_manifest.ingressroute_bazarr \
+		-target=kubernetes_manifest.ingressroute_jackett \
+		-target=kubernetes_manifest.ingressroute_huntarr \
+		-target=kubernetes_manifest.ingressroute_cleanuparr \
+		-target=kubernetes_manifest.ingressroute_sabnzbd \
+		-target=kubernetes_manifest.ingressroute_notifiarr \
+		-target=kubernetes_manifest.ingressroute_ollama \
+		-target=kubernetes_manifest.ingressroute_qdrant \
+		-target=kubernetes_manifest.ingressroute_chromadb \
+		-target=kubernetes_manifest.ingressroute_comfyui \
+		-target=kubernetes_manifest.ingressroute_homepage \
+		-target=kubernetes_manifest.ingressroute_static_site
 
 plan-azure-dns: check-vars check-init ## Plan Azure DNS A records
 	@echo "Planning Azure DNS records..."
@@ -986,7 +1003,24 @@ apply-ingress: check-vars check-init ## Deploy ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_longhorn \
 		-target=kubernetes_manifest.ingressroute_dashboard \
 		-target=kubernetes_manifest.ingressroute_oauth2_proxy \
-		-target=kubernetes_manifest.ingressroute_homepage
+		-target=kubernetes_manifest.ingressroute_n8n \
+		-target=kubernetes_manifest.ingressroute_prowlarr \
+		-target=kubernetes_manifest.ingressroute_sonarr \
+		-target=kubernetes_manifest.ingressroute_radarr \
+		-target=kubernetes_manifest.ingressroute_qbittorrent \
+		-target=kubernetes_manifest.ingressroute_emby \
+		-target=kubernetes_manifest.ingressroute_bazarr \
+		-target=kubernetes_manifest.ingressroute_jackett \
+		-target=kubernetes_manifest.ingressroute_huntarr \
+		-target=kubernetes_manifest.ingressroute_cleanuparr \
+		-target=kubernetes_manifest.ingressroute_sabnzbd \
+		-target=kubernetes_manifest.ingressroute_notifiarr \
+		-target=kubernetes_manifest.ingressroute_ollama \
+		-target=kubernetes_manifest.ingressroute_qdrant \
+		-target=kubernetes_manifest.ingressroute_chromadb \
+		-target=kubernetes_manifest.ingressroute_comfyui \
+		-target=kubernetes_manifest.ingressroute_homepage \
+		-target=kubernetes_manifest.ingressroute_static_site
 
 apply-azure-dns: check-vars check-init ## Deploy Azure DNS A records
 	@echo "Deploying Azure DNS records..."
