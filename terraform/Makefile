@@ -21,6 +21,7 @@ MAKE := "$(MAKE)"
 	list-components deploy-core deploy-apps plan-all-components status-all-components \
 	plan-static-sites apply-static-sites debug-static-sites status-static-sites \
 	plan-nfs apply-nfs \
+	plan-flannel apply-flannel plan-kube-vip apply-kube-vip plan-coredns apply-coredns \
 	plan-crowdsec apply-crowdsec plan-oauth apply-oauth \
 	plan-n8n apply-n8n plan-postfix apply-postfix plan-squid apply-squid \
 	plan-prowlarr apply-prowlarr plan-sonarr apply-sonarr plan-radarr apply-radarr \
@@ -31,7 +32,8 @@ MAKE := "$(MAKE)"
 	plan-nvidia apply-nvidia plan-ollama apply-ollama plan-qdrant apply-qdrant \
 	plan-chromadb apply-chromadb plan-comfyui apply-comfyui \
 	plan-homepage apply-homepage \
-	show-structure quick-debug taint-component
+	show-structure quick-debug taint-component \
+	recover restart-kube-vip clean-longhorn-mounts
 
 # Default target
 help: ## Show this help message
@@ -70,6 +72,11 @@ help: ## Show this help message
 	@echo "  show-structure       Show the modular file structure"
 	@echo "  quick-debug          Quick debug of all components"
 	@echo "  taint-component      Taint a component for recreation"
+	@echo ""
+	@echo "🔄 RECOVERY (after power outage / node reboot):"
+	@echo "  recover              Full post-outage recovery (clean mounts, restart kube-vip, restart stuck pods)"
+	@echo "  restart-kube-vip     Restart kube-vip to recover LoadBalancer VIP"
+	@echo "  clean-longhorn-mounts  Clean stale Longhorn mounts on worker nodes via SSH"
 	@echo ""
 	@echo "🔧 NETWORKING FIXES:"
 	@echo "  apply-kube-proxy-rbac Apply correct RBAC for kube-proxy"
@@ -387,14 +394,22 @@ list-components: ## List all infrastructure components and their files
 	@echo "Use 'make plan-<component>' or 'make apply-<component>' for targeted operations"
 
 # Component-specific Planning
-plan-networking: check-vars check-init ## Plan networking components (MetalLB, Metrics Server)
+plan-networking: check-vars check-init ## Plan networking components (Flannel, kube-vip, CoreDNS, Metrics Server)
 	@echo "Planning networking components..."
 	terraform plan \
-		-target=helm_release.metallb \
-		-target=kubernetes_manifest.metallb_ipaddresspool \
-		-target=kubernetes_manifest.metallb_bfd_profile \
-		-target=kubernetes_manifest.metallb_bgp_peer \
-		-target=kubernetes_manifest.metallb_bgp_advertisement \
+		-target=kubernetes_namespace.flannel \
+		-target=kubernetes_service_account.flannel \
+		-target=kubernetes_cluster_role.flannel \
+		-target=kubernetes_cluster_role_binding.flannel \
+		-target=kubernetes_config_map.flannel_cfg \
+		-target=kubernetes_daemonset.flannel \
+		-target=kubernetes_service_account.kube_vip \
+		-target=kubernetes_cluster_role.kube_vip \
+		-target=kubernetes_cluster_role_binding.kube_vip \
+		-target=kubernetes_daemonset.kube_vip \
+		-target=kubernetes_cluster_role.system_node_proxier \
+		-target=kubernetes_cluster_role_binding.system_node_proxier \
+		-target=kubernetes_config_map_v1_data.coredns_custom \
 		-target=helm_release.metrics_server
 
 plan-storage: check-vars check-init ## Plan storage components (Longhorn)
@@ -419,6 +434,9 @@ plan-applications: check-vars check-init ## Plan application components (Baget, 
 		-target=kubernetes_service.baget \
 		-target=kubernetes_namespace.headlamp \
 		-target=helm_release.headlamp \
+		-target=kubernetes_service_account.headlamp_admin \
+		-target=kubernetes_secret.headlamp_admin_token \
+		-target=kubernetes_cluster_role_binding.headlamp_admin \
 		-target=kubernetes_namespace.homepage \
 		-target=kubernetes_service_account.homepage \
 		-target=kubernetes_cluster_role.homepage \
@@ -454,11 +472,39 @@ plan-nfs: check-vars check-init ## Plan NFS CSI driver
 		-target=kubernetes_storage_class.nfs_media \
 		-target=kubernetes_storage_class.nfs_downloads
 
+plan-flannel: check-vars check-init ## Plan Flannel CNI networking
+	@echo "Planning Flannel CNI..."
+	terraform plan \
+		-target=kubernetes_namespace.flannel \
+		-target=kubernetes_service_account.flannel \
+		-target=kubernetes_cluster_role.flannel \
+		-target=kubernetes_cluster_role_binding.flannel \
+		-target=kubernetes_config_map.flannel_cfg \
+		-target=kubernetes_daemonset.flannel
+
+plan-kube-vip: check-vars check-init ## Plan kube-vip LoadBalancer
+	@echo "Planning kube-vip..."
+	terraform plan \
+		-target=kubernetes_service_account.kube_vip \
+		-target=kubernetes_cluster_role.kube_vip \
+		-target=kubernetes_cluster_role_binding.kube_vip \
+		-target=kubernetes_daemonset.kube_vip
+
+plan-coredns: check-vars check-init ## Plan CoreDNS configuration
+	@echo "Planning CoreDNS config..."
+	terraform plan \
+		-target=kubernetes_config_map_v1_data.coredns_custom
+
 plan-crowdsec: check-vars check-init ## Plan CrowdSec security engine
 	@echo "Planning CrowdSec components..."
 	terraform plan \
 		-target=kubernetes_namespace.crowdsec \
-		-target=helm_release.crowdsec
+		-target=helm_release.crowdsec \
+		-target=kubernetes_job.crowdsec_register_bouncer \
+		-target=kubernetes_service_account.crowdsec_bouncer_registrar \
+		-target=kubernetes_role.crowdsec_bouncer_registrar \
+		-target=kubernetes_role_binding.crowdsec_bouncer_registrar \
+		-target=kubernetes_secret.crowdsec_bouncer_secret
 
 plan-oauth: check-vars check-init ## Plan OAuth2 Proxy
 	@echo "Planning OAuth2 Proxy components..."
@@ -575,6 +621,7 @@ plan-cleanuparr: check-vars check-init ## Plan Cleanuparr library cleanup
 	@echo "Planning Cleanuparr components..."
 	terraform plan \
 		-target=kubernetes_namespace.cleanuparr \
+		-target=kubernetes_persistent_volume_claim.cleanuparr_config \
 		-target=kubernetes_deployment.cleanuparr \
 		-target=kubernetes_service.cleanuparr
 
@@ -708,14 +755,22 @@ plan-azure-dns: check-vars check-init ## Plan Azure DNS A records
 		-target=azurerm_dns_a_record.services
 
 # Component-specific Deployment
-apply-networking: check-vars check-init ## Deploy networking components (MetalLB, Metrics Server)
+apply-networking: check-vars check-init ## Deploy networking components (Flannel, kube-vip, CoreDNS, Metrics Server)
 	@echo "Deploying networking components..."
-	terraform apply \
-		-target=helm_release.metallb \
-		-target=kubernetes_manifest.metallb_ipaddresspool \
-		-target=kubernetes_manifest.metallb_bfd_profile \
-		-target=kubernetes_manifest.metallb_bgp_peer \
-		-target=kubernetes_manifest.metallb_bgp_advertisement \
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.flannel \
+		-target=kubernetes_service_account.flannel \
+		-target=kubernetes_cluster_role.flannel \
+		-target=kubernetes_cluster_role_binding.flannel \
+		-target=kubernetes_config_map.flannel_cfg \
+		-target=kubernetes_daemonset.flannel \
+		-target=kubernetes_service_account.kube_vip \
+		-target=kubernetes_cluster_role.kube_vip \
+		-target=kubernetes_cluster_role_binding.kube_vip \
+		-target=kubernetes_daemonset.kube_vip \
+		-target=kubernetes_cluster_role.system_node_proxier \
+		-target=kubernetes_cluster_role_binding.system_node_proxier \
+		-target=kubernetes_config_map_v1_data.coredns_custom \
 		-target=helm_release.metrics_server
 
 apply-storage: check-vars check-init ## Deploy storage components (Longhorn)
@@ -740,6 +795,9 @@ apply-applications: check-vars check-init ## Deploy application components (Bage
 		-target=kubernetes_service.baget \
 		-target=kubernetes_namespace.headlamp \
 		-target=helm_release.headlamp \
+		-target=kubernetes_service_account.headlamp_admin \
+		-target=kubernetes_secret.headlamp_admin_token \
+		-target=kubernetes_cluster_role_binding.headlamp_admin \
 		-target=kubernetes_namespace.homepage \
 		-target=kubernetes_service_account.homepage \
 		-target=kubernetes_cluster_role.homepage \
@@ -775,11 +833,39 @@ apply-nfs: check-vars check-init ## Deploy NFS CSI driver
 		-target=kubernetes_storage_class.nfs_media \
 		-target=kubernetes_storage_class.nfs_downloads
 
+apply-flannel: check-vars check-init ## Deploy Flannel CNI networking
+	@echo "Deploying Flannel CNI..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.flannel \
+		-target=kubernetes_service_account.flannel \
+		-target=kubernetes_cluster_role.flannel \
+		-target=kubernetes_cluster_role_binding.flannel \
+		-target=kubernetes_config_map.flannel_cfg \
+		-target=kubernetes_daemonset.flannel
+
+apply-kube-vip: check-vars check-init ## Deploy kube-vip LoadBalancer
+	@echo "Deploying kube-vip..."
+	terraform apply -auto-approve \
+		-target=kubernetes_service_account.kube_vip \
+		-target=kubernetes_cluster_role.kube_vip \
+		-target=kubernetes_cluster_role_binding.kube_vip \
+		-target=kubernetes_daemonset.kube_vip
+
+apply-coredns: check-vars check-init ## Deploy CoreDNS configuration
+	@echo "Deploying CoreDNS config..."
+	terraform apply -auto-approve \
+		-target=kubernetes_config_map_v1_data.coredns_custom
+
 apply-crowdsec: check-vars check-init ## Deploy CrowdSec security engine
 	@echo "Deploying CrowdSec..."
 	terraform apply -auto-approve \
 		-target=kubernetes_namespace.crowdsec \
-		-target=helm_release.crowdsec
+		-target=helm_release.crowdsec \
+		-target=kubernetes_job.crowdsec_register_bouncer \
+		-target=kubernetes_service_account.crowdsec_bouncer_registrar \
+		-target=kubernetes_role.crowdsec_bouncer_registrar \
+		-target=kubernetes_role_binding.crowdsec_bouncer_registrar \
+		-target=kubernetes_secret.crowdsec_bouncer_secret
 
 apply-oauth: check-vars check-init ## Deploy OAuth2 Proxy
 	@echo "Deploying OAuth2 Proxy..."
@@ -896,6 +982,7 @@ apply-cleanuparr: check-vars check-init ## Deploy Cleanuparr library cleanup
 	@echo "Deploying Cleanuparr..."
 	terraform apply -auto-approve \
 		-target=kubernetes_namespace.cleanuparr \
+		-target=kubernetes_persistent_volume_claim.cleanuparr_config \
 		-target=kubernetes_deployment.cleanuparr \
 		-target=kubernetes_service.cleanuparr
 
@@ -1043,16 +1130,19 @@ k8s-status: ## Show Kubernetes cluster status
 	kubectl get pods --all-namespaces -o wide
 
 # Component-specific Debugging
-debug-networking: ## Debug networking components (MetalLB, Metrics Server)
+debug-networking: ## Debug networking components (Flannel, kube-vip, CoreDNS, Metrics Server)
 	@echo "=== Networking Component Debug ==="
 	@echo "Terraform Resources:"
-	@terraform state list | grep -E "(metallb|metrics_server)" || echo "No networking resources found in state"
+	@terraform state list | grep -E "(flannel|kube_vip|coredns|metrics_server|node_proxier)" || echo "No networking resources found in state"
 	@echo ""
-	@echo "MetalLB Pods:"
-	@kubectl get pods -n metallb-system -o wide 2>/dev/null || echo "MetalLB namespace not found"
+	@echo "Flannel Pods:"
+	@kubectl get pods -n kube-flannel -o wide 2>/dev/null || echo "Flannel namespace not found"
 	@echo ""
-	@echo "MetalLB Configuration:"
-	@kubectl get bgppeers,ipaddresspools,bgpadvertisements -n metallb-system 2>/dev/null || echo "MetalLB CRDs not found"
+	@echo "kube-vip Pods:"
+	@kubectl get pods -n kube-system -l app.kubernetes.io/name=kube-vip -o wide 2>/dev/null || echo "kube-vip not found"
+	@echo ""
+	@echo "CoreDNS Pods:"
+	@kubectl get pods -n kube-system -l k8s-app=kube-dns -o wide 2>/dev/null || echo "CoreDNS not found"
 	@echo ""
 	@echo "Metrics Server Pods:"
 	@kubectl get pods -n kube-system -l app.kubernetes.io/name=metrics-server 2>/dev/null || echo "Metrics Server not found"
@@ -1159,9 +1249,14 @@ debug-ingress: ## Debug ingress routes
 # Component-specific Status
 status-networking: ## Show networking component status
 	@echo "=== Networking Status ==="
-	@kubectl get pods -n metallb-system 2>/dev/null || echo "MetalLB not deployed"
+	@echo "Flannel:"
+	@kubectl get pods -n kube-flannel 2>/dev/null || echo "Flannel not deployed"
+	@echo "kube-vip:"
+	@kubectl get pods -n kube-system -l app.kubernetes.io/name=kube-vip 2>/dev/null || echo "kube-vip not deployed"
+	@echo "CoreDNS:"
+	@kubectl get pods -n kube-system -l k8s-app=kube-dns 2>/dev/null || echo "CoreDNS not deployed"
+	@echo "Metrics Server:"
 	@kubectl get pods -n kube-system -l app.kubernetes.io/name=metrics-server 2>/dev/null || echo "Metrics Server not deployed"
-	@kubectl get bgppeers,ipaddresspools -n metallb-system 2>/dev/null || echo "MetalLB config not found"
 
 status-storage: ## Show storage component status
 	@echo "=== Storage Status ==="
@@ -1203,8 +1298,8 @@ status-ingress: ## Show ingress routes status
 
 logs: ## Show logs for all deployed applications
 	@echo "=== All Component Logs ==="
-	@echo "MetalLB Logs:"
-	@kubectl logs -n metallb-system -l app=metallb --tail=5 2>/dev/null || echo "No MetalLB logs"
+	@echo "Flannel Logs:"
+	@kubectl logs -n kube-flannel -l app=flannel --tail=5 2>/dev/null || echo "No Flannel logs"
 	@echo ""
 	@echo "Longhorn Logs:"
 	@kubectl logs -n longhorn-system -l app=longhorn-manager --tail=5 2>/dev/null || echo "No Longhorn logs"
@@ -1225,23 +1320,6 @@ logs: ## Show logs for all deployed applications
 	@kubectl logs -n kube-system -l app.kubernetes.io/name=pihole-dns-sync --tail=5 2>/dev/null || echo "No Pi-hole sync logs"
 	@echo ""
 	@echo "Use 'make debug-<component>' for detailed component debugging"
-
-# BGP helpers
-bgp-status: ## Check BGP configuration status
-	@echo "=== MetalLB BGP Configuration ==="
-	kubectl get bgppeers -n metallb-system -o wide 2>/dev/null || echo "No BGP peers found"
-	kubectl get ipaddresspools -n metallb-system -o wide 2>/dev/null || echo "No IP address pools found"
-	kubectl get bgpadvertisements -n metallb-system -o wide 2>/dev/null || echo "No BGP advertisements found"
-	@echo ""
-	@echo "=== Router BGP Config Reminder ==="
-	@echo "Make sure your router (UDM Pro) has this BGP configuration:"
-	@echo ""
-	@echo "configure"
-	@echo "set protocols bgp 65001 parameters router-id 192.168.0.1"
-	@echo "set protocols bgp 65001 neighbor 192.168.0.0/24 peer-group K8S-PEERS"
-	@echo "set protocols bgp 65001 neighbor 192.168.0.0/24 remote-as 65002"
-	@echo "commit"
-	@echo "save"
 
 # Workflow Shortcuts
 deploy-core: ## Deploy core infrastructure (networking + storage + traefik + dns)
@@ -1311,7 +1389,8 @@ quick-debug: ## Quick debug of all components
 	@kubectl get svc --all-namespaces --no-headers | grep LoadBalancer 2>/dev/null | wc -l | xargs -I {} echo "  LoadBalancer Services: {}" || echo "  No LoadBalancer services"
 	@echo ""
 	@echo "Component Health:"
-	@kubectl get pods -n metallb-system --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  MetalLB: {} pods running" || echo "  MetalLB: Not deployed"
+	@kubectl get pods -n kube-flannel --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  Flannel: {} pods running" || echo "  Flannel: Not deployed"
+	@kubectl get pods -n kube-system -l app.kubernetes.io/name=kube-vip --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  kube-vip: {} pods running" || echo "  kube-vip: Not deployed"
 	@kubectl get pods -n longhorn-system --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  Longhorn: {} pods running" || echo "  Longhorn: Not deployed"
 	@kubectl get pods -n monitoring --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  Monitoring: {} pods running" || echo "  Monitoring: Not deployed"
 	@kubectl get pods -n baget --no-headers 2>/dev/null | grep -c Running | xargs -I {} echo "  Baget: {} pods running" || echo "  Baget: Not deployed"
@@ -1365,7 +1444,7 @@ ifndef COMPONENT
 endif
 	@echo "Tainting $(COMPONENT) component for recreation..."
 	@case "$(COMPONENT)" in \
-		networking) terraform taint helm_release.metallb ;; \
+		networking) terraform taint kubernetes_daemonset.flannel ;; \
 		storage) terraform taint helm_release.longhorn ;; \
 		monitoring) terraform taint helm_release.prometheus_stack ;; \
 		applications) terraform taint kubernetes_deployment.baget ;; \
@@ -1374,3 +1453,62 @@ endif
 		*) echo "Invalid component: $(COMPONENT)" && exit 1 ;; \
 	esac
 	@echo "Component $(COMPONENT) tainted. Run 'make apply-$(COMPONENT)' to recreate."
+
+# =============================================================================
+# Recovery targets (post-outage / node reboot)
+# =============================================================================
+
+WORKER_NODES := rainbow.home k8s02.home
+SSH_OPTS := -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -o BatchMode=yes
+
+restart-kube-vip: ## Restart kube-vip DaemonSet to recover LoadBalancer VIP
+	@echo "Restarting kube-vip DaemonSet..."
+	@kubectl rollout restart daemonset -n kube-system kube-vip-ds
+	@echo "Waiting for kube-vip pods to be ready..."
+	@kubectl rollout status daemonset -n kube-system kube-vip-ds --timeout=60s
+	@echo "Verifying LoadBalancer IP..."
+	@sleep 5
+	@kubectl get svc --all-namespaces | grep LoadBalancer
+	@echo "kube-vip restarted."
+
+clean-longhorn-mounts: ## Clean stale Longhorn mounts on worker nodes via SSH
+	@echo "Cleaning stale Longhorn mounts on worker nodes..."
+	@for node in $(WORKER_NODES); do \
+		echo "  Checking $$node..."; \
+		ssh $(SSH_OPTS) matt@$$node \
+			'STALE=$$(mount | grep "/dev/longhorn/" | awk "{print \$$3}" | tac); \
+			if [ -z "$$STALE" ]; then echo "    No stale mounts"; \
+			else for m in $$STALE; do sudo umount "$$m" 2>/dev/null && echo "    Unmounted $$m" || sudo umount -l "$$m" 2>/dev/null && echo "    Lazy unmounted $$m"; done; fi; \
+			MPATH=$$(sudo dmsetup info 2>/dev/null | grep -c "^Name:.*mpath" || true); \
+			if [ "$$MPATH" -gt 0 ]; then echo "    Flushing $$MPATH multipath devices..."; sudo multipath -F 2>/dev/null; fi' \
+			2>/dev/null || echo "  Could not SSH to $$node (skipped)"; \
+	done
+	@echo "Restarting Longhorn CSI plugins on worker nodes..."
+	@kubectl get pod -n longhorn-system -o name | grep csi-plugin | xargs -I {} kubectl delete {} -n longhorn-system 2>/dev/null || true
+	@echo "Stale mount cleanup complete."
+
+recover: ## Full post-outage recovery (clean mounts, restart kube-vip, restart stuck pods)
+	@echo "=== Post-Outage Recovery ==="
+	@echo ""
+	@echo "Step 1: Checking node status..."
+	@kubectl get nodes
+	@echo ""
+	@echo "Step 2: Cleaning stale Longhorn mounts..."
+	@$(MAKE) clean-longhorn-mounts
+	@echo ""
+	@echo "Step 3: Restarting kube-vip for LoadBalancer VIP..."
+	@$(MAKE) restart-kube-vip
+	@echo ""
+	@echo "Step 4: Deleting stuck pods (ContainerCreating/CrashLoopBackOff)..."
+	@kubectl get pods --all-namespaces --no-headers | awk '$$4 ~ /ContainerCreating|ImagePullBackOff|Init:/ {print "-n " $$1 " " $$2}' | xargs -I {} sh -c 'kubectl delete pod {} 2>/dev/null' || true
+	@echo ""
+	@echo "Step 5: Force-deleting Unknown pods..."
+	@kubectl get pods --all-namespaces --no-headers | awk '$$4 == "Unknown" {print "-n " $$1 " " $$2}' | xargs -I {} sh -c 'kubectl delete pod {} --force --grace-period=0 2>/dev/null' || true
+	@echo ""
+	@echo "Step 6: Waiting 30s for pods to reschedule..."
+	@sleep 30
+	@echo ""
+	@echo "Step 7: Final status check..."
+	@kubectl get pods --all-namespaces | grep -v Running | grep -v Succeeded | grep -v NAMESPACE || echo "All pods running!"
+	@echo ""
+	@echo "=== Recovery complete ==="
