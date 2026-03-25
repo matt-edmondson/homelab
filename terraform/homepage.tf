@@ -123,6 +123,20 @@ variable "emby_api_key" {
   sensitive   = true
 }
 
+variable "grafana_username" {
+  description = "Grafana username for Homepage widget"
+  type        = string
+  default     = "admin"
+  sensitive   = true
+}
+
+variable "grafana_password" {
+  description = "Grafana password for Homepage widget"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 # -----------------------------------------------------------------------------
 # Namespace
 # -----------------------------------------------------------------------------
@@ -171,6 +185,18 @@ resource "kubernetes_cluster_role" "homepage" {
     resources  = ["nodes", "pods"]
     verbs      = ["get", "list", "watch"]
   }
+
+  rule {
+    api_groups = ["networking.k8s.io"]
+    resources  = ["ingresses"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = ["traefik.io", "traefik.containo.us"]
+    resources  = ["ingressroutes", "middlewares"]
+    verbs      = ["get", "list", "watch"]
+  }
 }
 
 resource "kubernetes_cluster_role_binding" "homepage" {
@@ -207,7 +233,7 @@ locals {
         description = "TV Shows"
         widget = {
           type = "sonarr"
-          url  = "http://sonarr-service.sonarr.svc.cluster.local:8989"
+          url  = "http://sonarr-service.sonarr.svc.cluster.local:80"
           key  = "{{HOMEPAGE_VAR_SONARR_KEY}}"
         }
       }
@@ -219,7 +245,7 @@ locals {
         description = "Movies"
         widget = {
           type = "radarr"
-          url  = "http://radarr-service.radarr.svc.cluster.local:7878"
+          url  = "http://radarr-service.radarr.svc.cluster.local:80"
           key  = "{{HOMEPAGE_VAR_RADARR_KEY}}"
         }
       }
@@ -231,7 +257,7 @@ locals {
         description = "Subtitles"
         widget = {
           type = "bazarr"
-          url  = "http://bazarr-service.bazarr.svc.cluster.local:6767"
+          url  = "http://bazarr-service.bazarr.svc.cluster.local:80"
           key  = "{{HOMEPAGE_VAR_BAZARR_KEY}}"
         }
       }
@@ -243,7 +269,7 @@ locals {
         description = "Indexers"
         widget = {
           type = "prowlarr"
-          url  = "http://prowlarr-service.prowlarr.svc.cluster.local:9696"
+          url  = "http://prowlarr-service.prowlarr.svc.cluster.local:80"
           key  = "{{HOMEPAGE_VAR_PROWLARR_KEY}}"
         }
       }
@@ -286,7 +312,7 @@ locals {
         description = "Torrents"
         widget = {
           type     = "qbittorrent"
-          url      = "http://qbittorrent-service.qbittorrent.svc.cluster.local:8080"
+          url      = "http://qbittorrent-service.qbittorrent.svc.cluster.local:80"
           username = "{{HOMEPAGE_VAR_QBIT_USER}}"
           password = "{{HOMEPAGE_VAR_QBIT_PASS}}"
         }
@@ -299,7 +325,7 @@ locals {
         description = "Usenet"
         widget = {
           type = "sabnzbd"
-          url  = "http://sabnzbd-service.sabnzbd.svc.cluster.local:8080"
+          url  = "http://sabnzbd-service.sabnzbd.svc.cluster.local:80"
           key  = "{{HOMEPAGE_VAR_SABNZBD_KEY}}"
         }
       }
@@ -314,7 +340,7 @@ locals {
         description = "Media Server"
         widget = {
           type = "emby"
-          url  = "http://emby-service.emby.svc.cluster.local:8096"
+          url  = "http://emby-service.emby.svc.cluster.local:80"
           key  = "{{HOMEPAGE_VAR_EMBY_KEY}}"
         }
       }
@@ -328,8 +354,10 @@ locals {
         icon        = "grafana"
         description = "Dashboards"
         widget = {
-          type = "grafana"
-          url  = "http://prometheus-stack-grafana.monitoring.svc.cluster.local:80"
+          type     = "grafana"
+          url      = "http://prometheus-stack-grafana.monitoring.svc.cluster.local:80"
+          username = "{{HOMEPAGE_VAR_GRAFANA_USER}}"
+          password = "{{HOMEPAGE_VAR_GRAFANA_PASS}}"
         }
       }
     }] : [],
@@ -401,10 +429,6 @@ locals {
         href        = "https://longhorn.${var.traefik_domain}"
         icon        = "longhorn"
         description = "Storage"
-        widget = {
-          type = "longhorn"
-          url  = "http://longhorn-frontend-lb.longhorn-system.svc.cluster.local:80"
-        }
       }
     }],
     var.kubernetes_dashboard_enabled ? [{
@@ -451,6 +475,8 @@ title: Homelab
 theme: dark
 color: slate
 headerStyle: clean
+statusStyle: dot
+hideErrors: true
 layout:
   Media Management:
     style: row
@@ -590,6 +616,8 @@ resource "kubernetes_secret" "homepage_secrets" {
     HOMEPAGE_VAR_EMBY_KEY     = var.emby_api_key
     HOMEPAGE_VAR_QBIT_USER    = var.qbittorrent_username
     HOMEPAGE_VAR_QBIT_PASS    = var.qbittorrent_password
+    HOMEPAGE_VAR_GRAFANA_USER = var.grafana_username
+    HOMEPAGE_VAR_GRAFANA_PASS = var.grafana_password
   }
 }
 

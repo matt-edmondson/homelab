@@ -57,6 +57,146 @@ resource "kubernetes_namespace" "oauth2_proxy" {
   }
 }
 
+# Auth bridge — wraps OAuth2-proxy's /oauth2/auth and returns a 302 redirect
+# to the sign-in page instead of a bare 401 for unauthenticated requests
+resource "kubernetes_config_map" "oauth2_auth_bridge" {
+  count = var.oauth_enabled ? 1 : 0
+
+  metadata {
+    name      = "oauth2-auth-bridge"
+    namespace = kubernetes_namespace.oauth2_proxy[0].metadata[0].name
+    labels    = var.common_labels
+  }
+
+  data = {
+    "default.conf" = <<-EOT
+      server {
+        listen 8080;
+
+        location = /oauth2/auth {
+          internal;
+          proxy_pass http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth;
+          proxy_pass_request_body off;
+          proxy_set_header Content-Length "";
+          proxy_set_header X-Forwarded-For $remote_addr;
+          proxy_set_header X-Forwarded-Host $http_x_forwarded_host;
+          proxy_set_header X-Forwarded-Uri $http_x_forwarded_uri;
+          proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+          proxy_set_header Cookie $http_cookie;
+
+          proxy_intercept_errors on;
+          error_page 401 403 = @sign_in;
+        }
+
+        location @sign_in {
+          return 302 https://auth.${var.traefik_domain}/oauth2/start?rd=$http_x_forwarded_proto://$http_x_forwarded_host$http_x_forwarded_uri;
+        }
+
+        location /verify {
+          proxy_pass http://oauth2-proxy.oauth2-proxy.svc.cluster.local/oauth2/auth;
+          proxy_pass_request_body off;
+          proxy_set_header Content-Length "";
+          proxy_set_header X-Forwarded-For $remote_addr;
+          proxy_set_header X-Forwarded-Host $http_x_forwarded_host;
+          proxy_set_header X-Forwarded-Uri $http_x_forwarded_uri;
+          proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+          proxy_set_header Cookie $http_cookie;
+
+          proxy_intercept_errors on;
+          error_page 401 403 = @sign_in;
+        }
+      }
+    EOT
+  }
+}
+
+resource "kubernetes_deployment" "oauth2_auth_bridge" {
+  count = var.oauth_enabled ? 1 : 0
+
+  metadata {
+    name      = "oauth2-auth-bridge"
+    namespace = kubernetes_namespace.oauth2_proxy[0].metadata[0].name
+    labels = merge(var.common_labels, {
+      app = "oauth2-auth-bridge"
+    })
+  }
+
+  spec {
+    replicas = 1
+
+    selector {
+      match_labels = {
+        app = "oauth2-auth-bridge"
+      }
+    }
+
+    template {
+      metadata {
+        labels = merge(var.common_labels, {
+          app = "oauth2-auth-bridge"
+        })
+      }
+
+      spec {
+        container {
+          name  = "nginx"
+          image = "nginx:alpine"
+
+          port {
+            container_port = 8080
+          }
+
+          volume_mount {
+            name       = "config"
+            mount_path = "/etc/nginx/conf.d"
+            read_only  = true
+          }
+
+          resources {
+            requests = {
+              memory = "16Mi"
+              cpu    = "10m"
+            }
+            limits = {
+              memory = "32Mi"
+              cpu    = "50m"
+            }
+          }
+        }
+
+        volume {
+          name = "config"
+          config_map {
+            name = kubernetes_config_map.oauth2_auth_bridge[0].metadata[0].name
+          }
+        }
+      }
+    }
+  }
+}
+
+resource "kubernetes_service" "oauth2_auth_bridge" {
+  count = var.oauth_enabled ? 1 : 0
+
+  metadata {
+    name      = "oauth2-auth-bridge"
+    namespace = kubernetes_namespace.oauth2_proxy[0].metadata[0].name
+    labels    = var.common_labels
+  }
+
+  spec {
+    type = "ClusterIP"
+    selector = {
+      app = "oauth2-auth-bridge"
+    }
+
+    port {
+      port        = 80
+      target_port = 8080
+    }
+  }
+}
+
 # Helm Release — OAuth2 Proxy
 resource "helm_release" "oauth2_proxy" {
   count = var.oauth_enabled ? 1 : 0
@@ -87,6 +227,8 @@ resource "helm_release" "oauth2_proxy" {
         whitelist-domain         = ".${var.traefik_domain}"
         cookie-csrf-per-request  = "true"
         skip-provider-button     = "true"
+        redirect-url             = "https://auth.${var.traefik_domain}/oauth2/callback"
+        upstream                 = "static://202"
       }
 
       service = {

@@ -71,7 +71,7 @@ Copy `terraform.tfvars.example` to `terraform.tfvars` and populate values. The `
 
 ### File Organization (One Concern Per File)
 
-- [common.tf](terraform/common.tf) — Provider configuration (Kubernetes `~> 2.38`, Helm `~> 3.0.2`), Metrics Server Helm release, kube-proxy RBAC, shared outputs and variables
+- [common.tf](terraform/common.tf) — Provider configuration (Kubernetes `~> 2.38`, Helm `~> 3.0.2`), Metrics Server Helm release, kube-proxy RBAC, CoreDNS config (IPv6 AAAA filtering), shared outputs and variables
 - [flannel.tf](terraform/flannel.tf) — Flannel CNI DaemonSet, RBAC, and ConfigMap (default pod CIDR: `10.244.0.0/16`, backend: VXLAN)
 - [kube-vip.tf](terraform/kube-vip.tf) — kube-vip DaemonSet for ARP-based LoadBalancer IP assignment via router DHCP
 - [longhorn.tf](terraform/longhorn.tf) — Longhorn distributed block storage via Helm (default chart version: `1.9.1`, default replicas: 2), plus a ClusterIP service for the Longhorn UI

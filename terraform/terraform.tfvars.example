@@ -273,6 +273,8 @@
 #qbittorrent_username = ""
 #qbittorrent_password = ""
 #emby_api_key         = ""
+#grafana_username     = "admin"
+#grafana_password     = ""
 
 # Labels
 #common_labels = {

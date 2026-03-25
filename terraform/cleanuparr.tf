@@ -2,7 +2,7 @@
 # Cleanuparr — Library Cleanup Automation
 # =============================================================================
 # Automates library cleanup via Sonarr/Radarr APIs.
-# Stateless — no persistent storage needed.
+# Uses Longhorn PVC for config/database persistence.
 # =============================================================================
 
 # Variables
@@ -36,6 +36,12 @@ variable "cleanuparr_cpu_limit" {
   default     = "200m"
 }
 
+variable "cleanuparr_storage_size" {
+  description = "Storage size for Cleanuparr config PVC"
+  type        = string
+  default     = "512Mi"
+}
+
 variable "cleanuparr_image_tag" {
   description = "Cleanuparr container image tag"
   type        = string
@@ -51,6 +57,27 @@ resource "kubernetes_namespace" "cleanuparr" {
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "cleanuparr"
     })
+  }
+}
+
+# Persistent Volume Claim — Config (Longhorn)
+resource "kubernetes_persistent_volume_claim" "cleanuparr_config" {
+  count = var.cleanuparr_enabled ? 1 : 0
+
+  metadata {
+    name      = "cleanuparr-config"
+    namespace = kubernetes_namespace.cleanuparr[0].metadata[0].name
+    labels    = var.common_labels
+  }
+
+  spec {
+    access_modes       = ["ReadWriteOnce"]
+    storage_class_name = data.kubernetes_storage_class.longhorn.metadata[0].name
+    resources {
+      requests = {
+        storage = var.cleanuparr_storage_size
+      }
+    }
   }
 }
 
@@ -100,6 +127,11 @@ resource "kubernetes_deployment" "cleanuparr" {
             value = "Australia/Brisbane"
           }
 
+          volume_mount {
+            name       = "config"
+            mount_path = "/config"
+          }
+
           resources {
             requests = {
               memory = var.cleanuparr_memory_request
@@ -125,6 +157,13 @@ resource "kubernetes_deployment" "cleanuparr" {
             }
             initial_delay_seconds = 5
             period_seconds        = 5
+          }
+        }
+
+        volume {
+          name = "config"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim.cleanuparr_config[0].metadata[0].name
           }
         }
       }

@@ -165,6 +165,53 @@ resource "kubernetes_cluster_role_binding" "system_node_proxier" {
   }
 }
 
+# =============================================================================
+# CoreDNS Configuration (disable IPv6 AAAA responses)
+# =============================================================================
+# Pods have no IPv6 connectivity. Without this, DNS returns AAAA records first
+# and apps (Prowlarr, Sonarr, etc.) try IPv6, fail, then timeout before falling
+# back to IPv4 — causing SSL/connection errors to external services.
+
+resource "kubernetes_config_map_v1_data" "coredns_custom" {
+  metadata {
+    name      = "coredns"
+    namespace = "kube-system"
+  }
+
+  data = {
+    Corefile = <<-EOT
+.:53 {
+    errors
+    health {
+       lameduck 5s
+    }
+    ready
+    template ANY AAAA {
+       rcode NOERROR
+    }
+    kubernetes cluster.local in-addr.arpa ip6.arpa {
+       pods insecure
+       fallthrough in-addr.arpa ip6.arpa
+       ttl 30
+    }
+    prometheus :9153
+    forward . /etc/resolv.conf {
+       max_concurrent 1000
+    }
+    cache 30 {
+       disable success cluster.local
+       disable denial cluster.local
+    }
+    loop
+    reload
+    loadbalance
+}
+EOT
+  }
+
+  force = true
+}
+
 # Common Outputs
 output "cluster_info" {
   description = "General cluster information"

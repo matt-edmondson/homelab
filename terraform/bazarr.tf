@@ -28,7 +28,7 @@ variable "bazarr_memory_request" {
 variable "bazarr_memory_limit" {
   description = "Memory limit for Bazarr container"
   type        = string
-  default     = "256Mi"
+  default     = "1Gi"
 }
 
 variable "bazarr_cpu_request" {

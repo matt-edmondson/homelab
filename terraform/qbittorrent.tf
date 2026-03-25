@@ -146,6 +146,7 @@ resource "kubernetes_secret" "gluetun_vpn" {
     OPENVPN_PASSWORD          = var.gluetun_vpn_password
     FIREWALL_OUTBOUND_SUBNETS = "10.244.0.0/16,10.96.0.0/12,192.168.0.0/24"
     FIREWALL_INPUT_PORTS      = "8080"
+    HEALTH_SERVER_ADDRESS     = "0.0.0.0:9999"
   }
 
   type = "Opaque"
@@ -358,6 +359,8 @@ resource "kubernetes_deployment" "qbittorrent" {
             }
             initial_delay_seconds = 30
             period_seconds        = 30
+            timeout_seconds       = 5
+            failure_threshold     = 5
           }
         }
 

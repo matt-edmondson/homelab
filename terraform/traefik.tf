@@ -100,6 +100,17 @@ resource "helm_release" "traefik" {
       # Global settings
       globalArguments = []
 
+      # Transport timeouts — prevent premature disconnects for
+      # long-polling (socket.io) and slow backend responses
+      additionalArguments = [
+        "--entryPoints.websecure.transport.respondingTimeouts.readTimeout=0",
+        "--entryPoints.websecure.transport.respondingTimeouts.idleTimeout=600",
+        "--serversTransport.forwardingTimeouts.dialTimeout=30s",
+        "--serversTransport.forwardingTimeouts.responseHeaderTimeout=0s",
+        "--serversTransport.forwardingTimeouts.idleConnTimeout=300s",
+        "--serversTransport.maxIdleConnsPerHost=32",
+      ]
+
       # CrowdSec Bouncer Plugin
       experimental = {
         plugins = {
@@ -121,8 +132,19 @@ resource "helm_release" "traefik" {
         }
       }
 
+      # API — expose internally so Homepage widget can reach it
+      api = {
+        dashboard = true
+        insecure  = true
+      }
+
       # Entrypoints
       ports = {
+        traefik = {
+          expose = {
+            default = true
+          }
+        }
         web = {
           port        = 8000
           exposedPort = 80

@@ -15,7 +15,7 @@ variable "radarr_enabled" {
 variable "radarr_config_storage_size" {
   description = "Storage size for Radarr config/database"
   type        = string
-  default     = "2Gi"
+  default     = "10Gi"
 }
 
 variable "radarr_memory_request" {

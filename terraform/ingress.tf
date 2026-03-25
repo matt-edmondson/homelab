@@ -159,7 +159,7 @@ resource "kubernetes_manifest" "middleware_oauth_forward_auth" {
     }
     spec = {
       forwardAuth = {
-        address            = "http://oauth2-proxy.${kubernetes_namespace.oauth2_proxy[0].metadata[0].name}.svc.cluster.local/oauth2/auth"
+        address            = "http://oauth2-auth-bridge.${kubernetes_namespace.oauth2_proxy[0].metadata[0].name}.svc.cluster.local/verify"
         trustForwardHeader = true
         authResponseHeaders = [
           "X-Auth-Request-User",
@@ -177,6 +177,31 @@ resource "kubernetes_manifest" "middleware_oauth_forward_auth" {
   ]
 }
 
+
+# Redirect auth root to homepage
+resource "kubernetes_manifest" "middleware_auth_redirect_homepage" {
+  count = var.oauth_enabled && var.homepage_enabled ? 1 : 0
+
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "Middleware"
+    metadata = {
+      name      = "auth-redirect-homepage"
+      namespace = kubernetes_namespace.traefik.metadata[0].name
+      labels    = var.common_labels
+    }
+    spec = {
+      redirectRegex = {
+        regex       = "^https://auth\\.${replace(var.traefik_domain, ".", "\\.")}/$"
+        replacement = "https://homepage.${var.traefik_domain}/"
+        permanent   = false
+      }
+    }
+  }
+
+  depends_on = [helm_release.traefik]
+}
+
 # OAuth2 Proxy IngressRoute (callback + sign-in)
 resource "kubernetes_manifest" "ingressroute_oauth2_proxy" {
   count = var.oauth_enabled ? 1 : 0
@@ -191,25 +216,38 @@ resource "kubernetes_manifest" "ingressroute_oauth2_proxy" {
     }
     spec = {
       entryPoints = ["websecure"]
-      routes = [{
-        match = "Host(`auth.${var.traefik_domain}`)"
-        kind  = "Rule"
-        middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
-          {
-            name      = "crowdsec-bouncer"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
-        ]
-        services = [{
-          name      = "oauth2-proxy"
-          namespace = kubernetes_namespace.oauth2_proxy[0].metadata[0].name
-          port      = 80
-        }]
-      }]
+      routes = [
+        {
+          match = "Host(`auth.${var.traefik_domain}`) && PathPrefix(`/oauth2`)"
+          kind  = "Rule"
+          middlewares = [
+            {
+              name      = "crowdsec-bouncer"
+              namespace = kubernetes_namespace.traefik.metadata[0].name
+            },
+          ]
+          services = [{
+            name      = "oauth2-proxy"
+            namespace = kubernetes_namespace.oauth2_proxy[0].metadata[0].name
+            port      = 80
+          }]
+        },
+        {
+          match = "Host(`auth.${var.traefik_domain}`)"
+          kind  = "Rule"
+          middlewares = [
+            {
+              name      = "auth-redirect-homepage"
+              namespace = kubernetes_namespace.traefik.metadata[0].name
+            },
+          ]
+          services = [{
+            name      = "oauth2-proxy"
+            namespace = kubernetes_namespace.oauth2_proxy[0].metadata[0].name
+            port      = 80
+          }]
+        },
+      ]
       tls = {
         certResolver = "letsencrypt"
         domains = [{
@@ -223,7 +261,6 @@ resource "kubernetes_manifest" "ingressroute_oauth2_proxy" {
   depends_on = [
     helm_release.traefik,
     helm_release.oauth2_proxy,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
   ]
 }
@@ -267,10 +304,6 @@ resource "kubernetes_manifest" "ingressroute_traefik_dashboard" {
         kind  = "Rule"
         middlewares = [
           {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
-          {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
@@ -296,7 +329,6 @@ resource "kubernetes_manifest" "ingressroute_traefik_dashboard" {
 
   depends_on = [
     helm_release.traefik,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -321,10 +353,6 @@ resource "kubernetes_manifest" "ingressroute_grafana" {
         kind  = "Rule"
         middlewares = [
           {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
-          {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
@@ -348,7 +376,6 @@ resource "kubernetes_manifest" "ingressroute_grafana" {
   depends_on = [
     helm_release.traefik,
     helm_release.prometheus_stack,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
   ]
 }
@@ -371,10 +398,6 @@ resource "kubernetes_manifest" "ingressroute_prometheus" {
         match = "Host(`prometheus.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -403,7 +426,6 @@ resource "kubernetes_manifest" "ingressroute_prometheus" {
   depends_on = [
     helm_release.traefik,
     helm_release.prometheus_stack,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -427,10 +449,6 @@ resource "kubernetes_manifest" "ingressroute_alertmanager" {
         match = "Host(`alertmanager.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -459,7 +477,6 @@ resource "kubernetes_manifest" "ingressroute_alertmanager" {
   depends_on = [
     helm_release.traefik,
     helm_release.prometheus_stack,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -484,10 +501,6 @@ resource "kubernetes_manifest" "ingressroute_baget" {
         kind  = "Rule"
         middlewares = [
           {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
-          {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
@@ -511,7 +524,6 @@ resource "kubernetes_manifest" "ingressroute_baget" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.baget,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
   ]
 }
@@ -532,10 +544,6 @@ resource "kubernetes_manifest" "ingressroute_longhorn" {
         match = "Host(`longhorn.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -564,7 +572,6 @@ resource "kubernetes_manifest" "ingressroute_longhorn" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.longhorn_frontend_lb,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -588,10 +595,6 @@ resource "kubernetes_manifest" "ingressroute_dashboard" {
         match = "Host(`dashboard.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -620,7 +623,6 @@ resource "kubernetes_manifest" "ingressroute_dashboard" {
   depends_on = [
     helm_release.traefik,
     helm_release.headlamp,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -644,10 +646,6 @@ resource "kubernetes_manifest" "ingressroute_n8n" {
         match = "Host(`n8n.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -676,7 +674,6 @@ resource "kubernetes_manifest" "ingressroute_n8n" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.n8n,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -700,10 +697,6 @@ resource "kubernetes_manifest" "ingressroute_prowlarr" {
         match = "Host(`prowlarr.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -732,7 +725,6 @@ resource "kubernetes_manifest" "ingressroute_prowlarr" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.prowlarr,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -756,10 +748,6 @@ resource "kubernetes_manifest" "ingressroute_sonarr" {
         match = "Host(`sonarr.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -788,7 +776,6 @@ resource "kubernetes_manifest" "ingressroute_sonarr" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.sonarr,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -812,10 +799,6 @@ resource "kubernetes_manifest" "ingressroute_radarr" {
         match = "Host(`radarr.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -844,7 +827,6 @@ resource "kubernetes_manifest" "ingressroute_radarr" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.radarr,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -868,10 +850,6 @@ resource "kubernetes_manifest" "ingressroute_qbittorrent" {
         match = "Host(`qbit.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -900,7 +878,6 @@ resource "kubernetes_manifest" "ingressroute_qbittorrent" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.qbittorrent,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -925,10 +902,6 @@ resource "kubernetes_manifest" "ingressroute_emby" {
         kind  = "Rule"
         middlewares = [
           {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
-          {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
@@ -952,7 +925,6 @@ resource "kubernetes_manifest" "ingressroute_emby" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.emby,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
   ]
 }
@@ -975,10 +947,6 @@ resource "kubernetes_manifest" "ingressroute_bazarr" {
         match = "Host(`bazarr.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -1007,7 +975,6 @@ resource "kubernetes_manifest" "ingressroute_bazarr" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.bazarr,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -1031,10 +998,6 @@ resource "kubernetes_manifest" "ingressroute_jackett" {
         match = "Host(`jackett.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -1063,7 +1026,6 @@ resource "kubernetes_manifest" "ingressroute_jackett" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.jackett,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -1087,10 +1049,6 @@ resource "kubernetes_manifest" "ingressroute_huntarr" {
         match = "Host(`huntarr.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -1119,7 +1077,6 @@ resource "kubernetes_manifest" "ingressroute_huntarr" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.huntarr,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -1143,10 +1100,6 @@ resource "kubernetes_manifest" "ingressroute_cleanuparr" {
         match = "Host(`cleanuparr.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -1175,7 +1128,6 @@ resource "kubernetes_manifest" "ingressroute_cleanuparr" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.cleanuparr,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -1199,10 +1151,6 @@ resource "kubernetes_manifest" "ingressroute_sabnzbd" {
         match = "Host(`sabnzbd.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -1231,7 +1179,6 @@ resource "kubernetes_manifest" "ingressroute_sabnzbd" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.sabnzbd,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -1255,10 +1202,6 @@ resource "kubernetes_manifest" "ingressroute_notifiarr" {
         match = "Host(`notifiarr.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -1287,7 +1230,6 @@ resource "kubernetes_manifest" "ingressroute_notifiarr" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.notifiarr,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -1312,10 +1254,6 @@ resource "kubernetes_manifest" "ingressroute_ollama" {
         match = "Host(`ollama.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -1344,7 +1282,6 @@ resource "kubernetes_manifest" "ingressroute_ollama" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.ollama,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -1367,10 +1304,6 @@ resource "kubernetes_manifest" "ingressroute_qdrant" {
         match = "Host(`qdrant.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -1399,7 +1332,6 @@ resource "kubernetes_manifest" "ingressroute_qdrant" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.qdrant,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -1422,10 +1354,6 @@ resource "kubernetes_manifest" "ingressroute_chromadb" {
         match = "Host(`chromadb.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -1454,7 +1382,6 @@ resource "kubernetes_manifest" "ingressroute_chromadb" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.chromadb,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -1477,10 +1404,6 @@ resource "kubernetes_manifest" "ingressroute_comfyui" {
         match = "Host(`comfyui.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -1509,7 +1432,6 @@ resource "kubernetes_manifest" "ingressroute_comfyui" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.comfyui,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -1533,10 +1455,6 @@ resource "kubernetes_manifest" "ingressroute_homepage" {
         match = "Host(`homepage.${var.traefik_domain}`)"
         kind  = "Rule"
         middlewares = [
-          {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
           {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
@@ -1565,7 +1483,6 @@ resource "kubernetes_manifest" "ingressroute_homepage" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.homepage,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
@@ -1592,10 +1509,6 @@ resource "kubernetes_manifest" "ingressroute_static_site" {
         kind  = "Rule"
         middlewares = [
           {
-            name      = "rate-limit"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
-          {
             name      = "crowdsec-bouncer"
             namespace = kubernetes_namespace.traefik.metadata[0].name
           },
@@ -1618,7 +1531,6 @@ resource "kubernetes_manifest" "ingressroute_static_site" {
   depends_on = [
     helm_release.traefik,
     kubernetes_service.static_sites,
-    kubernetes_manifest.middleware_rate_limit,
     kubernetes_manifest.middleware_crowdsec_bouncer,
   ]
 }
