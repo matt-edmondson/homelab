@@ -192,25 +192,25 @@ resource "kubernetes_deployment" "comfyui" {
 
           volume_mount {
             name       = "comfyui-config"
-            mount_path = "/home/runner"
+            mount_path = "/root"
           }
 
           volume_mount {
             name       = "models"
             sub_path   = "models"
-            mount_path = "/home/runner/ComfyUI/models"
+            mount_path = "/root/ComfyUI/models"
           }
 
           volume_mount {
             name       = "models"
             sub_path   = "output"
-            mount_path = "/home/runner/ComfyUI/output"
+            mount_path = "/root/ComfyUI/output"
           }
 
           volume_mount {
             name       = "models"
             sub_path   = "custom_nodes"
-            mount_path = "/home/runner/ComfyUI/custom_nodes"
+            mount_path = "/root/ComfyUI/custom_nodes"
           }
 
           resources {
