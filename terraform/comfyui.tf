@@ -55,6 +55,13 @@ variable "comfyui_gpu_enabled" {
   default     = false
 }
 
+variable "comfyui_hf_token" {
+  description = "Hugging Face API token for downloading gated models"
+  type        = string
+  default     = ""
+  sensitive   = true
+}
+
 # Namespace
 resource "kubernetes_namespace" "comfyui" {
   count = var.comfyui_enabled ? 1 : 0
@@ -188,6 +195,14 @@ resource "kubernetes_deployment" "comfyui" {
           port {
             container_port = 8188
             name           = "http"
+          }
+
+          dynamic "env" {
+            for_each = var.comfyui_hf_token != "" ? [1] : []
+            content {
+              name  = "HF_TOKEN"
+              value = var.comfyui_hf_token
+            }
           }
 
           volume_mount {

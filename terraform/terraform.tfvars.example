@@ -247,6 +247,7 @@
 #comfyui_memory_limit        = "8Gi"
 #comfyui_image_tag           = "latest"
 #comfyui_gpu_enabled         = false    # Set to true after NVIDIA device plugin is running
+#comfyui_hf_token            = ""       # Hugging Face token for downloading gated models
 
 # Homepage Dashboard (Application Portal)
 #homepage_enabled        = true     # Set to false to disable Homepage
