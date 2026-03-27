@@ -46,7 +46,7 @@ variable "comfyui_cpu_limit" {
 variable "comfyui_image_tag" {
   description = "ComfyUI container image tag (e.g. cu130-slim, cu126-slim)"
   type        = string
-  default     = "cu128-slim"
+  default     = "cu130-slim"
 }
 
 variable "comfyui_gpu_enabled" {

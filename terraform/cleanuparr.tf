@@ -15,13 +15,13 @@ variable "cleanuparr_enabled" {
 variable "cleanuparr_memory_request" {
   description = "Memory request for Cleanuparr container"
   type        = string
-  default     = "64Mi"
+  default     = "128Mi"
 }
 
 variable "cleanuparr_memory_limit" {
   description = "Memory limit for Cleanuparr container"
   type        = string
-  default     = "128Mi"
+  default     = "256Mi"
 }
 
 variable "cleanuparr_cpu_request" {

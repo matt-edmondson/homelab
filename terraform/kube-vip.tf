@@ -1,5 +1,5 @@
 # =============================================================================
-# kube-vip DHCP LoadBalancer - Self-Contained Module
+# kube-vip Static ARP LoadBalancer - Self-Contained Module
 # =============================================================================
 
 # Variables
@@ -15,8 +15,8 @@ variable "kube_vip_interface" {
   default     = "eth0"
 }
 
-# kube-vip LoadBalancer with DHCP support
-# Uses your router's DHCP server for automatic IP allocation
+# kube-vip LoadBalancer with static ARP
+# Uses statically assigned IPs specified on each LoadBalancer service
 
 # kube-vip RBAC
 resource "kubernetes_service_account" "kube_vip" {
@@ -226,30 +226,15 @@ resource "kubernetes_daemonset" "kube_vip" {
 
 # Outputs
 output "kube_vip_info" {
-  description = "kube-vip DHCP LoadBalancer information"
+  description = "kube-vip Static ARP LoadBalancer information"
   value = {
     version         = var.kube_vip_version
     interface       = var.kube_vip_interface
-    mode            = "DHCP"
+    mode            = "Static ARP"
     deployment_name = kubernetes_daemonset.kube_vip.metadata[0].name
     namespace       = "kube-system"
 
-    description = "LoadBalancer services get IPs dynamically from your router's DHCP server"
-
-    router_benefits = [
-      "LoadBalancer services get real DHCP IPs from your router",
-      "You can pin/reserve these IPs in your router's DHCP settings",
-      "Add DNS A records directly on your router for each service",
-      "No IP range conflicts - router DHCP handles all assignment"
-    ]
-
-    workflow = [
-      "1. kube-vip requests DHCP IP for each LoadBalancer service",
-      "2. Router assigns IP from DHCP pool to kube-vip",
-      "3. Check router's DHCP client list to see assigned IPs",
-      "4. Pin/reserve IPs in router DHCP settings",
-      "5. Add DNS A records on router (e.g., grafana.k8s.home -> IP)"
-    ]
+    description = "LoadBalancer services use statically assigned IPs via ARP — no DHCP dependency"
 
     commands = {
       check_pods     = "kubectl get pods -n kube-system -l app.kubernetes.io/name=kube-vip"

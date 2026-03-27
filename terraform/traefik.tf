@@ -171,11 +171,11 @@ resource "helm_release" "traefik" {
         }
       }
 
-      # Service configuration — single LoadBalancer via kube-vip DHCP
+      # Service configuration — single LoadBalancer via kube-vip static ARP
       service = {
         type = "LoadBalancer"
         spec = {
-          loadBalancerIP = "0.0.0.0"
+          loadBalancerIP = "192.168.0.238"
         }
         annotations = {
           "kube-vip.io/loadbalancerHostname" = "traefik"
