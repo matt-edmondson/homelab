@@ -7,7 +7,7 @@
 # Prerequisites (manual, not Terraform-managed):
 #   1. Enable IOMMU on Proxmox host: intel_iommu=on iommu=pt
 #   2. Blacklist nouveau: /etc/modprobe.d/blacklist.conf
-#   3. Configure VFIO for RTX 2060 PCI passthrough
+#   3. Configure VFIO for RTX 4080 PCI passthrough
 #   4. Pass GPU to K8s node VM via Proxmox UI
 #   5. Install nvidia-driver + nvidia-container-toolkit in guest VM
 # =============================================================================
@@ -58,7 +58,7 @@ output "nvidia_device_plugin_info" {
     prerequisites = {
       step_1 = "Enable IOMMU: add 'intel_iommu=on iommu=pt' to Proxmox host kernel cmdline"
       step_2 = "Blacklist nouveau: echo 'blacklist nouveau' >> /etc/modprobe.d/blacklist.conf && update-initramfs -u"
-      step_3 = "Configure VFIO: bind RTX 2060 PCI IDs to vfio-pci driver"
+      step_3 = "Configure VFIO: bind RTX 4080 PCI IDs to vfio-pci driver"
       step_4 = "Pass GPU to K8s node VM via Proxmox UI"
       step_5 = "Install nvidia-driver + nvidia-container-toolkit in guest VM"
       step_6 = "Label GPU node: kubectl label node <node> nvidia.com/gpu.present=true"

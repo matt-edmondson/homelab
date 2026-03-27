@@ -84,7 +84,6 @@ Copy `terraform.tfvars.example` to `terraform.tfvars` and populate values. The `
 - [dns.tf](terraform/dns.tf) — Azure DNS A records for each service subdomain (uses azurerm provider)
 - [bazarr.tf](terraform/bazarr.tf) — Bazarr subtitle management (Longhorn config PVC + NFS media mount, linuxserver/bazarr)
 - [jackett.tf](terraform/jackett.tf) — Jackett indexer support (Longhorn config PVC, linuxserver/jackett)
-- [huntarr.tf](terraform/huntarr.tf) — Huntarr missing media hunter (Longhorn config PVC, huntarr/huntarr)
 - [cleanuparr.tf](terraform/cleanuparr.tf) — Cleanuparr library cleanup (stateless, flmedicmento/cleanuparr)
 - [sabnzbd.tf](terraform/sabnzbd.tf) — SABnzbd Usenet client (Longhorn config PVC + NFS downloads mount, linuxserver/sabnzbd)
 - [notifiarr.tf](terraform/notifiarr.tf) — Notifiarr rich notifications (Longhorn config PVC + config Secret, golift/notifiarr)

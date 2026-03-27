@@ -88,12 +88,6 @@ variable "jackett_api_key" {
   sensitive   = true
 }
 
-variable "huntarr_api_key" {
-  description = "Huntarr API key for Homepage widget"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
 
 variable "sabnzbd_api_key" {
   description = "SABnzbd API key for Homepage widget"
@@ -279,13 +273,6 @@ locals {
         href        = "https://jackett.${var.traefik_domain}"
         icon        = "jackett"
         description = "Indexer Proxy"
-      }
-    }] : [],
-    var.huntarr_enabled ? [{
-      "Huntarr" = {
-        href        = "https://huntarr.${var.traefik_domain}"
-        icon        = "huntarr"
-        description = "Missing Media"
       }
     }] : [],
     var.cleanuparr_enabled ? [{

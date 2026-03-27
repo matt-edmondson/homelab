@@ -1031,56 +1031,6 @@ resource "kubernetes_manifest" "ingressroute_jackett" {
   ]
 }
 
-# Huntarr
-resource "kubernetes_manifest" "ingressroute_huntarr" {
-  count = var.huntarr_enabled ? 1 : 0
-
-  manifest = {
-    apiVersion = "traefik.io/v1alpha1"
-    kind       = "IngressRoute"
-    metadata = {
-      name      = "huntarr"
-      namespace = kubernetes_namespace.traefik.metadata[0].name
-      labels    = var.common_labels
-    }
-    spec = {
-      entryPoints = ["websecure"]
-      routes = [{
-        match = "Host(`huntarr.${var.traefik_domain}`)"
-        kind  = "Rule"
-        middlewares = [
-          {
-            name      = "crowdsec-bouncer"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
-          {
-            name      = "oauth-forward-auth"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
-        ]
-        services = [{
-          name      = kubernetes_service.huntarr[0].metadata[0].name
-          namespace = kubernetes_namespace.huntarr[0].metadata[0].name
-          port      = 80
-        }]
-      }]
-      tls = {
-        certResolver = "letsencrypt"
-        domains = [{
-          main = var.traefik_domain
-          sans = ["*.${var.traefik_domain}"]
-        }]
-      }
-    }
-  }
-
-  depends_on = [
-    helm_release.traefik,
-    kubernetes_service.huntarr,
-    kubernetes_manifest.middleware_crowdsec_bouncer,
-    kubernetes_manifest.middleware_oauth_forward_auth,
-  ]
-}
 
 # Cleanuparr
 resource "kubernetes_manifest" "ingressroute_cleanuparr" {

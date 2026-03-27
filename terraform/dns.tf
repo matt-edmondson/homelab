@@ -69,7 +69,6 @@ locals {
     var.emby_enabled ? { emby = "emby" } : {},
     var.bazarr_enabled ? { bazarr = "bazarr" } : {},
     var.jackett_enabled ? { jackett = "jackett" } : {},
-    var.huntarr_enabled ? { huntarr = "huntarr" } : {},
     var.cleanuparr_enabled ? { cleanuparr = "cleanuparr" } : {},
     var.sabnzbd_enabled ? { sabnzbd = "sabnzbd" } : {},
     var.notifiarr_enabled ? { notifiarr = "notifiarr" } : {},

@@ -171,6 +171,7 @@
 #emby_memory_limit        = "2Gi"
 #emby_image               = "emby/embyserver"    # Override for custom fork
 #emby_image_tag           = "latest"
+#emby_gpu_enabled         = false    # Set to true for NVENC hardware transcoding
 
 # Bazarr Subtitle Management (Wave 4)
 #bazarr_enabled        = true    # Set to false to disable Bazarr
@@ -185,13 +186,6 @@
 #jackett_memory_request = "128Mi"
 #jackett_memory_limit   = "512Mi"
 #jackett_image_tag      = "latest"
-
-# Huntarr Missing Media Hunter (Wave 4)
-#huntarr_enabled        = true    # Set to false to disable Huntarr
-#huntarr_storage_size   = "512Mi"
-#huntarr_memory_request = "64Mi"
-#huntarr_memory_limit   = "256Mi"
-#huntarr_image_tag      = "latest"
 
 # Cleanuparr Library Cleanup (Wave 4)
 #cleanuparr_enabled        = true    # Set to false to disable Cleanuparr
@@ -268,7 +262,6 @@
 #prowlarr_api_key     = ""
 #bazarr_api_key       = ""
 #jackett_api_key      = ""
-#huntarr_api_key      = ""
 #sabnzbd_api_key      = ""
 #qbittorrent_username = ""
 #qbittorrent_password = ""

@@ -56,6 +56,12 @@ variable "emby_image_tag" {
   default     = "latest"
 }
 
+variable "emby_gpu_enabled" {
+  description = "Request GPU resource for Emby hardware transcoding (requires NVIDIA device plugin)"
+  type        = bool
+  default     = false
+}
+
 # Namespace
 resource "kubernetes_namespace" "emby" {
   count = var.emby_enabled ? 1 : 0
@@ -228,10 +234,13 @@ resource "kubernetes_deployment" "emby" {
               memory = var.emby_memory_request
               cpu    = var.emby_cpu_request
             }
-            limits = {
-              memory = var.emby_memory_limit
-              cpu    = var.emby_cpu_limit
-            }
+            limits = merge(
+              {
+                memory = var.emby_memory_limit
+                cpu    = var.emby_cpu_limit
+              },
+              var.emby_gpu_enabled ? { "nvidia.com/gpu" = "1" } : {}
+            )
           }
 
           liveness_probe {
@@ -310,6 +319,7 @@ output "emby_info" {
     service_name = kubernetes_service.emby[0].metadata[0].name
     config_size  = var.emby_config_storage_size
     image        = "${var.emby_image}:${var.emby_image_tag}"
+    gpu_enabled  = var.emby_gpu_enabled
 
     access = {
       web_ui = "https://emby.${var.traefik_domain}"

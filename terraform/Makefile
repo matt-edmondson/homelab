@@ -26,7 +26,7 @@ MAKE := "$(MAKE)"
 	plan-n8n apply-n8n plan-postfix apply-postfix plan-squid apply-squid \
 	plan-prowlarr apply-prowlarr plan-sonarr apply-sonarr plan-radarr apply-radarr \
 	plan-qbittorrent apply-qbittorrent plan-emby apply-emby \
-	plan-bazarr apply-bazarr plan-jackett apply-jackett plan-huntarr apply-huntarr \
+	plan-bazarr apply-bazarr plan-jackett apply-jackett \
 	plan-cleanuparr apply-cleanuparr plan-sabnzbd apply-sabnzbd plan-notifiarr apply-notifiarr \
 	plan-flaresolverr apply-flaresolverr \
 	plan-nvidia apply-nvidia plan-ollama apply-ollama plan-qdrant apply-qdrant \
@@ -609,14 +609,6 @@ plan-jackett: check-vars check-init ## Plan Jackett indexer support
 		-target=kubernetes_deployment.jackett \
 		-target=kubernetes_service.jackett
 
-plan-huntarr: check-vars check-init ## Plan Huntarr missing media hunter
-	@echo "Planning Huntarr components..."
-	terraform plan \
-		-target=kubernetes_namespace.huntarr \
-		-target=kubernetes_persistent_volume_claim.huntarr_config \
-		-target=kubernetes_deployment.huntarr \
-		-target=kubernetes_service.huntarr
-
 plan-cleanuparr: check-vars check-init ## Plan Cleanuparr library cleanup
 	@echo "Planning Cleanuparr components..."
 	terraform plan \
@@ -737,7 +729,6 @@ plan-ingress: check-vars check-init ## Plan ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_emby \
 		-target=kubernetes_manifest.ingressroute_bazarr \
 		-target=kubernetes_manifest.ingressroute_jackett \
-		-target=kubernetes_manifest.ingressroute_huntarr \
 		-target=kubernetes_manifest.ingressroute_cleanuparr \
 		-target=kubernetes_manifest.ingressroute_sabnzbd \
 		-target=kubernetes_manifest.ingressroute_notifiarr \
@@ -970,14 +961,6 @@ apply-jackett: check-vars check-init ## Deploy Jackett indexer support
 		-target=kubernetes_deployment.jackett \
 		-target=kubernetes_service.jackett
 
-apply-huntarr: check-vars check-init ## Deploy Huntarr missing media hunter
-	@echo "Deploying Huntarr..."
-	terraform apply -auto-approve \
-		-target=kubernetes_namespace.huntarr \
-		-target=kubernetes_persistent_volume_claim.huntarr_config \
-		-target=kubernetes_deployment.huntarr \
-		-target=kubernetes_service.huntarr
-
 apply-cleanuparr: check-vars check-init ## Deploy Cleanuparr library cleanup
 	@echo "Deploying Cleanuparr..."
 	terraform apply -auto-approve \
@@ -1098,7 +1081,6 @@ apply-ingress: check-vars check-init ## Deploy ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_emby \
 		-target=kubernetes_manifest.ingressroute_bazarr \
 		-target=kubernetes_manifest.ingressroute_jackett \
-		-target=kubernetes_manifest.ingressroute_huntarr \
 		-target=kubernetes_manifest.ingressroute_cleanuparr \
 		-target=kubernetes_manifest.ingressroute_sabnzbd \
 		-target=kubernetes_manifest.ingressroute_notifiarr \
