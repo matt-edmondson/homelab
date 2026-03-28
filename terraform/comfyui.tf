@@ -213,6 +213,18 @@ resource "kubernetes_deployment" "comfyui" {
             mount_path = "/home/runner/ComfyUI/custom_nodes"
           }
 
+          volume_mount {
+            name       = "models"
+            sub_path   = "workflows"
+            mount_path = "/home/runner/ComfyUI/user/default/workflows"
+          }
+
+          volume_mount {
+            name       = "models"
+            sub_path   = "input"
+            mount_path = "/home/runner/ComfyUI/input"
+          }
+
           resources {
             requests = {
               memory = var.comfyui_memory_request
