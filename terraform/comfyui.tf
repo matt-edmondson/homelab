@@ -240,6 +240,18 @@ resource "kubernetes_deployment" "comfyui" {
             mount_path = "/home/runner/ComfyUI/input"
           }
 
+          volume_mount {
+            name       = "models"
+            sub_path   = "training_data"
+            mount_path = "/home/runner/ComfyUI/training_data"
+          }
+
+          volume_mount {
+            name       = "models"
+            mount_path = "/home/runner/ComfyUI/concepts.json"
+            sub_path   = "concepts.json"
+          }
+          
           resources {
             requests = {
               memory = var.comfyui_memory_request
