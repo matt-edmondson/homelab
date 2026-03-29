@@ -28,7 +28,7 @@ variable "comfyui_memory_request" {
 variable "comfyui_memory_limit" {
   description = "Memory limit for ComfyUI container"
   type        = string
-  default     = "8Gi"
+  default     = "16Gi"
 }
 
 variable "comfyui_cpu_request" {
