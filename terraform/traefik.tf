@@ -225,10 +225,6 @@ resource "helm_release" "traefik" {
           value = var.azure_dns_resource_group
         },
         {
-          name  = "AZURE_ZONE_NAME"
-          value = var.traefik_domain
-        },
-        {
           name  = "AZURE_PROPAGATION_TIMEOUT"
           value = "300"
         },
