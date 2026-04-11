@@ -221,6 +221,7 @@ resource "helm_release" "oauth2_proxy" {
         cookie-secure            = "true"
         cookie-domain            = ".${var.traefik_domain}"
         set-xauthrequest         = "true"
+        pass-access-token        = "true"
         reverse-proxy            = "true"
         set-authorization-header = "true"
         email-domain             = "*"
@@ -229,6 +230,7 @@ resource "helm_release" "oauth2_proxy" {
         skip-provider-button     = "true"
         redirect-url             = "https://auth.${var.traefik_domain}/oauth2/callback"
         upstream                 = "static://202"
+        scope                    = "user:email,repo"
       }
 
       service = {
