@@ -1440,7 +1440,7 @@ endif
 # Recovery targets (post-outage / node reboot)
 # =============================================================================
 
-WORKER_NODES := rainbow.home k8s02.home
+WORKER_NODES := rainbow.home k8s02.home celery.home
 SSH_OPTS := -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -o BatchMode=yes
 
 restart-kube-vip: ## Restart kube-vip DaemonSet to recover LoadBalancer VIP

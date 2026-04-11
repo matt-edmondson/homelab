@@ -28,7 +28,7 @@ variable "comfyui_memory_request" {
 variable "comfyui_memory_limit" {
   description = "Memory limit for ComfyUI container"
   type        = string
-  default     = "16Gi"
+  default     = "32Gi"
 }
 
 variable "comfyui_cpu_request" {
@@ -53,6 +53,12 @@ variable "comfyui_gpu_enabled" {
   description = "Request GPU resource for ComfyUI (requires NVIDIA device plugin)"
   type        = bool
   default     = false
+}
+
+variable "comfyui_gpu_min_vram_gb" {
+  description = "Minimum GPU VRAM in GB required for ComfyUI (0 = no VRAM constraint)"
+  type        = number
+  default     = 16
 }
 
 variable "comfyui_hf_token" {
@@ -251,7 +257,7 @@ resource "kubernetes_deployment" "comfyui" {
             mount_path = "/home/runner/ComfyUI/concepts.json"
             sub_path   = "concepts.json"
           }
-          
+
           resources {
             requests = {
               memory = var.comfyui_memory_request
@@ -284,6 +290,11 @@ resource "kubernetes_deployment" "comfyui" {
             period_seconds        = 10
           }
         }
+
+        node_selector = var.comfyui_gpu_enabled ? merge(
+          { "nvidia.com/gpu.present" = "true" },
+          var.comfyui_gpu_min_vram_gb > 0 ? { "gpu-vram-${var.comfyui_gpu_min_vram_gb}gb" = "true" } : {}
+        ) : {}
 
         volume {
           name = "comfyui-config"

@@ -62,6 +62,12 @@ variable "emby_gpu_enabled" {
   default     = false
 }
 
+variable "emby_gpu_min_vram_gb" {
+  description = "Minimum GPU VRAM in GB required for Emby transcoding (0 = no VRAM constraint)"
+  type        = number
+  default     = 8
+}
+
 # Namespace
 resource "kubernetes_namespace" "emby" {
   count = var.emby_enabled ? 1 : 0
@@ -261,6 +267,11 @@ resource "kubernetes_deployment" "emby" {
             period_seconds        = 5
           }
         }
+
+        node_selector = var.emby_gpu_enabled ? merge(
+          { "nvidia.com/gpu.present" = "true" },
+          var.emby_gpu_min_vram_gb > 0 ? { "gpu-vram-${var.emby_gpu_min_vram_gb}gb" = "true" } : {}
+        ) : {}
 
         volume {
           name = "emby-config"

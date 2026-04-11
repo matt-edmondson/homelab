@@ -55,6 +55,12 @@ variable "ollama_gpu_enabled" {
   default     = false
 }
 
+variable "ollama_gpu_min_vram_gb" {
+  description = "Minimum GPU VRAM in GB required for Ollama (0 = no VRAM constraint)"
+  type        = number
+  default     = 12
+}
+
 # Namespace
 resource "kubernetes_namespace" "ollama" {
   count = var.ollama_enabled ? 1 : 0
@@ -237,6 +243,11 @@ resource "kubernetes_deployment" "ollama" {
             period_seconds        = 5
           }
         }
+
+        node_selector = var.ollama_gpu_enabled ? merge(
+          { "nvidia.com/gpu.present" = "true" },
+          var.ollama_gpu_min_vram_gb > 0 ? { "gpu-vram-${var.ollama_gpu_min_vram_gb}gb" = "true" } : {}
+        ) : {}
 
         volume {
           name = "ollama-config"

@@ -172,6 +172,7 @@
 #emby_image               = "emby/embyserver"    # Override for custom fork
 #emby_image_tag           = "latest"
 #emby_gpu_enabled         = false    # Set to true for NVENC hardware transcoding
+#emby_gpu_min_vram_gb     = 8       # Minimum GPU VRAM in GB (0 = no constraint)
 
 # Bazarr Subtitle Management (Wave 4)
 #bazarr_enabled        = true    # Set to false to disable Bazarr
@@ -214,9 +215,17 @@
 #flaresolverr_memory_limit   = "1Gi"
 #flaresolverr_image_tag      = "latest"
 
-# NVIDIA Device Plugin (Wave 5 — enable after GPU passthrough is configured)
+# NVIDIA Device Plugin (Wave 5 — enable after GPU nodes are configured)
 #nvidia_device_plugin_enabled       = false
 #nvidia_device_plugin_chart_version = "0.17.0"
+
+# GPU Node VRAM Map — maps node hostname to VRAM in GB
+# Terraform applies cumulative VRAM tier labels (e.g. a 12GB node gets gpu-vram-8gb, gpu-vram-12gb)
+# GPU workloads use these labels to find nodes with enough VRAM
+#gpu_nodes = {
+#  "rainbow.home" = 16
+#  "celery.home"  = 12
+#}
 
 # Ollama LLM Inference (Wave 5)
 #ollama_enabled             = true    # Set to false to disable Ollama
@@ -225,6 +234,7 @@
 #ollama_memory_limit        = "8Gi"
 #ollama_image_tag           = "latest"
 #ollama_gpu_enabled         = false    # Set to true after NVIDIA device plugin is running
+#ollama_gpu_min_vram_gb     = 12      # Minimum GPU VRAM in GB (0 = no constraint)
 
 # Qdrant Vector Database (Wave 5)
 #qdrant_enabled        = true    # Set to false to disable Qdrant
@@ -247,6 +257,7 @@
 #comfyui_memory_limit        = "8Gi"
 #comfyui_image_tag           = "latest"
 #comfyui_gpu_enabled         = false    # Set to true after NVIDIA device plugin is running
+#comfyui_gpu_min_vram_gb     = 16      # Minimum GPU VRAM in GB (0 = no constraint)
 #comfyui_hf_token            = ""       # Hugging Face token for downloading gated models
 
 # Homepage Dashboard (Application Portal)
