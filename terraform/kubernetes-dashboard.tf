@@ -46,7 +46,11 @@ resource "helm_release" "headlamp" {
       replicaCount = 1
 
       config = {
-        baseURL = ""
+        baseURL   = ""
+        inCluster = false
+        extraArgs = [
+          "-kubeconfig=/etc/headlamp/kubeconfig",
+        ]
       }
 
       clusterRoleBinding = {
@@ -73,6 +77,62 @@ resource "helm_release" "headlamp" {
           memory = "256Mi"
         }
       }
+
+      volumes = [
+        {
+          name = "kubeconfig"
+          configMap = {
+            name = "headlamp-kubeconfig"
+          }
+        },
+      ]
+
+      volumeMounts = [
+        {
+          name      = "kubeconfig"
+          mountPath = "/etc/headlamp/kubeconfig"
+          subPath   = "kubeconfig"
+          readOnly  = true
+        },
+      ]
+
+      extraManifests = [
+        yamlencode({
+          apiVersion = "v1"
+          kind       = "ConfigMap"
+          metadata = {
+            name      = "headlamp-kubeconfig"
+            namespace = kubernetes_namespace.headlamp[0].metadata[0].name
+          }
+          data = {
+            kubeconfig = yamlencode({
+              apiVersion      = "v1"
+              kind            = "Config"
+              current-context = "in-cluster"
+              clusters = [{
+                name = "in-cluster"
+                cluster = {
+                  certificate-authority = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
+                  server                = "https://kubernetes.default.svc"
+                }
+              }]
+              contexts = [{
+                name = "in-cluster"
+                context = {
+                  cluster = "in-cluster"
+                  user    = "headlamp-admin"
+                }
+              }]
+              users = [{
+                name = "headlamp-admin"
+                user = {
+                  tokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+                }
+              }]
+            })
+          }
+        }),
+      ]
     })
   ]
 
