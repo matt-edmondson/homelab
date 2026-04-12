@@ -17,6 +17,7 @@ variable "anthropic_api_key" {
   description = "Anthropic API key injected into sandbox pods as a Secret"
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 variable "claudecluster_backend_image_tag" {
