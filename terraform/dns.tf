@@ -78,6 +78,8 @@ locals {
     var.chromadb_enabled ? { chromadb = "chromadb" } : {},
     var.comfyui_enabled ? { comfyui = "comfyui" } : {},
     var.homepage_enabled ? { homepage = "homepage" } : {},
+    # ClaudeCluster
+    var.claudecluster_enabled ? { claude = "claude" } : {},
   )
 }
 
