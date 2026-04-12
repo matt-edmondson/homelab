@@ -1484,3 +1484,56 @@ resource "kubernetes_manifest" "ingressroute_static_site" {
     kubernetes_manifest.middleware_crowdsec_bouncer,
   ]
 }
+
+# ClaudeCluster — Management UI, Chat UI, and API
+# Sandbox-specific routes (/s/{name}/) are created dynamically by the backend.
+# Traefik resolves rule conflicts by specificity: PathPrefix('/s/name/') beats Host-only.
+resource "kubernetes_manifest" "ingressroute_claudecluster" {
+  count = var.claudecluster_enabled ? 1 : 0
+
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "IngressRoute"
+    metadata = {
+      name      = "claudecluster"
+      namespace = kubernetes_namespace.traefik.metadata[0].name
+      labels    = var.common_labels
+    }
+    spec = {
+      entryPoints = ["websecure"]
+      routes = [{
+        match = "Host(`claude.${var.traefik_domain}`)"
+        kind  = "Rule"
+        middlewares = [
+          {
+            name      = "crowdsec-bouncer"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+          {
+            name      = "oauth-forward-auth"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+        ]
+        services = [{
+          name      = kubernetes_service.claudecluster_backend[0].metadata[0].name
+          namespace = kubernetes_namespace.claude_sandbox[0].metadata[0].name
+          port      = 80
+        }]
+      }]
+      tls = {
+        certResolver = "letsencrypt"
+        domains = [{
+          main = var.traefik_domain
+          sans = ["*.${var.traefik_domain}"]
+        }]
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.traefik,
+    kubernetes_service.claudecluster_backend,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
+    kubernetes_manifest.middleware_oauth_forward_auth,
+  ]
+}
