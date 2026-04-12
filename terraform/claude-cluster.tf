@@ -154,3 +154,139 @@ resource "kubernetes_secret" "anthropic_api_key" {
 
   depends_on = [kubernetes_namespace.claude_sandboxes]
 }
+
+# Backend Deployment — management API + React SPA
+resource "kubernetes_deployment" "claudecluster_backend" {
+  count = var.claudecluster_enabled ? 1 : 0
+
+  metadata {
+    name      = "claudecluster-backend"
+    namespace = kubernetes_namespace.claude_sandbox[0].metadata[0].name
+    labels = merge(var.common_labels, {
+      app = "claudecluster-backend"
+    })
+  }
+
+  spec {
+    replicas = 1
+
+    strategy {
+      type = "RollingUpdate"
+    }
+
+    selector {
+      match_labels = {
+        app = "claudecluster-backend"
+      }
+    }
+
+    template {
+      metadata {
+        labels = merge(var.common_labels, {
+          app = "claudecluster-backend"
+        })
+      }
+
+      spec {
+        service_account_name = kubernetes_service_account.claudecluster_backend[0].metadata[0].name
+
+        container {
+          name  = "backend"
+          image = "ghcr.io/matt-edmondson/claudecluster/backend:${var.claudecluster_backend_image_tag}"
+
+          port {
+            container_port = 8080
+          }
+
+          env {
+            name  = "PORT"
+            value = "8080"
+          }
+
+          env {
+            name  = "DOMAIN"
+            value = var.traefik_domain
+          }
+
+          env {
+            name  = "SANDBOXES_NAMESPACE"
+            value = "claude-sandboxes"
+          }
+
+          env {
+            name  = "SANDBOX_IMAGE"
+            value = "ghcr.io/matt-edmondson/claudecluster/sandbox:${var.claudecluster_sandbox_image_tag}"
+          }
+
+          env {
+            name  = "AGENT_IMAGE"
+            value = "ghcr.io/matt-edmondson/claudecluster/agent:${var.claudecluster_agent_image_tag}"
+          }
+
+          liveness_probe {
+            http_get {
+              path = "/healthz"
+              port = 8080
+            }
+            initial_delay_seconds = 10
+            period_seconds        = 15
+          }
+
+          readiness_probe {
+            http_get {
+              path = "/healthz"
+              port = 8080
+            }
+            initial_delay_seconds = 5
+            period_seconds        = 5
+          }
+
+          resources {
+            requests = {
+              memory = "128Mi"
+              cpu    = "50m"
+            }
+            limits = {
+              memory = "256Mi"
+              cpu    = "200m"
+            }
+          }
+        }
+      }
+    }
+  }
+
+  depends_on = [
+    kubernetes_namespace.claude_sandbox,
+    kubernetes_service_account.claudecluster_backend,
+    kubernetes_role_binding.claudecluster_backend,
+  ]
+}
+
+# Service — ClusterIP; Traefik IngressRoute routes to port 80 → 8080
+resource "kubernetes_service" "claudecluster_backend" {
+  count = var.claudecluster_enabled ? 1 : 0
+
+  metadata {
+    name      = "claudecluster-backend"
+    namespace = kubernetes_namespace.claude_sandbox[0].metadata[0].name
+    labels = merge(var.common_labels, {
+      app = "claudecluster-backend"
+    })
+  }
+
+  spec {
+    type = "ClusterIP"
+    selector = {
+      app = "claudecluster-backend"
+    }
+
+    port {
+      protocol    = "TCP"
+      port        = 80
+      target_port = 8080
+    }
+  }
+
+  depends_on = [kubernetes_deployment.claudecluster_backend]
+}
