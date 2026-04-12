@@ -74,13 +74,14 @@ resource "kubernetes_service_account" "claudecluster_backend" {
   depends_on = [kubernetes_namespace.claude_sandbox]
 }
 
-# ClusterRole — scoped to claude-sandboxes via RoleBinding below
-resource "kubernetes_cluster_role" "claudecluster_backend" {
+# Role — namespace-scoped to claude-sandboxes (backend only manages resources there)
+resource "kubernetes_role" "claudecluster_backend" {
   count = var.claudecluster_enabled ? 1 : 0
 
   metadata {
-    name   = "claudecluster-backend"
-    labels = var.common_labels
+    name      = "claudecluster-backend"
+    namespace = kubernetes_namespace.claude_sandboxes[0].metadata[0].name
+    labels    = var.common_labels
   }
 
   rule {
@@ -106,20 +107,23 @@ resource "kubernetes_cluster_role" "claudecluster_backend" {
     resources  = ["ingressroutes"]
     verbs      = ["get", "list", "create", "delete"]
   }
+
+  depends_on = [kubernetes_namespace.claude_sandboxes]
 }
 
-resource "kubernetes_cluster_role_binding" "claudecluster_backend" {
+resource "kubernetes_role_binding" "claudecluster_backend" {
   count = var.claudecluster_enabled ? 1 : 0
 
   metadata {
-    name   = "claudecluster-backend"
-    labels = var.common_labels
+    name      = "claudecluster-backend"
+    namespace = kubernetes_namespace.claude_sandboxes[0].metadata[0].name
+    labels    = var.common_labels
   }
 
   role_ref {
     api_group = "rbac.authorization.k8s.io"
-    kind      = "ClusterRole"
-    name      = kubernetes_cluster_role.claudecluster_backend[0].metadata[0].name
+    kind      = "Role"
+    name      = kubernetes_role.claudecluster_backend[0].metadata[0].name
   }
 
   subject {
@@ -129,7 +133,7 @@ resource "kubernetes_cluster_role_binding" "claudecluster_backend" {
   }
 
   depends_on = [
-    kubernetes_cluster_role.claudecluster_backend,
+    kubernetes_role.claudecluster_backend,
     kubernetes_service_account.claudecluster_backend,
   ]
 }
