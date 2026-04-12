@@ -287,3 +287,10 @@
 #  "environment" = "homelab"
 #  "cluster"     = "main"
 #}
+
+# ClaudeCluster — Self-Hosted Claude Code Sandbox Platform
+#claudecluster_enabled             = true     # Set to false to disable ClaudeCluster
+#anthropic_api_key                 = "sk-ant-..."   # Required: Anthropic API key for sandbox agents
+#claudecluster_backend_image_tag   = "latest"
+#claudecluster_sandbox_image_tag   = "latest"
+#claudecluster_agent_image_tag     = "latest"
