@@ -100,7 +100,7 @@ resource "kubernetes_role" "claudecluster_backend" {
   rule {
     api_groups = [""]
     resources  = ["secrets"]
-    verbs      = ["get", "list", "create", "update"]
+    verbs      = ["get", "list", "create", "update", "delete"]
   }
 
   rule {
