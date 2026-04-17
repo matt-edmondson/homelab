@@ -97,3 +97,43 @@ resource "kubernetes_namespace" "arc_runners" {
     })
   }
 }
+
+# GitHub App credential secrets — one per scale set
+# The gha-runner-scale-set chart reads these three keys: github_app_id,
+# github_app_installation_id, github_app_private_key.
+
+resource "kubernetes_secret" "arc_ktsu_dev_github_app" {
+  count = var.arc_enabled ? 1 : 0
+
+  metadata {
+    name      = "arc-ktsu-dev-github-app"
+    namespace = kubernetes_namespace.arc_runners[0].metadata[0].name
+    labels    = var.common_labels
+  }
+
+  data = {
+    github_app_id              = var.arc_github_app_id
+    github_app_installation_id = var.arc_github_app_installation_id_ktsu_dev
+    github_app_private_key     = var.arc_github_app_private_key
+  }
+
+  depends_on = [kubernetes_namespace.arc_runners]
+}
+
+resource "kubernetes_secret" "arc_cardapp_github_app" {
+  count = var.arc_enabled ? 1 : 0
+
+  metadata {
+    name      = "arc-cardapp-github-app"
+    namespace = kubernetes_namespace.arc_runners[0].metadata[0].name
+    labels    = var.common_labels
+  }
+
+  data = {
+    github_app_id              = var.arc_github_app_id
+    github_app_installation_id = var.arc_github_app_installation_id_cardapp
+    github_app_private_key     = var.arc_github_app_private_key
+  }
+
+  depends_on = [kubernetes_namespace.arc_runners]
+}
