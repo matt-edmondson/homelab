@@ -111,6 +111,8 @@ resource "kubernetes_secret" "arc_ktsu_dev_github_app" {
     labels    = var.common_labels
   }
 
+  type = "Opaque"
+
   data = {
     github_app_id              = var.arc_github_app_id
     github_app_installation_id = var.arc_github_app_installation_id_ktsu_dev
@@ -128,6 +130,8 @@ resource "kubernetes_secret" "arc_cardapp_github_app" {
     namespace = kubernetes_namespace.arc_runners[0].metadata[0].name
     labels    = var.common_labels
   }
+
+  type = "Opaque"
 
   data = {
     github_app_id              = var.arc_github_app_id
