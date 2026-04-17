@@ -263,5 +263,9 @@ resource "helm_release" "arc_cardapp" {
   depends_on = [
     helm_release.arc_controller,
     kubernetes_secret.arc_cardapp_github_app,
+    # Serialize the two scale set installs — the hashicorp/helm 3.x provider on
+    # Windows hits a temp-file rename race when both installs download the same
+    # OCI chart in parallel.
+    helm_release.arc_ktsu_dev,
   ]
 }
