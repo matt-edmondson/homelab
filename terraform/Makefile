@@ -32,6 +32,7 @@ MAKE := "$(MAKE)"
 	plan-nvidia apply-nvidia plan-ollama apply-ollama plan-qdrant apply-qdrant \
 	plan-chromadb apply-chromadb plan-comfyui apply-comfyui \
 	plan-homepage apply-homepage \
+	plan-runners apply-runners debug-runners \
 	show-structure quick-debug taint-component \
 	recover restart-kube-vip clean-longhorn-mounts
 
@@ -696,6 +697,17 @@ plan-homepage: check-vars check-init ## Plan Homepage dashboard
 		-target=kubernetes_deployment.homepage \
 		-target=kubernetes_service.homepage
 
+plan-runners: check-vars check-init ## Plan GitHub self-hosted runners (ARC)
+	@echo "Planning GitHub runners (ARC)..."
+	terraform plan \
+		-target=kubernetes_namespace.arc_system \
+		-target=kubernetes_namespace.arc_runners \
+		-target=kubernetes_secret.arc_ktsu_dev_github_app \
+		-target=kubernetes_secret.arc_cardapp_github_app \
+		-target=helm_release.arc_controller \
+		-target=helm_release.arc_ktsu_dev \
+		-target=helm_release.arc_cardapp
+
 plan-traefik: check-vars check-init ## Plan Traefik reverse proxy
 	@echo "Planning Traefik components..."
 	terraform plan \
@@ -1048,6 +1060,17 @@ apply-homepage: check-vars check-init ## Deploy Homepage dashboard
 		-target=kubernetes_deployment.homepage \
 		-target=kubernetes_service.homepage
 
+apply-runners: check-vars check-init ## Deploy GitHub self-hosted runners (ARC)
+	@echo "Deploying GitHub runners (ARC)..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.arc_system \
+		-target=kubernetes_namespace.arc_runners \
+		-target=kubernetes_secret.arc_ktsu_dev_github_app \
+		-target=kubernetes_secret.arc_cardapp_github_app \
+		-target=helm_release.arc_controller \
+		-target=helm_release.arc_ktsu_dev \
+		-target=helm_release.arc_cardapp
+
 apply-traefik: check-vars check-init ## Deploy Traefik reverse proxy
 	@echo "Deploying Traefik..."
 	terraform apply -auto-approve \
@@ -1227,6 +1250,22 @@ debug-ingress: ## Debug ingress routes
 	@echo ""
 	@echo "ServersTransports:"
 	@kubectl get serverstransports -A 2>/dev/null || echo "No ServersTransports found"
+
+debug-runners: ## Debug GitHub runners (ARC) — show controller, listeners, runner pods
+	@echo "=== ARC controller ==="
+	kubectl get pods -n arc-system -l app.kubernetes.io/name=gha-rs-controller
+	@echo ""
+	@echo "=== Runner listeners ==="
+	kubectl get pods -n arc-runners -l app.kubernetes.io/component=runner-scale-set-listener
+	@echo ""
+	@echo "=== Runner pods (ephemeral) ==="
+	kubectl get pods -n arc-runners -l app.kubernetes.io/component=runner
+	@echo ""
+	@echo "=== AutoscalingRunnerSets ==="
+	kubectl get autoscalingrunnersets.actions.github.com -n arc-runners
+	@echo ""
+	@echo "=== Controller logs (tail 50) ==="
+	kubectl logs -n arc-system -l app.kubernetes.io/name=gha-rs-controller --tail=50
 
 # Component-specific Status
 status-networking: ## Show networking component status
