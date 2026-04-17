@@ -88,6 +88,7 @@ Copy `terraform.tfvars.example` to `terraform.tfvars` and populate values. The `
 - [sabnzbd.tf](terraform/sabnzbd.tf) — SABnzbd Usenet client (Longhorn config PVC + NFS downloads mount, linuxserver/sabnzbd)
 - [notifiarr.tf](terraform/notifiarr.tf) — Notifiarr rich notifications (Longhorn config PVC + config Secret, golift/notifiarr)
 - [flaresolverr.tf](terraform/flaresolverr.tf) — Flaresolverr CAPTCHA solver (stateless, internal-only — no IngressRoute/DNS)
+- [github-runners.tf](terraform/github-runners.tf) — GitHub Actions Runner Controller (ARC) — controller + two `gha-runner-scale-set` Helm releases (ktsu-dev org-scoped, matt-edmondson/CardApp repo-scoped), DinD sidecar, GitHub App auth, no ingress
 - [nvidia.tf](terraform/nvidia.tf) — NVIDIA device plugin via Helm (GPU resource scheduling, conditional on `nvidia_device_plugin_enabled`)
 - [ollama.tf](terraform/ollama.tf) — Ollama LLM inference (Longhorn config PVC + NFS models mount, GPU nodeSelector, ollama/ollama)
 - [qdrant.tf](terraform/qdrant.tf) — Qdrant vector database (Longhorn data PVC, qdrant/qdrant)
