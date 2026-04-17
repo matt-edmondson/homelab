@@ -137,3 +137,19 @@ resource "kubernetes_secret" "arc_cardapp_github_app" {
 
   depends_on = [kubernetes_namespace.arc_runners]
 }
+
+# ARC Controller — singleton, watches AutoscalingRunnerSet CRs cluster-wide
+resource "helm_release" "arc_controller" {
+  count = var.arc_enabled ? 1 : 0
+
+  name       = "arc"
+  repository = "oci://ghcr.io/actions/actions-runner-controller-charts"
+  chart      = "gha-runner-scale-set-controller"
+  version    = var.arc_controller_chart_version
+  namespace  = kubernetes_namespace.arc_system[0].metadata[0].name
+
+  # Default values are sufficient — controller watches all namespaces by default.
+  # Chart docs: https://github.com/actions/actions-runner-controller/blob/master/charts/gha-runner-scale-set-controller/README.md
+
+  depends_on = [kubernetes_namespace.arc_system]
+}
