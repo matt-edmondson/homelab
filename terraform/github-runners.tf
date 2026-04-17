@@ -153,3 +153,60 @@ resource "helm_release" "arc_controller" {
 
   depends_on = [kubernetes_namespace.arc_system]
 }
+
+# Scale set — ktsu-dev organization
+# Workflows target these runners with: runs-on: ktsu-dev-runners
+resource "helm_release" "arc_ktsu_dev" {
+  count = var.arc_enabled ? 1 : 0
+
+  name       = "ktsu-dev-runners"
+  repository = "oci://ghcr.io/actions/actions-runner-controller-charts"
+  chart      = "gha-runner-scale-set"
+  version    = var.arc_runner_set_chart_version
+  namespace  = kubernetes_namespace.arc_runners[0].metadata[0].name
+
+  values = [
+    yamlencode({
+      githubConfigUrl    = "https://github.com/ktsu-dev"
+      githubConfigSecret = kubernetes_secret.arc_ktsu_dev_github_app[0].metadata[0].name
+
+      runnerScaleSetName = "ktsu-dev-runners"
+
+      minRunners = 0
+      maxRunners = var.arc_ktsu_dev_max_runners
+
+      # DinD mode — chart injects a privileged docker:dind sidecar and wires
+      # DOCKER_HOST into the runner container. No custom sidecar needed.
+      containerMode = {
+        type = "dind"
+      }
+
+      template = {
+        spec = {
+          containers = [
+            {
+              name    = "runner"
+              image   = "ghcr.io/actions/actions-runner:latest"
+              command = ["/home/runner/run.sh"]
+              resources = {
+                requests = {
+                  cpu    = "250m"
+                  memory = "1Gi"
+                }
+                limits = {
+                  cpu    = "2"
+                  memory = "4Gi"
+                }
+              }
+            },
+          ]
+        }
+      }
+    }),
+  ]
+
+  depends_on = [
+    helm_release.arc_controller,
+    kubernetes_secret.arc_ktsu_dev_github_app,
+  ]
+}
