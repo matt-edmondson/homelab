@@ -61,12 +61,13 @@ resource "helm_release" "devtron" {
       }
 
       global = {
-        storageClass = "longhorn"
+        storageClass = data.kubernetes_storage_class.longhorn.metadata[0].name
       }
 
       postgres = {
         persistence = {
-          volumeSize = var.devtron_postgres_storage_size
+          storageClass = data.kubernetes_storage_class.longhorn.metadata[0].name
+          volumeSize   = var.devtron_postgres_storage_size
         }
       }
 
