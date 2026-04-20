@@ -325,3 +325,8 @@
 #MIIEpAIBAAKCAQEA...
 #-----END RSA PRIVATE KEY-----
 #EOT
+
+# Devtron Kubernetes Dashboard (dashboard-only, no CI/CD)
+#devtron_enabled               = true    # Set to false to disable Devtron
+#devtron_chart_version         = "0.23.2"
+#devtron_postgres_storage_size = "20Gi"
