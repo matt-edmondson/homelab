@@ -49,7 +49,7 @@ variable "arc_cardapp_max_runners" {
 variable "arc_runner_image" {
   description = "Container image for the ARC runner pods. Defaults to the homelab-runner overlay (official actions-runner + gh CLI). Built by .github/workflows/build-runner-image.yml."
   type        = string
-  default     = "ghcr.io/matt-edmondson/homelab-runner:2.333.1-1"
+  default     = "ghcr.io/matt-edmondson/homelab-runner:2.333.1-2"
 }
 
 # Variables — GHCR pull credentials (for private arc_runner_image)
@@ -240,14 +240,25 @@ resource "helm_release" "arc_ktsu_dev" {
               name    = "runner"
               image   = var.arc_runner_image
               command = ["/home/runner/run.sh"]
+              # Claude Code invokes bwrap for Bash tool calls in SDK/headless
+              # mode. Ubuntu 24.04+ host kernel restricts unprivileged user
+              # namespaces (kernel.apparmor_restrict_unprivileged_userns=1),
+              # and container-scoped AppArmor/seccomp/SYS_ADMIN aren't enough
+              # because bwrap runs as non-root (UID 1001) and needs effective
+              # caps. privileged gives effective caps to the runner user.
+              # The DinD sidecar is already privileged, so this doesn't widen
+              # the pod's overall trust boundary.
+              securityContext = {
+                privileged = true
+              }
               resources = {
                 requests = {
-                  cpu    = "250m"
-                  memory = "1Gi"
+                  cpu    = "500m"
+                  memory = "2Gi"
                 }
                 limits = {
-                  cpu    = "2"
-                  memory = "4Gi"
+                  cpu    = "4"
+                  memory = "8Gi"
                 }
               }
             },
@@ -297,14 +308,18 @@ resource "helm_release" "arc_cardapp" {
               name    = "runner"
               image   = var.arc_runner_image
               command = ["/home/runner/run.sh"]
+              # See ktsu-dev scale set above for rationale.
+              securityContext = {
+                privileged = true
+              }
               resources = {
                 requests = {
-                  cpu    = "250m"
-                  memory = "1Gi"
+                  cpu    = "500m"
+                  memory = "2Gi"
                 }
                 limits = {
-                  cpu    = "2"
-                  memory = "4Gi"
+                  cpu    = "4"
+                  memory = "8Gi"
                 }
               }
             },
