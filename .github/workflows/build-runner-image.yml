@@ -14,7 +14,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository_owner }}/homelab-runner
   RUNNER_BASE_VERSION: "2.333.1"
-  OVERLAY_REVISION: "1"
+  OVERLAY_REVISION: "2"
 
 jobs:
   build-and-push:
