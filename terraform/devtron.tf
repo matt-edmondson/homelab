@@ -102,7 +102,7 @@ output "devtron_info" {
     }
 
     commands = {
-      admin_password = "kubectl -n ${kubernetes_namespace.devtron[0].metadata[0].name} get secret devtron-secret -o jsonpath='{.data.ACD_PASSWORD}' | base64 -d"
+      admin_password = "kubectl -n ${kubernetes_namespace.devtron[0].metadata[0].name} get secret devtron-secret -o jsonpath='{.data.ADMIN_PASSWORD}' | base64 -d"
       check_pods     = "kubectl get pods -n ${kubernetes_namespace.devtron[0].metadata[0].name}"
       check_pvcs     = "kubectl get pvc -n ${kubernetes_namespace.devtron[0].metadata[0].name}"
       check_service  = "kubectl get svc -n ${kubernetes_namespace.devtron[0].metadata[0].name}"

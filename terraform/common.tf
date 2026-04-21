@@ -192,10 +192,13 @@ resource "kubernetes_cluster_role_binding" "system_node_proxier" {
 
   # kubeadm also binds the legacy User "system:kube-proxy". Declaring it
   # here keeps terraform plan idempotent instead of removing it every run.
+  # The kubernetes provider always serialises a namespace field on subjects,
+  # so set the default explicitly to avoid a one-line diff on every plan.
   subject {
     kind      = "User"
     name      = "system:kube-proxy"
     api_group = "rbac.authorization.k8s.io"
+    namespace = "default"
   }
 }
 

@@ -397,6 +397,13 @@ locals {
         description = "Image Generation"
       }
     }] : [],
+    var.claudecluster_enabled ? [{
+      "ClaudeCluster" = {
+        href        = "https://claude.${var.traefik_domain}"
+        icon        = "claude"
+        description = "Claude Code Sandboxes"
+      }
+    }] : [],
   )
 
   homepage_infra_services = concat(
@@ -437,6 +444,13 @@ locals {
         href        = "https://n8n.${var.traefik_domain}"
         icon        = "n8n"
         description = "Workflow Automation"
+      }
+    }] : [],
+    var.devtron_enabled ? [{
+      "Devtron" = {
+        href        = "https://devtron.${var.traefik_domain}"
+        icon        = "devtron"
+        description = "K8s Dashboard"
       }
     }] : [],
   )

@@ -16,7 +16,7 @@ variable "kubernetes_dashboard_enabled" {
 variable "headlamp_chart_version" {
   description = "Version of Headlamp Helm chart"
   type        = string
-  default     = "0.40.0"
+  default     = "0.41.0"
 }
 
 # Namespace

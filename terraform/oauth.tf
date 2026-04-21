@@ -228,6 +228,7 @@ resource "helm_release" "oauth2_proxy" {
         whitelist-domain         = ".${var.traefik_domain}"
         cookie-csrf-per-request  = "true"
         skip-provider-button     = "true"
+        skip-auth-route          = "^/(manifest\\.json|favicon.*|static-plugins/.*)$"
         redirect-url             = "https://auth.${var.traefik_domain}/oauth2/callback"
         upstream                 = "static://202"
         scope                    = "user:email,repo"
