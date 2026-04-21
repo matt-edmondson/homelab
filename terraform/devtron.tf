@@ -109,6 +109,4 @@ output "devtron_info" {
       view_logs      = "kubectl logs -n ${kubernetes_namespace.devtron[0].metadata[0].name} -l app=devtron -f"
     }
   } : null
-
-  sensitive = true
 }
