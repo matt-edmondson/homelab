@@ -144,6 +144,32 @@ resource "kubernetes_cluster_role" "system_node_proxier" {
     resources  = ["events"]
     verbs      = ["create", "patch"]
   }
+
+  # Upstream kubeadm-generated rules the cluster reconciles onto the role.
+  # Kept explicit here so terraform plan doesn't try to strip them every run.
+  rule {
+    api_groups = [""]
+    resources  = ["events"]
+    verbs      = ["update"]
+  }
+
+  rule {
+    api_groups = ["events.k8s.io"]
+    resources  = ["events"]
+    verbs      = ["create"]
+  }
+
+  rule {
+    api_groups = ["events.k8s.io"]
+    resources  = ["events"]
+    verbs      = ["patch"]
+  }
+
+  rule {
+    api_groups = ["events.k8s.io"]
+    resources  = ["events"]
+    verbs      = ["update"]
+  }
 }
 
 resource "kubernetes_cluster_role_binding" "system_node_proxier" {
@@ -162,6 +188,14 @@ resource "kubernetes_cluster_role_binding" "system_node_proxier" {
     kind      = "ServiceAccount"
     name      = "kube-proxy"
     namespace = "kube-system"
+  }
+
+  # kubeadm also binds the legacy User "system:kube-proxy". Declaring it
+  # here keeps terraform plan idempotent instead of removing it every run.
+  subject {
+    kind      = "User"
+    name      = "system:kube-proxy"
+    api_group = "rbac.authorization.k8s.io"
   }
 }
 

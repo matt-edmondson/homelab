@@ -52,19 +52,9 @@ variable "arc_runner_image" {
   default     = "ghcr.io/matt-edmondson/homelab-runner:2.333.1-2"
 }
 
-# Variables — GHCR pull credentials (for private arc_runner_image)
-variable "arc_ghcr_username" {
-  description = "GitHub username used with arc_ghcr_token to pull the private runner image from GHCR."
-  type        = string
-  default     = "matt-edmondson"
-}
-
-variable "arc_ghcr_token" {
-  description = "GitHub PAT with read:packages scope for pulling the private runner image from GHCR. Leave empty if the image is public."
-  type        = string
-  sensitive   = true
-  default     = ""
-}
+# GHCR pull credentials for the private arc_runner_image are sourced from the
+# shared var.ghcr_username / var.ghcr_token declared in ghcr-pull.tf. The
+# runner namespace (arc-runners) must appear in var.ghcr_pull_namespaces.
 
 # Variables — GitHub App credentials
 variable "arc_github_app_id" {
@@ -162,32 +152,8 @@ resource "kubernetes_secret" "arc_cardapp_github_app" {
   depends_on = [kubernetes_namespace.arc_runners]
 }
 
-# GHCR pull secret — used by runner pods to pull the private runner image.
-# Created only when arc_ghcr_token is non-empty; pod specs reference it
-# conditionally so a public image still works with no token set.
-resource "kubernetes_secret" "arc_ghcr_pull" {
-  count = var.arc_enabled && var.arc_ghcr_token != "" ? 1 : 0
-
-  metadata {
-    name      = "arc-ghcr-pull"
-    namespace = kubernetes_namespace.arc_runners[0].metadata[0].name
-    labels    = var.common_labels
-  }
-
-  type = "kubernetes.io/dockerconfigjson"
-
-  data = {
-    ".dockerconfigjson" = jsonencode({
-      auths = {
-        "ghcr.io" = {
-          auth = base64encode("${var.arc_ghcr_username}:${var.arc_ghcr_token}")
-        }
-      }
-    })
-  }
-
-  depends_on = [kubernetes_namespace.arc_runners]
-}
+# Runner pods pull the private runner image via the shared ghcr-pull-secret
+# that ghcr-pull.tf creates in arc-runners (one entry in var.ghcr_pull_namespaces).
 
 # ARC Controller — singleton, watches AutoscalingRunnerSet CRs cluster-wide
 resource "helm_release" "arc_controller" {
@@ -234,7 +200,7 @@ resource "helm_release" "arc_ktsu_dev" {
 
       template = {
         spec = {
-          imagePullSecrets = var.arc_ghcr_token != "" ? [{ name = "arc-ghcr-pull" }] : []
+          imagePullSecrets = var.ghcr_token != "" ? [{ name = "ghcr-pull-secret" }] : []
           containers = [
             {
               name    = "runner"
@@ -271,7 +237,7 @@ resource "helm_release" "arc_ktsu_dev" {
   depends_on = [
     helm_release.arc_controller,
     kubernetes_secret.arc_ktsu_dev_github_app,
-    kubernetes_secret.arc_ghcr_pull,
+    kubernetes_secret.ghcr_pull,
   ]
 }
 
@@ -302,7 +268,7 @@ resource "helm_release" "arc_cardapp" {
 
       template = {
         spec = {
-          imagePullSecrets = var.arc_ghcr_token != "" ? [{ name = "arc-ghcr-pull" }] : []
+          imagePullSecrets = var.ghcr_token != "" ? [{ name = "ghcr-pull-secret" }] : []
           containers = [
             {
               name    = "runner"
@@ -332,7 +298,7 @@ resource "helm_release" "arc_cardapp" {
   depends_on = [
     helm_release.arc_controller,
     kubernetes_secret.arc_cardapp_github_app,
-    kubernetes_secret.arc_ghcr_pull,
+    kubernetes_secret.ghcr_pull,
     # Serialize the two scale set installs — the hashicorp/helm 3.x provider on
     # Windows hits a temp-file rename race when both installs download the same
     # OCI chart in parallel.
