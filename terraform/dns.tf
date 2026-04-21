@@ -58,6 +58,8 @@ locals {
     } : {},
     # Kubernetes Dashboard
     var.kubernetes_dashboard_enabled ? { dashboard = "dashboard" } : {},
+    # Devtron
+    var.devtron_enabled ? { devtron = "devtron" } : {},
     # Applications
     var.baget_enabled ? { packages = "packages" } : {},
     var.n8n_enabled ? { n8n = "n8n" } : {},
