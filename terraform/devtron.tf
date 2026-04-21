@@ -54,6 +54,11 @@ resource "helm_release" "devtron" {
   version    = var.devtron_chart_version
   namespace  = kubernetes_namespace.devtron[0].metadata[0].name
 
+  # Chart-value paths below are nested under `components.*` — the top-level
+  # `devtron` / `postgres` keys that appear in many examples are NOT used by
+  # this chart. Putting values at the wrong path silently falls through to
+  # defaults (LoadBalancer service), which causes `helm upgrade --wait` to
+  # hang until timeout because kube-vip only assigns an IP to Traefik.
   values = [
     yamlencode({
       installer = {
@@ -64,20 +69,21 @@ resource "helm_release" "devtron" {
         storageClass = data.kubernetes_storage_class.longhorn.metadata[0].name
       }
 
-      postgres = {
-        persistence = {
-          storageClass = data.kubernetes_storage_class.longhorn.metadata[0].name
-          volumeSize   = var.devtron_postgres_storage_size
+      components = {
+        devtron = {
+          service = {
+            type = "ClusterIP"
+            port = 80
+          }
+          ingress = {
+            enabled = false
+          }
         }
-      }
 
-      devtron = {
-        service = {
-          type = "ClusterIP"
-          port = 80
-        }
-        ingress = {
-          enabled = false
+        postgres = {
+          persistence = {
+            volumeSize = var.devtron_postgres_storage_size
+          }
         }
       }
     })
