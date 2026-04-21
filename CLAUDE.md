@@ -78,6 +78,7 @@ Copy `terraform.tfvars.example` to `terraform.tfvars` and populate values. The `
 - [monitoring.tf](terraform/monitoring.tf) — kube-prometheus-stack (Prometheus, Grafana, AlertManager) via Helm (default chart version: `76.3.0`); all use Longhorn storage
 - [baget.tf](terraform/baget.tf) — BaGet NuGet package server (Deployment, PVC on Longhorn, ClusterIP Service, Secret, ConfigMap)
 - [kubernetes-dashboard.tf](terraform/kubernetes-dashboard.tf) — Kubernetes Dashboard via Helm (default chart version: `7.13.0`) with admin ServiceAccount and ClusterIP service
+- [devtron.tf](terraform/devtron.tf) — Devtron Kubernetes dashboard via Helm (dashboard-only, no CI/CD, default chart version: `0.23.2`, bundled Postgres on Longhorn)
 - [traefik.tf](terraform/traefik.tf) — Traefik reverse proxy via Helm (ACME Let's Encrypt, Azure DNS challenge, Longhorn persistence)
 - [ingress.tf](terraform/ingress.tf) — IngressRoute and Middleware CRD resources for all services
 - [static-sites.tf](terraform/static-sites.tf) — Nginx static site hosting (git-cloned content, auto-pull sidecar, multi-domain vhosts)

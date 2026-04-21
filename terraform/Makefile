@@ -697,6 +697,12 @@ plan-homepage: check-vars check-init ## Plan Homepage dashboard
 		-target=kubernetes_deployment.homepage \
 		-target=kubernetes_service.homepage
 
+plan-devtron: check-vars check-init ## Plan Devtron dashboard
+	@echo "Planning Devtron..."
+	terraform plan \
+		-target=kubernetes_namespace.devtron \
+		-target=helm_release.devtron
+
 plan-runners: check-vars check-init ## Plan GitHub self-hosted runners (ARC)
 	@echo "Planning GitHub runners (ARC)..."
 	terraform plan \
@@ -749,6 +755,7 @@ plan-ingress: check-vars check-init ## Plan ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_chromadb \
 		-target=kubernetes_manifest.ingressroute_comfyui \
 		-target=kubernetes_manifest.ingressroute_homepage \
+		-target=kubernetes_manifest.ingressroute_devtron \
 		-target=kubernetes_manifest.ingressroute_static_site
 
 plan-azure-dns: check-vars check-init ## Plan Azure DNS A records
@@ -1060,6 +1067,12 @@ apply-homepage: check-vars check-init ## Deploy Homepage dashboard
 		-target=kubernetes_deployment.homepage \
 		-target=kubernetes_service.homepage
 
+apply-devtron: check-vars check-init ## Deploy Devtron dashboard
+	@echo "Deploying Devtron..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.devtron \
+		-target=helm_release.devtron
+
 apply-runners: check-vars check-init ## Deploy GitHub self-hosted runners (ARC)
 	@echo "Deploying GitHub runners (ARC)..."
 	terraform apply -auto-approve \
@@ -1112,6 +1125,7 @@ apply-ingress: check-vars check-init ## Deploy ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_chromadb \
 		-target=kubernetes_manifest.ingressroute_comfyui \
 		-target=kubernetes_manifest.ingressroute_homepage \
+		-target=kubernetes_manifest.ingressroute_devtron \
 		-target=kubernetes_manifest.ingressroute_static_site
 
 apply-azure-dns: check-vars check-init ## Deploy Azure DNS A records
@@ -1266,6 +1280,20 @@ debug-runners: ## Debug GitHub runners (ARC) — show controller, listeners, run
 	@echo ""
 	@echo "=== Controller logs (tail 50) ==="
 	kubectl logs -n arc-system -l app.kubernetes.io/name=gha-rs-controller --tail=50
+
+debug-devtron: ## Debug Devtron — show pods, PVCs, service, and admin password
+	@echo "=== Devtron Pods ==="
+	@kubectl get pods -n devtroncd -o wide 2>/dev/null || echo "Devtron namespace not found"
+	@echo ""
+	@echo "=== Devtron PVCs ==="
+	@kubectl get pvc -n devtroncd 2>/dev/null || echo "No Devtron PVCs"
+	@echo ""
+	@echo "=== Devtron Services ==="
+	@kubectl get svc -n devtroncd 2>/dev/null || echo "No Devtron services"
+	@echo ""
+	@echo "=== Devtron Admin Password ==="
+	@kubectl -n devtroncd get secret devtron-secret -o jsonpath='{.data.ACD_PASSWORD}' 2>/dev/null | base64 -d 2>/dev/null || echo "devtron-secret not found (pods may still be initializing)"
+	@echo ""
 
 # Component-specific Status
 status-networking: ## Show networking component status
