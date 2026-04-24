@@ -642,25 +642,45 @@ resource "kubernetes_manifest" "ingressroute_n8n" {
     }
     spec = {
       entryPoints = ["websecure"]
-      routes = [{
-        match = "Host(`n8n.${var.traefik_domain}`)"
-        kind  = "Rule"
-        middlewares = [
-          {
-            name      = "crowdsec-bouncer"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
-          {
-            name      = "oauth-forward-auth"
-            namespace = kubernetes_namespace.traefik.metadata[0].name
-          },
-        ]
-        services = [{
-          name      = kubernetes_service.n8n[0].metadata[0].name
-          namespace = kubernetes_namespace.n8n[0].metadata[0].name
-          port      = 80
-        }]
-      }]
+      routes = [
+        # Webhook & OAuth-callback paths bypass the forward-auth wall so
+        # external systems (and n8n's own credential OAuth flows) can reach
+        # n8n without an SSO session. Longer rule wins by Traefik priority.
+        {
+          match = "Host(`n8n.${var.traefik_domain}`) && (PathPrefix(`/webhook`) || PathPrefix(`/webhook-test`) || PathPrefix(`/webhook-waiting`) || PathPrefix(`/form`) || PathPrefix(`/form-test`) || PathPrefix(`/form-waiting`) || PathPrefix(`/rest/oauth2-credential/callback`))"
+          kind  = "Rule"
+          middlewares = [
+            {
+              name      = "crowdsec-bouncer"
+              namespace = kubernetes_namespace.traefik.metadata[0].name
+            },
+          ]
+          services = [{
+            name      = kubernetes_service.n8n[0].metadata[0].name
+            namespace = kubernetes_namespace.n8n[0].metadata[0].name
+            port      = 80
+          }]
+        },
+        {
+          match = "Host(`n8n.${var.traefik_domain}`)"
+          kind  = "Rule"
+          middlewares = [
+            {
+              name      = "crowdsec-bouncer"
+              namespace = kubernetes_namespace.traefik.metadata[0].name
+            },
+            {
+              name      = "oauth-forward-auth"
+              namespace = kubernetes_namespace.traefik.metadata[0].name
+            },
+          ]
+          services = [{
+            name      = kubernetes_service.n8n[0].metadata[0].name
+            namespace = kubernetes_namespace.n8n[0].metadata[0].name
+            port      = 80
+          }]
+        },
+      ]
       tls = {
         certResolver = "letsencrypt"
         domains = [{
