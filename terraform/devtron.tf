@@ -7,8 +7,14 @@
 #
 # Auth: Devtron does not support disabling its own auth. The ingress is gated
 # by oauth-forward-auth + crowdsec-bouncer (see ingress.tf), and users log in
-# to Devtron with the admin password auto-generated in devtron-secret.
-# Retrieve with: make debug-devtron
+# to Devtron with the admin password stored in devtron-secret (admin.password
+# bcrypt hash). Retrieve/reset with: make debug-devtron / make reset-devtron-password
+#
+# In dashboard-only mode the orchestrator's session client is wired to a LOCAL
+# bcrypt verifier (authenticator/middleware.LoginService) — no real Argo CD is
+# involved. But that verifier unconditionally fetches argocd-cm + argocd-secret
+# before checking the password, so we must create empty stubs of both or every
+# login fails with "invalid username or password" before bcrypt even runs.
 #
 # Chart: https://helm.devtron.ai (chart name: devtron-operator)
 # =============================================================================
@@ -94,6 +100,44 @@ resource "helm_release" "devtron" {
     helm_release.longhorn,                  # Ensure storage backend is available
     data.kubernetes_storage_class.longhorn, # Ensure default storage class exists
   ]
+}
+
+# argocd-cm / argocd-secret stubs — required by the local bcrypt verifier used
+# in dashboard-only mode. See header comment for the full rationale. The cm
+# sets admin.enabled=true explicitly so the account is never disabled; both
+# resources are otherwise empty.
+resource "kubernetes_config_map" "devtron_argocd_cm_stub" {
+  count = var.devtron_enabled ? 1 : 0
+
+  metadata {
+    name      = "argocd-cm"
+    namespace = kubernetes_namespace.devtron[0].metadata[0].name
+    labels = merge(var.common_labels, {
+      "app.kubernetes.io/name" = "devtron"
+    })
+  }
+
+  data = {
+    "admin.enabled" = "true"
+  }
+
+  depends_on = [helm_release.devtron]
+}
+
+resource "kubernetes_secret" "devtron_argocd_secret_stub" {
+  count = var.devtron_enabled ? 1 : 0
+
+  metadata {
+    name      = "argocd-secret"
+    namespace = kubernetes_namespace.devtron[0].metadata[0].name
+    labels = merge(var.common_labels, {
+      "app.kubernetes.io/name" = "devtron"
+    })
+  }
+
+  data = {}
+
+  depends_on = [helm_release.devtron]
 }
 
 # Outputs
