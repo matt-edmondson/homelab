@@ -701,7 +701,9 @@ plan-devtron: check-vars check-init ## Plan Devtron dashboard
 	@echo "Planning Devtron..."
 	terraform plan \
 		-target=kubernetes_namespace.devtron \
-		-target=helm_release.devtron
+		-target=helm_release.devtron \
+		-target=kubernetes_config_map.devtron_argocd_cm_stub \
+		-target=kubernetes_secret.devtron_argocd_secret_stub
 
 plan-runners: check-vars check-init ## Plan GitHub self-hosted runners (ARC)
 	@echo "Planning GitHub runners (ARC)..."
@@ -714,7 +716,10 @@ plan-runners: check-vars check-init ## Plan GitHub self-hosted runners (ARC)
 		-target=helm_release.arc_controller \
 		-target=helm_release.arc_ktsu_dev \
 		-target=helm_release.arc_cardapp \
-		-target=helm_release.arc_claudecluster
+		-target=helm_release.arc_claudecluster \
+		-target=null_resource.arc_dind_mtu_patch_ktsu_dev \
+		-target=null_resource.arc_dind_mtu_patch_cardapp \
+		-target=null_resource.arc_dind_mtu_patch_claudecluster
 
 plan-traefik: check-vars check-init ## Plan Traefik reverse proxy
 	@echo "Planning Traefik components..."
@@ -1073,7 +1078,9 @@ apply-devtron: check-vars check-init ## Deploy Devtron dashboard
 	@echo "Deploying Devtron..."
 	terraform apply -auto-approve \
 		-target=kubernetes_namespace.devtron \
-		-target=helm_release.devtron
+		-target=helm_release.devtron \
+		-target=kubernetes_config_map.devtron_argocd_cm_stub \
+		-target=kubernetes_secret.devtron_argocd_secret_stub
 
 apply-runners: check-vars check-init ## Deploy GitHub self-hosted runners (ARC)
 	@echo "Deploying GitHub runners (ARC)..."
@@ -1086,7 +1093,10 @@ apply-runners: check-vars check-init ## Deploy GitHub self-hosted runners (ARC)
 		-target=helm_release.arc_controller \
 		-target=helm_release.arc_ktsu_dev \
 		-target=helm_release.arc_cardapp \
-		-target=helm_release.arc_claudecluster
+		-target=helm_release.arc_claudecluster \
+		-target=null_resource.arc_dind_mtu_patch_ktsu_dev \
+		-target=null_resource.arc_dind_mtu_patch_cardapp \
+		-target=null_resource.arc_dind_mtu_patch_claudecluster
 
 apply-traefik: check-vars check-init ## Deploy Traefik reverse proxy
 	@echo "Deploying Traefik..."
@@ -1296,6 +1306,8 @@ debug-devtron: ## Debug Devtron — show pods, PVCs, service, and admin password
 	@kubectl get svc -n devtroncd 2>/dev/null || echo "No Devtron services"
 	@echo ""
 	@echo "=== Devtron Admin Password ==="
+	@# ADMIN_PASSWORD is the plaintext seeded at install; the real auth check is
+	@# against the bcrypt hash in admin.password. If you rotate one, rotate both.
 	@kubectl -n devtroncd get secret devtron-secret -o jsonpath='{.data.ADMIN_PASSWORD}' 2>/dev/null | base64 -d 2>/dev/null || echo "devtron-secret not found (pods may still be initializing)"
 	@echo ""
 

@@ -190,6 +190,86 @@ resource "kubernetes_secret" "arc_claudecluster_github_app" {
 # Runner pods pull the private runner image via the shared ghcr-pull-secret
 # that ghcr-pull.tf creates in arc-runners (one entry in var.ghcr_pull_namespaces).
 
+# DinD MTU patch — the chart's dind container runs dockerd with default MTU
+# 1500, but flannel's VXLAN overlay caps pod eth0 at MTU 1450. Small packets
+# work, but TLS handshakes stall forever when cert frames exceed the path
+# MTU and PMTUD blackholes (symptom: `wget` to external HTTPS hangs ~15m on
+# "Unable to establish SSL connection" during container builds).
+#
+# The chart's dind container is hardcoded (see `non-runner-non-dind-containers`
+# in the chart's _helpers.tpl, which filters out any user-supplied `dind`
+# entry), so we can't configure --mtu via helm values. Instead we patch the
+# AutoscalingRunnerSet after helm apply via a kubectl JSON-patch append.
+# Runner pods are templated from this set, so every new runner inherits the
+# fix. The trigger is keyed on helm release ID + patch payload so it re-runs
+# when either the release or the MTU value changes.
+# JSON Patch that REPLACES the dind container's args list with the chart's
+# default plus --mtu=1450. Replace (not append) so re-applying is idempotent
+# and doesn't accumulate duplicate flags. The default args have been stable
+# across gha-runner-scale-set 0.9–0.14; if a future chart version changes
+# them, bump this too.
+locals {
+  arc_dind_mtu = "1450"
+  arc_dind_patched_args = [
+    "dockerd",
+    "--host=unix:///var/run/docker.sock",
+    "--group=$(DOCKER_GROUP_GID)",
+    "--mtu=${local.arc_dind_mtu}",
+  ]
+  arc_dind_patch_json = jsonencode([{
+    op    = "replace"
+    path  = "/spec/template/spec/containers/1/args" # dind sidecar is containers[1]
+    value = local.arc_dind_patched_args
+  }])
+}
+
+resource "null_resource" "arc_dind_mtu_patch_ktsu_dev" {
+  count = var.arc_enabled ? 1 : 0
+
+  triggers = {
+    helm_revision = helm_release.arc_ktsu_dev[0].metadata.revision
+    patch_sha     = sha256(local.arc_dind_patch_json)
+  }
+
+  provisioner "local-exec" {
+    command     = "kubectl -n ${kubernetes_namespace.arc_runners[0].metadata[0].name} patch autoscalingrunnerset.actions.github.com ktsu-dev-runners --type=json -p '${local.arc_dind_patch_json}'"
+    interpreter = ["bash", "-c"]
+    # Git Bash / MSYS rewrites arguments that start with `/` into Windows
+    # paths, which mangles JSON Pointer paths like /spec/template/... .
+    environment = { MSYS_NO_PATHCONV = "1" }
+  }
+}
+
+resource "null_resource" "arc_dind_mtu_patch_cardapp" {
+  count = var.arc_enabled ? 1 : 0
+
+  triggers = {
+    helm_revision = helm_release.arc_cardapp[0].metadata.revision
+    patch_sha     = sha256(local.arc_dind_patch_json)
+  }
+
+  provisioner "local-exec" {
+    command     = "kubectl -n ${kubernetes_namespace.arc_runners[0].metadata[0].name} patch autoscalingrunnerset.actions.github.com cardapp-runners --type=json -p '${local.arc_dind_patch_json}'"
+    interpreter = ["bash", "-c"]
+    environment = { MSYS_NO_PATHCONV = "1" }
+  }
+}
+
+resource "null_resource" "arc_dind_mtu_patch_claudecluster" {
+  count = var.arc_enabled ? 1 : 0
+
+  triggers = {
+    helm_revision = helm_release.arc_claudecluster[0].metadata.revision
+    patch_sha     = sha256(local.arc_dind_patch_json)
+  }
+
+  provisioner "local-exec" {
+    command     = "kubectl -n ${kubernetes_namespace.arc_runners[0].metadata[0].name} patch autoscalingrunnerset.actions.github.com claudecluster-runners --type=json -p '${local.arc_dind_patch_json}'"
+    interpreter = ["bash", "-c"]
+    environment = { MSYS_NO_PATHCONV = "1" }
+  }
+}
+
 # ARC Controller — singleton, watches AutoscalingRunnerSet CRs cluster-wide
 resource "helm_release" "arc_controller" {
   count = var.arc_enabled ? 1 : 0
@@ -228,7 +308,9 @@ resource "helm_release" "arc_ktsu_dev" {
       maxRunners = var.arc_ktsu_dev_max_runners
 
       # DinD mode — chart injects a privileged docker:dind sidecar and wires
-      # DOCKER_HOST into the runner container. No custom sidecar needed.
+      # DOCKER_HOST into the runner container. The chart hardcodes the dind
+      # container with no MTU override; see the null_resource.arc_dind_mtu_*
+      # patches below that inject --mtu=1450 post-install.
       containerMode = {
         type = "dind"
       }
