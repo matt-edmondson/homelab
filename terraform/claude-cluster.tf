@@ -191,6 +191,10 @@ resource "kubernetes_deployment" "claudecluster_backend" {
       spec {
         service_account_name = kubernetes_service_account.claudecluster_backend[0].metadata[0].name
 
+        image_pull_secrets {
+          name = "ghcr-pull-secret"
+        }
+
         container {
           name  = "backend"
           image = "ghcr.io/matt-edmondson/claudecluster/backend:${var.claudecluster_backend_image_tag}"
@@ -261,6 +265,7 @@ resource "kubernetes_deployment" "claudecluster_backend" {
     kubernetes_namespace.claude_sandbox,
     kubernetes_service_account.claudecluster_backend,
     kubernetes_role_binding.claudecluster_backend,
+    kubernetes_secret.ghcr_pull, # ghcr-pull-secret referenced by image_pull_secrets above
   ]
 }
 

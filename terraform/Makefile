@@ -710,9 +710,11 @@ plan-runners: check-vars check-init ## Plan GitHub self-hosted runners (ARC)
 		-target=kubernetes_namespace.arc_runners \
 		-target=kubernetes_secret.arc_ktsu_dev_github_app \
 		-target=kubernetes_secret.arc_cardapp_github_app \
+		-target=kubernetes_secret.arc_claudecluster_github_app \
 		-target=helm_release.arc_controller \
 		-target=helm_release.arc_ktsu_dev \
-		-target=helm_release.arc_cardapp
+		-target=helm_release.arc_cardapp \
+		-target=helm_release.arc_claudecluster
 
 plan-traefik: check-vars check-init ## Plan Traefik reverse proxy
 	@echo "Planning Traefik components..."
@@ -1080,9 +1082,11 @@ apply-runners: check-vars check-init ## Deploy GitHub self-hosted runners (ARC)
 		-target=kubernetes_namespace.arc_runners \
 		-target=kubernetes_secret.arc_ktsu_dev_github_app \
 		-target=kubernetes_secret.arc_cardapp_github_app \
+		-target=kubernetes_secret.arc_claudecluster_github_app \
 		-target=helm_release.arc_controller \
 		-target=helm_release.arc_ktsu_dev \
-		-target=helm_release.arc_cardapp
+		-target=helm_release.arc_cardapp \
+		-target=helm_release.arc_claudecluster
 
 apply-traefik: check-vars check-init ## Deploy Traefik reverse proxy
 	@echo "Deploying Traefik..."
@@ -1292,7 +1296,7 @@ debug-devtron: ## Debug Devtron — show pods, PVCs, service, and admin password
 	@kubectl get svc -n devtroncd 2>/dev/null || echo "No Devtron services"
 	@echo ""
 	@echo "=== Devtron Admin Password ==="
-	@kubectl -n devtroncd get secret devtron-secret -o jsonpath='{.data.ACD_PASSWORD}' 2>/dev/null | base64 -d 2>/dev/null || echo "devtron-secret not found (pods may still be initializing)"
+	@kubectl -n devtroncd get secret devtron-secret -o jsonpath='{.data.ADMIN_PASSWORD}' 2>/dev/null | base64 -d 2>/dev/null || echo "devtron-secret not found (pods may still be initializing)"
 	@echo ""
 
 # Component-specific Status

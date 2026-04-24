@@ -1,15 +1,17 @@
 # =============================================================================
 # GitHub Self-Hosted Runners — Actions Runner Controller (ARC)
 # =============================================================================
-# Deploys the modern GitHub ARC (gha-runner-scale-set) with two scale sets:
-#   - ktsu-dev-runners   — org-scoped, covers all ktsu-dev/* repos
-#   - cardapp-runners    — repo-scoped to matt-edmondson/CardApp
+# Deploys the modern GitHub ARC (gha-runner-scale-set) with three scale sets:
+#   - ktsu-dev-runners        — org-scoped, covers all ktsu-dev/* repos
+#   - cardapp-runners         — repo-scoped to matt-edmondson/CardApp
+#   - claudecluster-runners   — repo-scoped to matt-edmondson/ClaudeCluster
 #
 # Runners are ephemeral (one pod per job), scale 0→N on demand, and include
 # a privileged docker:dind sidecar so workflows can build container images.
 #
-# Authentication: GitHub App (one App installed on both the ktsu-dev org and
-# the CardApp repo). Per-install credentials live in separate K8s secrets.
+# Authentication: GitHub App (one App installed on the ktsu-dev org plus the
+# CardApp and ClaudeCluster repos). Per-install credentials live in separate
+# K8s secrets.
 #
 # Spec: docs/superpowers/specs/2026-04-17-github-runners-arc-design.md
 # =============================================================================
@@ -46,6 +48,12 @@ variable "arc_cardapp_max_runners" {
   default     = 25
 }
 
+variable "arc_claudecluster_max_runners" {
+  description = "Maximum concurrent runners for the matt-edmondson/ClaudeCluster scale set"
+  type        = number
+  default     = 25
+}
+
 variable "arc_runner_image" {
   description = "Container image for the ARC runner pods. Defaults to the homelab-runner overlay (official actions-runner + gh CLI). Built by .github/workflows/build-runner-image.yml."
   type        = string
@@ -73,6 +81,13 @@ variable "arc_github_app_installation_id_ktsu_dev" {
 
 variable "arc_github_app_installation_id_cardapp" {
   description = "GitHub App installation ID for the matt-edmondson/CardApp install"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "arc_github_app_installation_id_claudecluster" {
+  description = "GitHub App installation ID for the matt-edmondson/ClaudeCluster install"
   type        = string
   sensitive   = true
   default     = ""
@@ -146,6 +161,26 @@ resource "kubernetes_secret" "arc_cardapp_github_app" {
   data = {
     github_app_id              = var.arc_github_app_id
     github_app_installation_id = var.arc_github_app_installation_id_cardapp
+    github_app_private_key     = var.arc_github_app_private_key
+  }
+
+  depends_on = [kubernetes_namespace.arc_runners]
+}
+
+resource "kubernetes_secret" "arc_claudecluster_github_app" {
+  count = var.arc_enabled ? 1 : 0
+
+  metadata {
+    name      = "arc-claudecluster-github-app"
+    namespace = kubernetes_namespace.arc_runners[0].metadata[0].name
+    labels    = var.common_labels
+  }
+
+  type = "Opaque"
+
+  data = {
+    github_app_id              = var.arc_github_app_id
+    github_app_installation_id = var.arc_github_app_installation_id_claudecluster
     github_app_private_key     = var.arc_github_app_private_key
   }
 
@@ -299,9 +334,72 @@ resource "helm_release" "arc_cardapp" {
     helm_release.arc_controller,
     kubernetes_secret.arc_cardapp_github_app,
     kubernetes_secret.ghcr_pull,
-    # Serialize the two scale set installs — the hashicorp/helm 3.x provider on
-    # Windows hits a temp-file rename race when both installs download the same
-    # OCI chart in parallel.
+    # Serialize scale set installs — the hashicorp/helm 3.x provider on Windows
+    # hits a temp-file rename race when multiple installs download the same OCI
+    # chart in parallel.
     helm_release.arc_ktsu_dev,
+  ]
+}
+
+# Scale set — matt-edmondson/ClaudeCluster
+# Workflows target these runners with: runs-on: claudecluster-runners
+resource "helm_release" "arc_claudecluster" {
+  count = var.arc_enabled ? 1 : 0
+
+  name       = "claudecluster-runners"
+  repository = "oci://ghcr.io/actions/actions-runner-controller-charts"
+  chart      = "gha-runner-scale-set"
+  version    = var.arc_runner_set_chart_version
+  namespace  = kubernetes_namespace.arc_runners[0].metadata[0].name
+
+  values = [
+    yamlencode({
+      githubConfigUrl    = "https://github.com/matt-edmondson/ClaudeCluster"
+      githubConfigSecret = kubernetes_secret.arc_claudecluster_github_app[0].metadata[0].name
+
+      runnerScaleSetName = "claudecluster-runners"
+
+      minRunners = 0
+      maxRunners = var.arc_claudecluster_max_runners
+
+      containerMode = {
+        type = "dind"
+      }
+
+      template = {
+        spec = {
+          imagePullSecrets = var.ghcr_token != "" ? [{ name = "ghcr-pull-secret" }] : []
+          containers = [
+            {
+              name    = "runner"
+              image   = var.arc_runner_image
+              command = ["/home/runner/run.sh"]
+              # See ktsu-dev scale set above for rationale.
+              securityContext = {
+                privileged = true
+              }
+              resources = {
+                requests = {
+                  cpu    = "500m"
+                  memory = "2Gi"
+                }
+                limits = {
+                  cpu    = "4"
+                  memory = "8Gi"
+                }
+              }
+            },
+          ]
+        }
+      }
+    }),
+  ]
+
+  depends_on = [
+    helm_release.arc_controller,
+    kubernetes_secret.arc_claudecluster_github_app,
+    kubernetes_secret.ghcr_pull,
+    # Serialize with the other scale sets — see comment on arc_cardapp.
+    helm_release.arc_cardapp,
   ]
 }

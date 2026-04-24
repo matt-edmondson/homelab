@@ -306,21 +306,24 @@
 #   3. Install the App on:
 #        - The `ktsu-dev` organization (all repos)
 #        - The `matt-edmondson/CardApp` repository
+#        - The `matt-edmondson/ClaudeCluster` repository
 #   4. Find each Installation ID from the install URL:
 #        https://github.com/organizations/ktsu-dev/settings/installations/<ID>
-#        https://github.com/settings/installations/<ID>
-#   5. Populate the four values below. The private key is the full PEM contents
+#        https://github.com/settings/installations/<ID>  (per-repo installs share the personal-account page)
+#   5. Populate the values below. The private key is the full PEM contents
 #      (use heredoc syntax: arc_github_app_private_key = <<EOT ... EOT).
 # -----------------------------------------------------------------------------
-#arc_enabled                             = true     # Set to false to disable ARC
-#arc_controller_chart_version            = "0.11.0"
-#arc_runner_set_chart_version            = "0.11.0" # Must match controller version
-#arc_ktsu_dev_max_runners                = 25       # Peak concurrent runners for ktsu-dev org
-#arc_cardapp_max_runners                 = 25       # Peak concurrent runners for CardApp repo
-#arc_github_app_id                       = "123456"
-#arc_github_app_installation_id_ktsu_dev = "12345678"
-#arc_github_app_installation_id_cardapp  = "87654321"
-#arc_github_app_private_key              = <<EOT
+#arc_enabled                                  = true     # Set to false to disable ARC
+#arc_controller_chart_version                 = "0.11.0"
+#arc_runner_set_chart_version                 = "0.11.0" # Must match controller version
+#arc_ktsu_dev_max_runners                     = 25       # Peak concurrent runners for ktsu-dev org
+#arc_cardapp_max_runners                      = 25       # Peak concurrent runners for CardApp repo
+#arc_claudecluster_max_runners                = 25       # Peak concurrent runners for ClaudeCluster repo
+#arc_github_app_id                            = "123456"
+#arc_github_app_installation_id_ktsu_dev      = "12345678"
+#arc_github_app_installation_id_cardapp       = "87654321"
+#arc_github_app_installation_id_claudecluster = "11223344"
+#arc_github_app_private_key                   = <<EOT
 #-----BEGIN RSA PRIVATE KEY-----
 #MIIEpAIBAAKCAQEA...
 #-----END RSA PRIVATE KEY-----
