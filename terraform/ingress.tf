@@ -95,6 +95,30 @@ resource "kubernetes_manifest" "middleware_rate_limit" {
   depends_on = [helm_release.traefik]
 }
 
+# Strip /s/<name> prefix for ClaudeCluster sandbox IngressRoutes so the
+# upstream code-server (port 8080) and agent WebSocket (port 3000) see
+# the request at /. The backend creates per-sandbox IngressRoutes in the
+# claude-sandboxes namespace and references this middleware by
+# `traefik/sandbox-strip-prefix` (cross-namespace reference is allowed).
+resource "kubernetes_manifest" "middleware_sandbox_strip_prefix" {
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "Middleware"
+    metadata = {
+      name      = "sandbox-strip-prefix"
+      namespace = kubernetes_namespace.traefik.metadata[0].name
+      labels    = var.common_labels
+    }
+    spec = {
+      stripPrefixRegex = {
+        regex = ["^/s/[^/]+"]
+      }
+    }
+  }
+
+  depends_on = [helm_release.traefik]
+}
+
 # Basic auth middleware
 resource "kubernetes_manifest" "middleware_basic_auth" {
   manifest = {
