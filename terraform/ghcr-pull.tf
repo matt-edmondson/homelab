@@ -26,7 +26,7 @@ variable "ghcr_token" {
 variable "ghcr_pull_namespaces" {
   description = "Namespaces that need a ghcr-pull-secret. Each gets an identically-named Secret seeded from ghcr_token."
   type        = set(string)
-  default     = ["arc-runners", "claude-sandbox"]
+  default     = ["arc-runners", "claude-sandbox", "claude-sandboxes"]
 }
 
 resource "kubernetes_secret" "ghcr_pull" {
