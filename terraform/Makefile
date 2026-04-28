@@ -14,8 +14,8 @@ MAKE := "$(MAKE)"
 # We'll hardcode the help sections for reliability
 
 .PHONY: help init plan apply destroy force-clean destroy-clean validate format lint check-vars status clean \
-	plan-networking plan-storage plan-monitoring plan-applications plan-dns plan-traefik plan-ingress plan-azure-dns \
-	apply-networking apply-storage apply-monitoring apply-applications apply-dns apply-traefik apply-ingress apply-azure-dns \
+	plan-networking plan-storage plan-monitoring plan-applications plan-dns plan-traefik plan-ingress plan-debug-ingress plan-azure-dns \
+	apply-networking apply-storage apply-monitoring apply-applications apply-dns apply-traefik apply-ingress apply-debug-ingress apply-azure-dns \
 	debug-networking debug-storage debug-monitoring debug-applications debug-dns debug-traefik debug-ingress \
 	status-networking status-storage status-monitoring status-applications status-dns status-traefik status-ingress \
 	list-components deploy-core deploy-apps plan-all-components status-all-components \
@@ -765,6 +765,12 @@ plan-ingress: check-vars check-init ## Plan ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_devtron \
 		-target=kubernetes_manifest.ingressroute_static_site
 
+plan-debug-ingress: check-vars check-init ## Plan debug NodePort escape-hatch services (Headlamp, Devtron)
+	@echo "Planning debug escape-hatch ingress..."
+	terraform plan \
+		-target=kubernetes_service.debug_headlamp \
+		-target=kubernetes_service.debug_devtron
+
 plan-azure-dns: check-vars check-init ## Plan Azure DNS A records
 	@echo "Planning Azure DNS records..."
 	terraform plan \
@@ -1141,6 +1147,12 @@ apply-ingress: check-vars check-init ## Deploy ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_homepage \
 		-target=kubernetes_manifest.ingressroute_devtron \
 		-target=kubernetes_manifest.ingressroute_static_site
+
+apply-debug-ingress: check-vars check-init ## Deploy debug NodePort escape-hatch services (Headlamp, Devtron)
+	@echo "Deploying debug escape-hatch ingress..."
+	terraform apply -auto-approve \
+		-target=kubernetes_service.debug_headlamp \
+		-target=kubernetes_service.debug_devtron
 
 apply-azure-dns: check-vars check-init ## Deploy Azure DNS A records
 	@echo "Deploying Azure DNS records..."

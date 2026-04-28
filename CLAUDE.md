@@ -81,6 +81,7 @@ Copy `terraform.tfvars.example` to `terraform.tfvars` and populate values. The `
 - [devtron.tf](terraform/devtron.tf) — Devtron Kubernetes dashboard via Helm (dashboard-only, no CI/CD, default chart version: `0.23.2`, bundled Postgres on Longhorn)
 - [traefik.tf](terraform/traefik.tf) — Traefik reverse proxy via Helm (ACME Let's Encrypt, Azure DNS challenge, Longhorn persistence)
 - [ingress.tf](terraform/ingress.tf) — IngressRoute and Middleware CRD resources for all services
+- [debug-ingress.tf](terraform/debug-ingress.tf) — Traefik-independent NodePort escape-hatch services for Headlamp and Devtron (reachable on `<node-ip>:30242` / `:30243`) so the debug dashboards stay accessible when Traefik is broken
 - [static-sites.tf](terraform/static-sites.tf) — Nginx static site hosting (git-cloned content, auto-pull sidecar, multi-domain vhosts)
 - [dns.tf](terraform/dns.tf) — Azure DNS A records for each service subdomain (uses azurerm provider)
 - [bazarr.tf](terraform/bazarr.tf) — Bazarr subtitle management (Longhorn config PVC + NFS media mount, linuxserver/bazarr)
