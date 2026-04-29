@@ -1580,6 +1580,52 @@ resource "kubernetes_manifest" "ingressroute_static_site" {
   ]
 }
 
+# Planning Poker
+resource "kubernetes_manifest" "ingressroute_poker" {
+  count = var.poker_enabled ? 1 : 0
+
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "IngressRoute"
+    metadata = {
+      name      = "poker"
+      namespace = kubernetes_namespace.traefik.metadata[0].name
+      labels    = var.common_labels
+    }
+    spec = {
+      entryPoints = ["websecure"]
+      routes = [{
+        match = "Host(`poker.${var.traefik_domain}`)"
+        kind  = "Rule"
+        middlewares = [
+          {
+            name      = "crowdsec-bouncer"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+        ]
+        services = [{
+          name      = kubernetes_service.poker[0].metadata[0].name
+          namespace = kubernetes_namespace.poker[0].metadata[0].name
+          port      = 3000
+        }]
+      }]
+      tls = {
+        certResolver = "letsencrypt"
+        domains = [{
+          main = var.traefik_domain
+          sans = ["*.${var.traefik_domain}"]
+        }]
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.traefik,
+    kubernetes_service.poker,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
+  ]
+}
+
 # ClaudeCluster — Management UI, Chat UI, and API
 # Sandbox-specific routes (/s/{name}/) are created dynamically by the backend.
 # Traefik resolves rule conflicts by specificity: PathPrefix('/s/name/') beats Host-only.
