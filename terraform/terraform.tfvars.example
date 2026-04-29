@@ -261,7 +261,7 @@
 #comfyui_hf_token            = ""       # Hugging Face token for downloading gated models
 
 # Homepage Dashboard (Application Portal)
-#homepage_enabled        = true     # Set to false to disable Homepage
+#homepage_enabled        = false    # Set to true to enable Homepage
 #homepage_image_tag      = "latest"
 #homepage_memory_request = "128Mi"
 #homepage_memory_limit   = "256Mi"
@@ -337,7 +337,7 @@
 #EOT
 
 # Devtron Kubernetes Dashboard (dashboard-only, no CI/CD)
-#devtron_enabled               = true    # Set to false to disable Devtron
+#devtron_enabled               = false    # Set to true to enable Devtron
 #devtron_chart_version         = "0.23.2"
 #devtron_postgres_storage_size = "20Gi"
 
