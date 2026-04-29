@@ -71,7 +71,8 @@ variable "arc_runner_image" {
 
 # GHCR pull credentials for the private arc_runner_image are sourced from the
 # shared var.ghcr_username / var.ghcr_token declared in ghcr-pull.tf. The
-# runner namespace (arc-runners) must appear in var.ghcr_pull_namespaces.
+# arc-runners namespace is auto-included in ghcr-pull.tf's secret targets via
+# splat over kubernetes_namespace.arc_runners (gated on var.arc_enabled).
 
 # Variables — GitHub App credentials
 variable "arc_github_app_id" {
@@ -170,7 +171,8 @@ resource "kubernetes_secret" "arc_personal_github_app" {
 }
 
 # Runner pods pull the private runner image via the shared ghcr-pull-secret
-# that ghcr-pull.tf creates in arc-runners (one entry in var.ghcr_pull_namespaces).
+# that ghcr-pull.tf creates in arc-runners (auto-derived from
+# kubernetes_namespace.arc_runners).
 
 # DinD MTU patch — the chart's dind container runs dockerd with default MTU
 # 1500, but flannel's VXLAN overlay caps pod eth0 at MTU 1450. Small packets
