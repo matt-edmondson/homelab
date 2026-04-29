@@ -333,3 +333,7 @@
 #devtron_enabled               = true    # Set to false to disable Devtron
 #devtron_chart_version         = "0.23.2"
 #devtron_postgres_storage_size = "20Gi"
+
+# Planning Poker
+#poker_enabled            = true
+#poker_postgres_password  = "change-me-generate-a-secure-random-value"
