@@ -278,7 +278,7 @@ locals {
     var.cleanuparr_enabled ? [{
       "Cleanuparr" = {
         href        = "https://cleanuparr.${var.traefik_domain}"
-        icon        = "cleanuparr"
+        icon        = "cleanuperr"
         description = "Library Cleanup"
       }
     }] : [],
@@ -386,7 +386,7 @@ locals {
     var.chromadb_enabled ? [{
       "ChromaDB" = {
         href        = "https://chromadb.${var.traefik_domain}"
-        icon        = "chromadb"
+        icon        = "chroma"
         description = "Vector Database"
       }
     }] : [],
@@ -400,7 +400,7 @@ locals {
     var.claudecluster_enabled ? [{
       "ClaudeCluster" = {
         href        = "https://claude.${var.traefik_domain}"
-        icon        = "claude"
+        icon        = "claude-ai"
         description = "Claude Code Sandboxes"
       }
     }] : [],
@@ -435,7 +435,7 @@ locals {
     var.baget_enabled ? [{
       "BaGet" = {
         href        = "https://packages.${var.traefik_domain}"
-        icon        = "nuget"
+        icon        = "si-nuget"
         description = "NuGet Packages"
       }
     }] : [],
@@ -449,8 +449,17 @@ locals {
     var.devtron_enabled ? [{
       "Devtron" = {
         href        = "https://devtron.${var.traefik_domain}"
-        icon        = "devtron"
+        # No dedicated Devtron icon in dashboard-icons; fall back to generic K8s.
+        icon        = "kubernetes"
         description = "K8s Dashboard"
+      }
+    }] : [],
+    var.poker_enabled ? [{
+      "Planning Poker" = {
+        href        = "https://poker.${var.traefik_domain}"
+        # No dedicated planning-poker icon; use Material Design playing cards.
+        icon        = "mdi-cards-playing-outline"
+        description = "Scrum Estimation"
       }
     }] : [],
   )
