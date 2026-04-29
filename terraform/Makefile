@@ -10,6 +10,16 @@ endif
 # Fix $(MAKE) on Windows when make is installed in a path with spaces (e.g. Program Files)
 MAKE := "$(MAKE)"
 
+# Terraform parallelism. Set to 1 because the helm provider on Windows races
+# on the OCI chart cache: multiple helm_release instances that share a chart
+# (e.g. helm_release.arc_personal's three for_each instances all install
+# gha-runner-scale-set) each download to a per-process temp file in
+# %TEMP%\helm\repository\ and then rename to the canonical <chart>-<ver>.tgz.
+# Concurrent renames hit a Windows file-lock and fail with "Access is denied",
+# breaking both plan and apply. Serializing is slower but reliable; bump back
+# up if the helm provider ever fixes this upstream.
+TF_PARALLELISM ?= 1
+
 # Cross-platform help - Simple approach that works everywhere
 # We'll hardcode the help sections for reliability
 
@@ -130,13 +140,13 @@ init: ## Initialize Terraform
 	terraform init
 
 plan: check-vars check-init ## Plan Terraform deployment
-	terraform plan
+	terraform plan -parallelism=$(TF_PARALLELISM)
 
 check-init: ## Check if Terraform is initialized
 	@if [ ! -d ".terraform/providers" ]; then echo "Error: Terraform not initialized. Run 'make init' first."; exit 1; fi
 
 apply: check-vars check-init ## Apply Terraform configuration
-	terraform apply -auto-approve
+	terraform apply -auto-approve -parallelism=$(TF_PARALLELISM)
 
 destroy: check-vars check-init ## Destroy Terraform infrastructure
 	terraform destroy
@@ -708,7 +718,7 @@ plan-devtron: check-vars check-init ## Plan Devtron dashboard
 
 plan-runners: check-vars check-init ## Plan GitHub self-hosted runners (ARC)
 	@echo "Planning GitHub runners (ARC)..."
-	terraform plan \
+	terraform plan -parallelism=$(TF_PARALLELISM) \
 		-target=kubernetes_namespace.arc_system \
 		-target=kubernetes_namespace.arc_runners \
 		-target=kubernetes_secret.arc_ktsu_dev_github_app \
@@ -717,7 +727,8 @@ plan-runners: check-vars check-init ## Plan GitHub self-hosted runners (ARC)
 		-target=helm_release.arc_ktsu_dev \
 		-target=helm_release.arc_personal \
 		-target=null_resource.arc_dind_mtu_patch_ktsu_dev \
-		-target=null_resource.arc_dind_mtu_patch_personal
+		-target=null_resource.arc_dind_mtu_patch_personal \
+		-target=kubernetes_service_account.arc_personal_runner
 
 plan-traefik: check-vars check-init ## Plan Traefik reverse proxy
 	@echo "Planning Traefik components..."
@@ -1088,7 +1099,7 @@ apply-devtron: check-vars check-init ## Deploy Devtron dashboard
 
 apply-runners: check-vars check-init ## Deploy GitHub self-hosted runners (ARC)
 	@echo "Deploying GitHub runners (ARC)..."
-	terraform apply -auto-approve \
+	terraform apply -auto-approve -parallelism=$(TF_PARALLELISM) \
 		-target=kubernetes_namespace.arc_system \
 		-target=kubernetes_namespace.arc_runners \
 		-target=kubernetes_secret.arc_ktsu_dev_github_app \
@@ -1097,7 +1108,8 @@ apply-runners: check-vars check-init ## Deploy GitHub self-hosted runners (ARC)
 		-target=helm_release.arc_ktsu_dev \
 		-target=helm_release.arc_personal \
 		-target=null_resource.arc_dind_mtu_patch_ktsu_dev \
-		-target=null_resource.arc_dind_mtu_patch_personal
+		-target=null_resource.arc_dind_mtu_patch_personal \
+		-target=kubernetes_service_account.arc_personal_runner
 
 apply-traefik: check-vars check-init ## Deploy Traefik reverse proxy
 	@echo "Deploying Traefik..."
