@@ -52,4 +52,13 @@ resource "kubernetes_secret" "ghcr_pull" {
       }
     })
   }
+
+  # Each namespace must exist before its secret can be created. The for_each
+  # key is a literal string, so Terraform can't infer this dependency itself.
+  depends_on = [
+    kubernetes_namespace.arc_runners,
+    kubernetes_namespace.claude_sandbox,
+    kubernetes_namespace.claude_sandboxes,
+    kubernetes_namespace.poker,
+  ]
 }
