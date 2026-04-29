@@ -712,15 +712,12 @@ plan-runners: check-vars check-init ## Plan GitHub self-hosted runners (ARC)
 		-target=kubernetes_namespace.arc_system \
 		-target=kubernetes_namespace.arc_runners \
 		-target=kubernetes_secret.arc_ktsu_dev_github_app \
-		-target=kubernetes_secret.arc_cardapp_github_app \
-		-target=kubernetes_secret.arc_claudecluster_github_app \
+		-target=kubernetes_secret.arc_personal_github_app \
 		-target=helm_release.arc_controller \
 		-target=helm_release.arc_ktsu_dev \
-		-target=helm_release.arc_cardapp \
-		-target=helm_release.arc_claudecluster \
+		-target=helm_release.arc_personal \
 		-target=null_resource.arc_dind_mtu_patch_ktsu_dev \
-		-target=null_resource.arc_dind_mtu_patch_cardapp \
-		-target=null_resource.arc_dind_mtu_patch_claudecluster
+		-target=null_resource.arc_dind_mtu_patch_personal
 
 plan-traefik: check-vars check-init ## Plan Traefik reverse proxy
 	@echo "Planning Traefik components..."
@@ -1089,15 +1086,12 @@ apply-runners: check-vars check-init ## Deploy GitHub self-hosted runners (ARC)
 		-target=kubernetes_namespace.arc_system \
 		-target=kubernetes_namespace.arc_runners \
 		-target=kubernetes_secret.arc_ktsu_dev_github_app \
-		-target=kubernetes_secret.arc_cardapp_github_app \
-		-target=kubernetes_secret.arc_claudecluster_github_app \
+		-target=kubernetes_secret.arc_personal_github_app \
 		-target=helm_release.arc_controller \
 		-target=helm_release.arc_ktsu_dev \
-		-target=helm_release.arc_cardapp \
-		-target=helm_release.arc_claudecluster \
+		-target=helm_release.arc_personal \
 		-target=null_resource.arc_dind_mtu_patch_ktsu_dev \
-		-target=null_resource.arc_dind_mtu_patch_cardapp \
-		-target=null_resource.arc_dind_mtu_patch_claudecluster
+		-target=null_resource.arc_dind_mtu_patch_personal
 
 apply-traefik: check-vars check-init ## Deploy Traefik reverse proxy
 	@echo "Deploying Traefik..."

@@ -1,17 +1,20 @@
 # =============================================================================
 # GitHub Self-Hosted Runners — Actions Runner Controller (ARC)
 # =============================================================================
-# Deploys the modern GitHub ARC (gha-runner-scale-set) with three scale sets:
-#   - ktsu-dev-runners        — org-scoped, covers all ktsu-dev/* repos
-#   - cardapp-runners         — repo-scoped to matt-edmondson/CardApp
-#   - claudecluster-runners   — repo-scoped to matt-edmondson/ClaudeCluster
+# Deploys the modern GitHub ARC (gha-runner-scale-set) with:
+#   - ktsu-dev-runners   — org-scoped, covers all ktsu-dev/* repos
+#   - <repo>-runners     — one repo-scoped scale set per entry in
+#                          var.arc_personal_repos (matt-edmondson/<repo>)
+#
+# GitHub does not support user-account-scoped self-hosted runners — only
+# repo, org, or enterprise scopes — so personal repos still need one scale
+# set each. The personal scale sets share a single GitHub App installation
+# (the App is installed once on the matt-edmondson user account; that one
+# install grants access to whichever personal repos are selected in the
+# App's repo list), so they share an installation ID and credential secret.
 #
 # Runners are ephemeral (one pod per job), scale 0→N on demand, and include
 # a privileged docker:dind sidecar so workflows can build container images.
-#
-# Authentication: GitHub App (one App installed on the ktsu-dev org plus the
-# CardApp and ClaudeCluster repos). Per-install credentials live in separate
-# K8s secrets.
 #
 # Spec: docs/superpowers/specs/2026-04-17-github-runners-arc-design.md
 # =============================================================================
@@ -42,16 +45,22 @@ variable "arc_ktsu_dev_max_runners" {
   default     = 25
 }
 
-variable "arc_cardapp_max_runners" {
-  description = "Maximum concurrent runners for the matt-edmondson/CardApp scale set"
+variable "arc_personal_max_runners" {
+  description = "Maximum concurrent runners for each matt-edmondson/<repo> scale set"
   type        = number
   default     = 25
 }
 
-variable "arc_claudecluster_max_runners" {
-  description = "Maximum concurrent runners for the matt-edmondson/ClaudeCluster scale set"
-  type        = number
-  default     = 25
+variable "arc_personal_repos" {
+  description = "Personal repos under matt-edmondson/* that should get a dedicated ARC scale set. GitHub requires one listener per repo (no user-account scope), but every entry shares var.arc_github_app_installation_id_personal and var.arc_personal_runner_label, so workflows in any of these repos can target the same `runs-on:` label."
+  type        = list(string)
+  default     = ["CardApp", "ClaudeCluster"]
+}
+
+variable "arc_personal_runner_label" {
+  description = "Shared GitHub-side scale set name (and `runs-on:` label) for every personal repo scale set. Each scale set is still its own listener pinned to its repo, but they all advertise the same label, so workflows in any matt-edmondson/<repo> can target `runs-on: <this label>`."
+  type        = string
+  default     = "personal-runners"
 }
 
 variable "arc_runner_image" {
@@ -79,15 +88,8 @@ variable "arc_github_app_installation_id_ktsu_dev" {
   default     = ""
 }
 
-variable "arc_github_app_installation_id_cardapp" {
-  description = "GitHub App installation ID for the matt-edmondson/CardApp install"
-  type        = string
-  sensitive   = true
-  default     = ""
-}
-
-variable "arc_github_app_installation_id_claudecluster" {
-  description = "GitHub App installation ID for the matt-edmondson/ClaudeCluster install"
+variable "arc_github_app_installation_id_personal" {
+  description = "GitHub App installation ID for the matt-edmondson user-account install. One install on the personal account covers all selected personal repos, so every entry in var.arc_personal_repos shares this ID."
   type        = string
   sensitive   = true
   default     = ""
@@ -147,11 +149,11 @@ resource "kubernetes_secret" "arc_ktsu_dev_github_app" {
   depends_on = [kubernetes_namespace.arc_runners]
 }
 
-resource "kubernetes_secret" "arc_cardapp_github_app" {
+resource "kubernetes_secret" "arc_personal_github_app" {
   count = var.arc_enabled ? 1 : 0
 
   metadata {
-    name      = "arc-cardapp-github-app"
+    name      = "arc-personal-github-app"
     namespace = kubernetes_namespace.arc_runners[0].metadata[0].name
     labels    = var.common_labels
   }
@@ -160,27 +162,7 @@ resource "kubernetes_secret" "arc_cardapp_github_app" {
 
   data = {
     github_app_id              = var.arc_github_app_id
-    github_app_installation_id = var.arc_github_app_installation_id_cardapp
-    github_app_private_key     = var.arc_github_app_private_key
-  }
-
-  depends_on = [kubernetes_namespace.arc_runners]
-}
-
-resource "kubernetes_secret" "arc_claudecluster_github_app" {
-  count = var.arc_enabled ? 1 : 0
-
-  metadata {
-    name      = "arc-claudecluster-github-app"
-    namespace = kubernetes_namespace.arc_runners[0].metadata[0].name
-    labels    = var.common_labels
-  }
-
-  type = "Opaque"
-
-  data = {
-    github_app_id              = var.arc_github_app_id
-    github_app_installation_id = var.arc_github_app_installation_id_claudecluster
+    github_app_installation_id = var.arc_github_app_installation_id_personal
     github_app_private_key     = var.arc_github_app_private_key
   }
 
@@ -240,31 +222,16 @@ resource "null_resource" "arc_dind_mtu_patch_ktsu_dev" {
   }
 }
 
-resource "null_resource" "arc_dind_mtu_patch_cardapp" {
-  count = var.arc_enabled ? 1 : 0
+resource "null_resource" "arc_dind_mtu_patch_personal" {
+  for_each = var.arc_enabled ? toset(var.arc_personal_repos) : toset([])
 
   triggers = {
-    helm_revision = helm_release.arc_cardapp[0].metadata.revision
+    helm_revision = helm_release.arc_personal[each.key].metadata.revision
     patch_sha     = sha256(local.arc_dind_patch_json)
   }
 
   provisioner "local-exec" {
-    command     = "kubectl -n ${kubernetes_namespace.arc_runners[0].metadata[0].name} patch autoscalingrunnerset.actions.github.com cardapp-runners --type=json -p '${local.arc_dind_patch_json}'"
-    interpreter = ["bash", "-c"]
-    environment = { MSYS_NO_PATHCONV = "1" }
-  }
-}
-
-resource "null_resource" "arc_dind_mtu_patch_claudecluster" {
-  count = var.arc_enabled ? 1 : 0
-
-  triggers = {
-    helm_revision = helm_release.arc_claudecluster[0].metadata.revision
-    patch_sha     = sha256(local.arc_dind_patch_json)
-  }
-
-  provisioner "local-exec" {
-    command     = "kubectl -n ${kubernetes_namespace.arc_runners[0].metadata[0].name} patch autoscalingrunnerset.actions.github.com claudecluster-runners --type=json -p '${local.arc_dind_patch_json}'"
+    command     = "kubectl -n ${kubernetes_namespace.arc_runners[0].metadata[0].name} patch autoscalingrunnerset.actions.github.com ${lower(each.key)}-runners --type=json -p '${local.arc_dind_patch_json}'"
     interpreter = ["bash", "-c"]
     environment = { MSYS_NO_PATHCONV = "1" }
   }
@@ -358,12 +325,20 @@ resource "helm_release" "arc_ktsu_dev" {
   ]
 }
 
-# Scale set — matt-edmondson/CardApp
-# Workflows target these runners with: runs-on: cardapp-runners
-resource "helm_release" "arc_cardapp" {
-  count = var.arc_enabled ? 1 : 0
+# Scale sets — matt-edmondson/<repo> (one per entry in var.arc_personal_repos)
+# Workflows target each set with: runs-on: <lower(repo)>-runners
+#
+# All instances depend on helm_release.arc_ktsu_dev so the OCI chart is fully
+# downloaded and cached before any of these run. The hashicorp/helm 3.x
+# provider on Windows hits a temp-file rename race when multiple installs
+# download the same OCI chart in parallel; once ktsu-dev's apply has
+# populated the local Helm OCI cache, subsequent installs reuse it and the
+# race window closes. The for_each instances themselves still apply in
+# parallel, but they hit the warm cache rather than re-downloading.
+resource "helm_release" "arc_personal" {
+  for_each = var.arc_enabled ? toset(var.arc_personal_repos) : toset([])
 
-  name       = "cardapp-runners"
+  name       = "${lower(each.key)}-runners"
   repository = "oci://ghcr.io/actions/actions-runner-controller-charts"
   chart      = "gha-runner-scale-set"
   version    = var.arc_runner_set_chart_version
@@ -371,13 +346,19 @@ resource "helm_release" "arc_cardapp" {
 
   values = [
     yamlencode({
-      githubConfigUrl    = "https://github.com/matt-edmondson/CardApp"
-      githubConfigSecret = kubernetes_secret.arc_cardapp_github_app[0].metadata[0].name
+      githubConfigUrl    = "https://github.com/matt-edmondson/${each.key}"
+      githubConfigSecret = kubernetes_secret.arc_personal_github_app[0].metadata[0].name
 
-      runnerScaleSetName = "cardapp-runners"
+      # Shared GitHub-side name + `runs-on:` label across every personal-repo
+      # scale set. Each scale set is still a distinct listener pinned to one
+      # repo (GitHub allows no other scope for personal repos), but they all
+      # advertise the same label so workflows can use one `runs-on:` value.
+      # The Helm release / AutoscalingRunnerSet K8s name above stays per-repo
+      # so the arc-runners namespace doesn't collide.
+      runnerScaleSetName = var.arc_personal_runner_label
 
       minRunners = 0
-      maxRunners = var.arc_cardapp_max_runners
+      maxRunners = var.arc_personal_max_runners
 
       containerMode = {
         type = "dind"
@@ -414,74 +395,8 @@ resource "helm_release" "arc_cardapp" {
 
   depends_on = [
     helm_release.arc_controller,
-    kubernetes_secret.arc_cardapp_github_app,
+    kubernetes_secret.arc_personal_github_app,
     kubernetes_secret.ghcr_pull,
-    # Serialize scale set installs — the hashicorp/helm 3.x provider on Windows
-    # hits a temp-file rename race when multiple installs download the same OCI
-    # chart in parallel.
     helm_release.arc_ktsu_dev,
-  ]
-}
-
-# Scale set — matt-edmondson/ClaudeCluster
-# Workflows target these runners with: runs-on: claudecluster-runners
-resource "helm_release" "arc_claudecluster" {
-  count = var.arc_enabled ? 1 : 0
-
-  name       = "claudecluster-runners"
-  repository = "oci://ghcr.io/actions/actions-runner-controller-charts"
-  chart      = "gha-runner-scale-set"
-  version    = var.arc_runner_set_chart_version
-  namespace  = kubernetes_namespace.arc_runners[0].metadata[0].name
-
-  values = [
-    yamlencode({
-      githubConfigUrl    = "https://github.com/matt-edmondson/ClaudeCluster"
-      githubConfigSecret = kubernetes_secret.arc_claudecluster_github_app[0].metadata[0].name
-
-      runnerScaleSetName = "claudecluster-runners"
-
-      minRunners = 0
-      maxRunners = var.arc_claudecluster_max_runners
-
-      containerMode = {
-        type = "dind"
-      }
-
-      template = {
-        spec = {
-          imagePullSecrets = var.ghcr_token != "" ? [{ name = "ghcr-pull-secret" }] : []
-          containers = [
-            {
-              name    = "runner"
-              image   = var.arc_runner_image
-              command = ["/home/runner/run.sh"]
-              # See ktsu-dev scale set above for rationale.
-              securityContext = {
-                privileged = true
-              }
-              resources = {
-                requests = {
-                  cpu    = "500m"
-                  memory = "2Gi"
-                }
-                limits = {
-                  cpu    = "4"
-                  memory = "8Gi"
-                }
-              }
-            },
-          ]
-        }
-      }
-    }),
-  ]
-
-  depends_on = [
-    helm_release.arc_controller,
-    kubernetes_secret.arc_claudecluster_github_app,
-    kubernetes_secret.ghcr_pull,
-    # Serialize with the other scale sets — see comment on arc_cardapp.
-    helm_release.arc_cardapp,
   ]
 }
