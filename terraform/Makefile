@@ -771,7 +771,8 @@ plan-ingress: check-vars check-init ## Plan ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_comfyui \
 		-target=kubernetes_manifest.ingressroute_homepage \
 		-target=kubernetes_manifest.ingressroute_devtron \
-		-target=kubernetes_manifest.ingressroute_static_site
+		-target=kubernetes_manifest.ingressroute_static_site \
+		-target=kubernetes_manifest.ingressroute_poker
 
 plan-debug-ingress: check-vars check-init ## Plan debug NodePort escape-hatch services (Headlamp, Devtron)
 	@echo "Planning debug escape-hatch ingress..."
@@ -1151,7 +1152,8 @@ apply-ingress: check-vars check-init ## Deploy ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_comfyui \
 		-target=kubernetes_manifest.ingressroute_homepage \
 		-target=kubernetes_manifest.ingressroute_devtron \
-		-target=kubernetes_manifest.ingressroute_static_site
+		-target=kubernetes_manifest.ingressroute_static_site \
+		-target=kubernetes_manifest.ingressroute_poker
 
 apply-debug-ingress: check-vars check-init ## Deploy debug NodePort escape-hatch services (Headlamp, Devtron)
 	@echo "Deploying debug escape-hatch ingress..."
