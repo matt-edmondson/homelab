@@ -34,7 +34,8 @@ MAKE := "$(MAKE)"
 	plan-homepage apply-homepage \
 	plan-runners apply-runners debug-runners \
 	show-structure quick-debug taint-component \
-	recover restart-kube-vip clean-longhorn-mounts
+	recover restart-kube-vip clean-longhorn-mounts \
+	plan-poker apply-poker
 
 # Default target
 help: ## Show this help message
@@ -1577,3 +1578,29 @@ recover: ## Full post-outage recovery (clean mounts, restart kube-vip, restart s
 	@kubectl get pods --all-namespaces | grep -v Running | grep -v Succeeded | grep -v NAMESPACE || echo "All pods running!"
 	@echo ""
 	@echo "=== Recovery complete ==="
+
+plan-poker: check-vars check-init ## Plan Planning Poker deployment
+	@echo "Planning Planning Poker components..."
+	terraform plan \
+		-target=kubernetes_namespace.poker \
+		-target=kubernetes_secret.poker_postgres \
+		-target=kubernetes_persistent_volume_claim.poker_postgres \
+		-target=kubernetes_deployment.poker_postgres \
+		-target=kubernetes_service.poker_postgres \
+		-target=kubernetes_deployment.poker \
+		-target=kubernetes_service.poker \
+		-target=kubernetes_manifest.ingressroute_poker \
+		-target=azurerm_dns_a_record.services
+
+apply-poker: check-vars check-init ## Deploy Planning Poker
+	@echo "Deploying Planning Poker..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.poker \
+		-target=kubernetes_secret.poker_postgres \
+		-target=kubernetes_persistent_volume_claim.poker_postgres \
+		-target=kubernetes_deployment.poker_postgres \
+		-target=kubernetes_service.poker_postgres \
+		-target=kubernetes_deployment.poker \
+		-target=kubernetes_service.poker \
+		-target=kubernetes_manifest.ingressroute_poker \
+		-target=azurerm_dns_a_record.services
