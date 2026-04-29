@@ -219,12 +219,20 @@ resource "kubernetes_cluster_role_binding" "homepage" {
 # -----------------------------------------------------------------------------
 
 locals {
+  # Per-service resource widgets: every entry that points to a single Deployment
+  # also carries `namespace` + `app` (or `podSelector` for charts that label with
+  # `app.kubernetes.io/name=...` instead of bare `app=`). Homepage's kubernetes
+  # integration uses these to show live CPU/memory on each tile via
+  # metrics-server. Cluster-wide widgets (in widgets.yaml) keep showing aggregate
+  # cluster + node usage.
   homepage_media_services = concat(
     var.sonarr_enabled ? [{
       "Sonarr" = {
         href        = "https://sonarr.${var.traefik_domain}"
         icon        = "sonarr"
         description = "TV Shows"
+        namespace   = "sonarr"
+        app         = "sonarr"
         widget = {
           type = "sonarr"
           url  = "http://sonarr-service.sonarr.svc.cluster.local:80"
@@ -237,6 +245,8 @@ locals {
         href        = "https://radarr.${var.traefik_domain}"
         icon        = "radarr"
         description = "Movies"
+        namespace   = "radarr"
+        app         = "radarr"
         widget = {
           type = "radarr"
           url  = "http://radarr-service.radarr.svc.cluster.local:80"
@@ -249,6 +259,8 @@ locals {
         href        = "https://bazarr.${var.traefik_domain}"
         icon        = "bazarr"
         description = "Subtitles"
+        namespace   = "bazarr"
+        app         = "bazarr"
         widget = {
           type = "bazarr"
           url  = "http://bazarr-service.bazarr.svc.cluster.local:80"
@@ -261,6 +273,8 @@ locals {
         href        = "https://prowlarr.${var.traefik_domain}"
         icon        = "prowlarr"
         description = "Indexers"
+        namespace   = "prowlarr"
+        app         = "prowlarr"
         widget = {
           type = "prowlarr"
           url  = "http://prowlarr-service.prowlarr.svc.cluster.local:80"
@@ -273,6 +287,8 @@ locals {
         href        = "https://jackett.${var.traefik_domain}"
         icon        = "jackett"
         description = "Indexer Proxy"
+        namespace   = "jackett"
+        app         = "jackett"
       }
     }] : [],
     var.cleanuparr_enabled ? [{
@@ -280,6 +296,8 @@ locals {
         href        = "https://cleanuparr.${var.traefik_domain}"
         icon        = "cleanuperr"
         description = "Library Cleanup"
+        namespace   = "cleanuparr"
+        app         = "cleanuparr"
       }
     }] : [],
     var.notifiarr_enabled ? [{
@@ -287,6 +305,8 @@ locals {
         href        = "https://notifiarr.${var.traefik_domain}"
         icon        = "notifiarr"
         description = "Notifications"
+        namespace   = "notifiarr"
+        app         = "notifiarr"
       }
     }] : [],
   )
@@ -297,6 +317,8 @@ locals {
         href        = "https://qbit.${var.traefik_domain}"
         icon        = "qbittorrent"
         description = "Torrents"
+        namespace   = "qbittorrent"
+        app         = "qbittorrent"
         widget = {
           type     = "qbittorrent"
           url      = "http://qbittorrent-service.qbittorrent.svc.cluster.local:80"
@@ -310,6 +332,8 @@ locals {
         href        = "https://sabnzbd.${var.traefik_domain}"
         icon        = "sabnzbd"
         description = "Usenet"
+        namespace   = "sabnzbd"
+        app         = "sabnzbd"
         widget = {
           type = "sabnzbd"
           url  = "http://sabnzbd-service.sabnzbd.svc.cluster.local:80"
@@ -325,6 +349,8 @@ locals {
         href        = "https://emby.${var.traefik_domain}"
         icon        = "emby"
         description = "Media Server"
+        namespace   = "emby"
+        app         = "emby"
         widget = {
           type = "emby"
           url  = "http://emby-service.emby.svc.cluster.local:80"
@@ -340,6 +366,8 @@ locals {
         href        = "https://grafana.${var.traefik_domain}"
         icon        = "grafana"
         description = "Dashboards"
+        namespace   = "monitoring"
+        podSelector = "app.kubernetes.io/name=grafana"
         widget = {
           type     = "grafana"
           url      = "http://prometheus-stack-grafana.monitoring.svc.cluster.local:80"
@@ -353,6 +381,8 @@ locals {
         href        = "https://prometheus.${var.traefik_domain}"
         icon        = "prometheus"
         description = "Metrics"
+        namespace   = "monitoring"
+        podSelector = "app.kubernetes.io/name=prometheus"
         widget = {
           type = "prometheus"
           url  = "http://prometheus-stack-kube-prom-prometheus.monitoring.svc.cluster.local:9090"
@@ -364,6 +394,8 @@ locals {
         href        = "https://alertmanager.${var.traefik_domain}"
         icon        = "alertmanager"
         description = "Alerts"
+        namespace   = "monitoring"
+        podSelector = "app.kubernetes.io/name=alertmanager"
       }
     }] : [],
   )
@@ -374,6 +406,8 @@ locals {
         href        = "https://ollama.${var.traefik_domain}"
         icon        = "ollama"
         description = "LLM Inference"
+        namespace   = "ollama"
+        app         = "ollama"
       }
     }] : [],
     var.qdrant_enabled ? [{
@@ -381,6 +415,8 @@ locals {
         href        = "https://qdrant.${var.traefik_domain}"
         icon        = "qdrant"
         description = "Vector Database"
+        namespace   = "qdrant"
+        app         = "qdrant"
       }
     }] : [],
     var.chromadb_enabled ? [{
@@ -388,6 +424,8 @@ locals {
         href        = "https://chromadb.${var.traefik_domain}"
         icon        = "chroma"
         description = "Vector Database"
+        namespace   = "chromadb"
+        app         = "chromadb"
       }
     }] : [],
     var.comfyui_enabled ? [{
@@ -395,6 +433,8 @@ locals {
         href        = "https://comfyui.${var.traefik_domain}"
         icon        = "comfyui"
         description = "Image Generation"
+        namespace   = "comfyui"
+        app         = "comfyui"
       }
     }] : [],
     var.claudecluster_enabled ? [{
@@ -402,6 +442,8 @@ locals {
         href        = "https://claude.${var.traefik_domain}"
         icon        = "claude-ai"
         description = "Claude Code Sandboxes"
+        namespace   = "claude-sandbox"
+        app         = "claudecluster-backend"
       }
     }] : [],
   )
@@ -412,6 +454,8 @@ locals {
         href        = "https://traefik.${var.traefik_domain}"
         icon        = "traefik"
         description = "Reverse Proxy"
+        namespace   = "traefik"
+        podSelector = "app.kubernetes.io/name=traefik"
         widget = {
           type = "traefik"
           url  = "http://traefik.traefik.svc.cluster.local:9000"
@@ -423,6 +467,9 @@ locals {
         href        = "https://longhorn.${var.traefik_domain}"
         icon        = "longhorn"
         description = "Storage"
+        namespace   = "longhorn-system"
+        # The manager DaemonSet drives storage; ignore CSI / UI sidecars.
+        podSelector = "app=longhorn-manager"
       }
     }],
     var.kubernetes_dashboard_enabled ? [{
@@ -430,6 +477,8 @@ locals {
         href        = "https://dashboard.${var.traefik_domain}"
         icon        = "headlamp"
         description = "K8s Dashboard"
+        namespace   = "headlamp"
+        podSelector = "app.kubernetes.io/name=headlamp"
       }
     }] : [],
     var.baget_enabled ? [{
@@ -437,6 +486,8 @@ locals {
         href        = "https://packages.${var.traefik_domain}"
         icon        = "si-nuget"
         description = "NuGet Packages"
+        namespace   = "baget"
+        app         = "baget"
       }
     }] : [],
     var.n8n_enabled ? [{
@@ -444,6 +495,8 @@ locals {
         href        = "https://n8n.${var.traefik_domain}"
         icon        = "n8n"
         description = "Workflow Automation"
+        namespace   = "n8n"
+        app         = "n8n"
       }
     }] : [],
     var.devtron_enabled ? [{
@@ -452,6 +505,9 @@ locals {
         # No dedicated Devtron icon in dashboard-icons; fall back to generic K8s.
         icon        = "kubernetes"
         description = "K8s Dashboard"
+        namespace   = "devtroncd"
+        # Devtron has many components; track the dashboard pod as the headline.
+        app         = "dashboard"
       }
     }] : [],
     var.poker_enabled ? [{
@@ -460,6 +516,8 @@ locals {
         # No dedicated planning-poker icon; use Material Design playing cards.
         icon        = "mdi-cards-playing-outline"
         description = "Scrum Estimation"
+        namespace   = "poker"
+        app         = "poker"
       }
     }] : [],
   )
