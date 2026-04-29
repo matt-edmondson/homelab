@@ -727,8 +727,7 @@ plan-runners: check-vars check-init ## Plan GitHub self-hosted runners (ARC)
 		-target=helm_release.arc_ktsu_dev \
 		-target=helm_release.arc_personal \
 		-target=null_resource.arc_dind_mtu_patch_ktsu_dev \
-		-target=null_resource.arc_dind_mtu_patch_personal \
-		-target=kubernetes_service_account.arc_personal_runner
+		-target=null_resource.arc_dind_mtu_patch_personal
 
 plan-traefik: check-vars check-init ## Plan Traefik reverse proxy
 	@echo "Planning Traefik components..."
@@ -1108,8 +1107,7 @@ apply-runners: check-vars check-init ## Deploy GitHub self-hosted runners (ARC)
 		-target=helm_release.arc_ktsu_dev \
 		-target=helm_release.arc_personal \
 		-target=null_resource.arc_dind_mtu_patch_ktsu_dev \
-		-target=null_resource.arc_dind_mtu_patch_personal \
-		-target=kubernetes_service_account.arc_personal_runner
+		-target=null_resource.arc_dind_mtu_patch_personal
 
 apply-traefik: check-vars check-init ## Deploy Traefik reverse proxy
 	@echo "Deploying Traefik..."

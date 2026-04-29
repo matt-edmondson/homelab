@@ -325,8 +325,7 @@
 #arc_runner_set_chart_version            = "0.11.0" # Must match controller version
 #arc_ktsu_dev_max_runners                = 25       # Peak concurrent runners for ktsu-dev org
 #arc_personal_max_runners                = 25       # Peak concurrent runners per personal repo scale set
-#arc_personal_repos                      = ["CardApp", "ClaudeCluster"]
-#arc_personal_runner_label               = "personal-runners" # Shared `runs-on:` label across all personal scale sets
+#arc_personal_repos                      = ["CardApp", "ClaudeCluster"]    # Each repo's workflows use `runs-on: <lower(repo)>-runners`
 #arc_github_app_id                       = "123456"
 #arc_github_app_installation_id_ktsu_dev = "12345678"
 #arc_github_app_installation_id_personal = "87654321"

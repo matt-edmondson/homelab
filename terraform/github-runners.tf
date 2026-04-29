@@ -52,15 +52,9 @@ variable "arc_personal_max_runners" {
 }
 
 variable "arc_personal_repos" {
-  description = "Personal repos under matt-edmondson/* that should get a dedicated ARC scale set. GitHub requires one listener per repo (no user-account scope), but every entry shares var.arc_github_app_installation_id_personal and var.arc_personal_runner_label, so workflows in any of these repos can target the same `runs-on:` label."
+  description = "Personal repos under matt-edmondson/* that should get a dedicated ARC scale set. GitHub requires one listener per repo (no user-account scope), and the gha-runner-scale-set chart names several namespace-scoped resources after runnerScaleSetName, so each release uses its own runs-on label of `<lower(repo)>-runners` (e.g. workflows in CardApp use `runs-on: cardapp-runners`). Every entry shares var.arc_github_app_installation_id_personal and the ghcr-pull-secret."
   type        = list(string)
   default     = ["CardApp", "ClaudeCluster"]
-}
-
-variable "arc_personal_runner_label" {
-  description = "Shared GitHub-side scale set name (and `runs-on:` label) for every personal repo scale set. Each scale set is still its own listener pinned to its repo, but they all advertise the same label, so workflows in any matt-edmondson/<repo> can target `runs-on: <this label>`."
-  type        = string
-  default     = "personal-runners"
 }
 
 variable "arc_runner_image" {
@@ -337,26 +331,6 @@ resource "helm_release" "arc_ktsu_dev" {
 # populated the local Helm OCI cache, subsequent installs reuse it and the
 # race window closes. The for_each instances themselves still apply in
 # parallel, but they hit the warm cache rather than re-downloading.
-# Shared no-permission ServiceAccount for the personal scale sets. The chart
-# (gha-runner-scale-set) auto-creates a `<runnerScaleSetName>-gha-rs-no-permission`
-# SA whenever `template.spec.serviceAccountName` is unset and containerMode is
-# not `kubernetes`. With multiple releases sharing the same runnerScaleSetName,
-# all of them fight over that one auto-named SA — only the first to install
-# wins, the rest fail with a Helm ownership-annotation conflict. We sidestep
-# that by pre-creating one SA and pointing every release at it via
-# template.spec.serviceAccountName, which causes the chart's auto-creation
-# branch to skip entirely. The SA is intentionally permissionless (no role
-# bindings) — runners use DinD for isolation and don't need K8s API access.
-resource "kubernetes_service_account" "arc_personal_runner" {
-  count = var.arc_enabled && length(var.arc_personal_repos) > 0 ? 1 : 0
-
-  metadata {
-    name      = "arc-personal-runner"
-    namespace = kubernetes_namespace.arc_runners[0].metadata[0].name
-    labels    = var.common_labels
-  }
-}
-
 resource "helm_release" "arc_personal" {
   for_each = var.arc_enabled ? toset(var.arc_personal_repos) : toset([])
 
@@ -371,13 +345,13 @@ resource "helm_release" "arc_personal" {
       githubConfigUrl    = "https://github.com/matt-edmondson/${each.key}"
       githubConfigSecret = kubernetes_secret.arc_personal_github_app[0].metadata[0].name
 
-      # Shared GitHub-side name + `runs-on:` label across every personal-repo
-      # scale set. Each scale set is still a distinct listener pinned to one
-      # repo (GitHub allows no other scope for personal repos), but they all
-      # advertise the same label so workflows can use one `runs-on:` value.
-      # The Helm release / AutoscalingRunnerSet K8s name above stays per-repo
-      # so the arc-runners namespace doesn't collide.
-      runnerScaleSetName = var.arc_personal_runner_label
+      # Per-release name. The chart names several namespace-scoped resources
+      # (no-permission SA, manager Role, manager RoleBinding, ...) after
+      # runnerScaleSetName, so every release in this namespace MUST have a
+      # distinct value here or Helm ownership annotations collide on the
+      # second install. Workflows therefore target the per-repo label, e.g.
+      # `runs-on: cardapp-runners`.
+      runnerScaleSetName = "${lower(each.key)}-runners"
 
       minRunners = 0
       maxRunners = var.arc_personal_max_runners
@@ -388,11 +362,7 @@ resource "helm_release" "arc_personal" {
 
       template = {
         spec = {
-          # See kubernetes_service_account.arc_personal_runner above. Setting
-          # this skips the chart's auto-created no-permission SA, which would
-          # otherwise collide between releases that share runnerScaleSetName.
-          serviceAccountName = kubernetes_service_account.arc_personal_runner[0].metadata[0].name
-          imagePullSecrets   = var.ghcr_token != "" ? [{ name = "ghcr-pull-secret" }] : []
+          imagePullSecrets = var.ghcr_token != "" ? [{ name = "ghcr-pull-secret" }] : []
           containers = [
             {
               name    = "runner"
@@ -424,6 +394,5 @@ resource "helm_release" "arc_personal" {
     kubernetes_secret.arc_personal_github_app,
     kubernetes_secret.ghcr_pull,
     helm_release.arc_ktsu_dev,
-    kubernetes_service_account.arc_personal_runner,
   ]
 }
