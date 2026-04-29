@@ -337,6 +337,26 @@ resource "helm_release" "arc_ktsu_dev" {
 # populated the local Helm OCI cache, subsequent installs reuse it and the
 # race window closes. The for_each instances themselves still apply in
 # parallel, but they hit the warm cache rather than re-downloading.
+# Shared no-permission ServiceAccount for the personal scale sets. The chart
+# (gha-runner-scale-set) auto-creates a `<runnerScaleSetName>-gha-rs-no-permission`
+# SA whenever `template.spec.serviceAccountName` is unset and containerMode is
+# not `kubernetes`. With multiple releases sharing the same runnerScaleSetName,
+# all of them fight over that one auto-named SA — only the first to install
+# wins, the rest fail with a Helm ownership-annotation conflict. We sidestep
+# that by pre-creating one SA and pointing every release at it via
+# template.spec.serviceAccountName, which causes the chart's auto-creation
+# branch to skip entirely. The SA is intentionally permissionless (no role
+# bindings) — runners use DinD for isolation and don't need K8s API access.
+resource "kubernetes_service_account" "arc_personal_runner" {
+  count = var.arc_enabled && length(var.arc_personal_repos) > 0 ? 1 : 0
+
+  metadata {
+    name      = "arc-personal-runner"
+    namespace = kubernetes_namespace.arc_runners[0].metadata[0].name
+    labels    = var.common_labels
+  }
+}
+
 resource "helm_release" "arc_personal" {
   for_each = var.arc_enabled ? toset(var.arc_personal_repos) : toset([])
 
@@ -368,7 +388,11 @@ resource "helm_release" "arc_personal" {
 
       template = {
         spec = {
-          imagePullSecrets = var.ghcr_token != "" ? [{ name = "ghcr-pull-secret" }] : []
+          # See kubernetes_service_account.arc_personal_runner above. Setting
+          # this skips the chart's auto-created no-permission SA, which would
+          # otherwise collide between releases that share runnerScaleSetName.
+          serviceAccountName = kubernetes_service_account.arc_personal_runner[0].metadata[0].name
+          imagePullSecrets   = var.ghcr_token != "" ? [{ name = "ghcr-pull-secret" }] : []
           containers = [
             {
               name    = "runner"
@@ -400,5 +424,6 @@ resource "helm_release" "arc_personal" {
     kubernetes_secret.arc_personal_github_app,
     kubernetes_secret.ghcr_pull,
     helm_release.arc_ktsu_dev,
+    kubernetes_service_account.arc_personal_runner,
   ]
 }
