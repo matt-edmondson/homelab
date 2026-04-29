@@ -82,6 +82,8 @@ locals {
     var.homepage_enabled ? { homepage = "homepage" } : {},
     # ClaudeCluster
     var.claudecluster_enabled ? { claude = "claude" } : {},
+    # Planning Poker
+    var.poker_enabled ? { poker = "poker" } : {},
   )
 }
 
