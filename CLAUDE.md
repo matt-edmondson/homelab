@@ -96,6 +96,7 @@ Copy `terraform.tfvars.example` to `terraform.tfvars` and populate values. The `
 - [qdrant.tf](terraform/qdrant.tf) — Qdrant vector database (Longhorn data PVC, qdrant/qdrant)
 - [chromadb.tf](terraform/chromadb.tf) — ChromaDB vector database (Longhorn data PVC, chromadb/chroma)
 - [comfyui.tf](terraform/comfyui.tf) — ComfyUI image generation (Longhorn config PVC + NFS models mount, GPU nodeSelector, yanwk/comfyui-boot)
+- [keel.tf](terraform/keel.tf) — Keel image auto-update controller via Helm (cluster-wide, polling mode); Deployments opt in via `keel.sh/policy=force` + `keel.sh/trigger=poll` annotations and Keel reads each Deployment's `imagePullSecrets` for registry auth
 
 ### Networking Model
 

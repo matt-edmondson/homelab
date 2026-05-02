@@ -45,7 +45,8 @@ TF_PARALLELISM ?= 1
 	plan-runners apply-runners debug-runners \
 	show-structure quick-debug taint-component \
 	recover restart-kube-vip clean-longhorn-mounts \
-	plan-poker apply-poker
+	plan-poker apply-poker \
+	plan-keel apply-keel
 
 # Default target
 help: ## Show this help message
@@ -1622,3 +1623,15 @@ apply-poker: check-vars check-init ## Deploy Planning Poker
 		-target=kubernetes_service.poker \
 		-target=kubernetes_manifest.ingressroute_poker \
 		-target=azurerm_dns_a_record.services
+
+plan-keel: check-vars check-init ## Plan Keel image auto-update controller
+	@echo "Planning Keel..."
+	terraform plan \
+		-target=kubernetes_namespace.keel \
+		-target=helm_release.keel
+
+apply-keel: check-vars check-init ## Deploy Keel image auto-update controller
+	@echo "Deploying Keel..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.keel \
+		-target=helm_release.keel
