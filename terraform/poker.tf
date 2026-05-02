@@ -250,6 +250,11 @@ resource "kubernetes_deployment" "poker" {
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "poker"
     })
+    annotations = {
+      "keel.sh/policy"       = "force"
+      "keel.sh/trigger"      = "poll"
+      "keel.sh/pollSchedule" = "@every 2m"
+    }
   }
 
   spec {
