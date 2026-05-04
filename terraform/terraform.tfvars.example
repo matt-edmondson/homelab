@@ -343,3 +343,30 @@
 # Planning Poker
 #poker_enabled            = true
 #poker_postgres_password  = "change-me-generate-a-secure-random-value"
+
+# Cams Web Toys (Cameron's Nuxt 3 SPA + socket.io fork — wheel/quizzifier/poker/standup/folio)
+# Master toggle creates the Deployment + Service. Per-toy *_enabled flags each
+# add one IngressRoute and one Azure DNS A record at <subdomain>.<traefik_domain>.
+#cams_web_toys_enabled            = true
+#cams_web_toys_image              = "ghcr.io/matt-edmondson/cams-web-toys:latest"
+#cams_web_toys_image_pull_policy  = "Always"
+#cams_web_toys_memory_request     = "128Mi"
+#cams_web_toys_memory_limit       = "512Mi"
+#cams_web_toys_cpu_request        = "100m"
+#cams_web_toys_cpu_limit          = "500m"
+
+# Per-toy subdomain toggles (defaults: only artisanal-poker on; rest off)
+#cams_web_toys_hub_enabled         = false
+#cams_web_toys_hub_subdomain       = "toys"
+#cams_web_toys_wheel_enabled       = false
+#cams_web_toys_wheel_subdomain     = "wheel"
+#cams_web_toys_quiz_enabled        = false
+#cams_web_toys_quiz_subdomain      = "quiz"
+#cams_web_toys_poker_enabled       = true
+#cams_web_toys_poker_subdomain     = "artisanal-poker"
+#cams_web_toys_standup_enabled     = false
+#cams_web_toys_standup_subdomain   = "standup"
+#cams_web_toys_folio_enabled       = false
+#cams_web_toys_folio_subdomain     = "folio"
+#cams_web_toys_checklist_enabled   = false
+#cams_web_toys_checklist_subdomain = "checklist"

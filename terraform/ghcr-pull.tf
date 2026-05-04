@@ -28,7 +28,7 @@ variable "ghcr_token" {
 }
 
 variable "ghcr_pull_extra_namespaces" {
-  description = "Additional namespaces beyond the auto-derived feature-gated ones (arc-runners, claude-sandbox, claude-sandboxes, poker) that should receive a ghcr-pull-secret. Use this for namespaces declared outside this repo."
+  description = "Additional namespaces beyond the auto-derived feature-gated ones (arc-runners, claude-sandbox, claude-sandboxes, poker, cams-web-toys) that should receive a ghcr-pull-secret. Use this for namespaces declared outside this repo."
   type        = set(string)
   default     = []
 }
@@ -44,6 +44,7 @@ locals {
     kubernetes_namespace.claude_sandbox[*].metadata[0].name,
     kubernetes_namespace.claude_sandboxes[*].metadata[0].name,
     kubernetes_namespace.poker[*].metadata[0].name,
+    kubernetes_namespace.cams_web_toys[*].metadata[0].name,
   ))
 }
 

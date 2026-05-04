@@ -46,6 +46,7 @@ TF_PARALLELISM ?= 1
 	show-structure quick-debug taint-component \
 	recover restart-kube-vip clean-longhorn-mounts \
 	plan-poker apply-poker \
+	plan-cams-web-toys apply-cams-web-toys \
 	plan-keel apply-keel
 
 # Default target
@@ -773,7 +774,8 @@ plan-ingress: check-vars check-init ## Plan ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_homepage \
 		-target=kubernetes_manifest.ingressroute_devtron \
 		-target=kubernetes_manifest.ingressroute_static_site \
-		-target=kubernetes_manifest.ingressroute_poker
+		-target=kubernetes_manifest.ingressroute_poker \
+		-target=kubernetes_manifest.ingressroute_cams_web_toys
 
 plan-debug-ingress: check-vars check-init ## Plan debug NodePort escape-hatch services (Headlamp, Devtron)
 	@echo "Planning debug escape-hatch ingress..."
@@ -1154,7 +1156,8 @@ apply-ingress: check-vars check-init ## Deploy ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_homepage \
 		-target=kubernetes_manifest.ingressroute_devtron \
 		-target=kubernetes_manifest.ingressroute_static_site \
-		-target=kubernetes_manifest.ingressroute_poker
+		-target=kubernetes_manifest.ingressroute_poker \
+		-target=kubernetes_manifest.ingressroute_cams_web_toys
 
 apply-debug-ingress: check-vars check-init ## Deploy debug NodePort escape-hatch services (Headlamp, Devtron)
 	@echo "Deploying debug escape-hatch ingress..."
@@ -1622,6 +1625,26 @@ apply-poker: check-vars check-init ## Deploy Planning Poker
 		-target=kubernetes_deployment.poker \
 		-target=kubernetes_service.poker \
 		-target=kubernetes_manifest.ingressroute_poker \
+		-target=azurerm_dns_a_record.services
+
+plan-cams-web-toys: check-vars check-init ## Plan cams-web-toys deployment
+	@echo "Planning cams-web-toys components..."
+	terraform plan \
+		-target=kubernetes_namespace.cams_web_toys \
+		-target=kubernetes_deployment.cams_web_toys \
+		-target=kubernetes_service.cams_web_toys \
+		-target=kubernetes_manifest.ingressroute_cams_web_toys \
+		-target=kubernetes_secret.ghcr_pull \
+		-target=azurerm_dns_a_record.services
+
+apply-cams-web-toys: check-vars check-init ## Deploy cams-web-toys
+	@echo "Deploying cams-web-toys..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.cams_web_toys \
+		-target=kubernetes_deployment.cams_web_toys \
+		-target=kubernetes_service.cams_web_toys \
+		-target=kubernetes_manifest.ingressroute_cams_web_toys \
+		-target=kubernetes_secret.ghcr_pull \
 		-target=azurerm_dns_a_record.services
 
 plan-keel: check-vars check-init ## Plan Keel image auto-update controller

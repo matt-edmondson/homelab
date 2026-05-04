@@ -84,6 +84,9 @@ locals {
     var.claudecluster_enabled ? { claude = "claude" } : {},
     # Planning Poker
     var.poker_enabled ? { poker = "poker" } : {},
+    # Cams Web Toys — one entry per enabled toy, keys prefixed `cwt_` to avoid
+    # collisions with sibling modules in this global merge.
+    local.cams_web_toys_dns_records,
   )
 }
 

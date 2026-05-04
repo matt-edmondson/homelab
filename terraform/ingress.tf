@@ -1678,3 +1678,53 @@ resource "kubernetes_manifest" "ingressroute_claudecluster" {
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]
 }
+
+# Cams Web Toys — one IngressRoute per enabled toy subdomain. All routes target
+# the same Service; the SPA's host-redirect plugin maps the leftmost host label
+# to the matching page on first load. Public auth, matching the existing poker
+# IngressRoute (crowdsec-bouncer only, no oauth-forward-auth) so guests can
+# join standup/poker rooms without a login.
+resource "kubernetes_manifest" "ingressroute_cams_web_toys" {
+  for_each = local.cams_web_toys_subdomains
+
+  manifest = {
+    apiVersion = "traefik.io/v1alpha1"
+    kind       = "IngressRoute"
+    metadata = {
+      name      = "cams-web-toys-${each.key}"
+      namespace = kubernetes_namespace.traefik.metadata[0].name
+      labels    = var.common_labels
+    }
+    spec = {
+      entryPoints = ["websecure"]
+      routes = [{
+        match = "Host(`${each.value}.${var.traefik_domain}`)"
+        kind  = "Rule"
+        middlewares = [
+          {
+            name      = "crowdsec-bouncer"
+            namespace = kubernetes_namespace.traefik.metadata[0].name
+          },
+        ]
+        services = [{
+          name      = kubernetes_service.cams_web_toys[0].metadata[0].name
+          namespace = kubernetes_namespace.cams_web_toys[0].metadata[0].name
+          port      = 3000
+        }]
+      }]
+      tls = {
+        certResolver = "letsencrypt"
+        domains = [{
+          main = var.traefik_domain
+          sans = ["*.${var.traefik_domain}"]
+        }]
+      }
+    }
+  }
+
+  depends_on = [
+    helm_release.traefik,
+    kubernetes_service.cams_web_toys,
+    kubernetes_manifest.middleware_crowdsec_bouncer,
+  ]
+}
