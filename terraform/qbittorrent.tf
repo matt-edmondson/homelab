@@ -147,6 +147,10 @@ resource "kubernetes_secret" "gluetun_vpn" {
     FIREWALL_OUTBOUND_SUBNETS = "10.244.0.0/16,10.96.0.0/12,192.168.0.0/24"
     FIREWALL_INPUT_PORTS      = "8080"
     HEALTH_SERVER_ADDRESS     = "0.0.0.0:9999"
+    # Tolerate slow DNS during VPN startup. Defaults (6s/5s) cause restart loops
+    # when cluster DNS is briefly unavailable while gluetun probes cloudflare.com.
+    HEALTH_VPN_DURATION_INITIAL  = "30s"
+    HEALTH_VPN_DURATION_ADDITION = "15s"
   }
 
   type = "Opaque"

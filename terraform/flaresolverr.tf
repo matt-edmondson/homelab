@@ -22,7 +22,7 @@ variable "flaresolverr_memory_request" {
 variable "flaresolverr_memory_limit" {
   description = "Memory limit for Flaresolverr container"
   type        = string
-  default     = "512Mi"
+  default     = "1Gi"
 }
 
 variable "flaresolverr_cpu_request" {

@@ -30,13 +30,13 @@ variable "homepage_image_tag" {
 variable "homepage_memory_request" {
   description = "Memory request for Homepage container"
   type        = string
-  default     = "128Mi"
+  default     = "256Mi"
 }
 
 variable "homepage_memory_limit" {
   description = "Memory limit for Homepage container"
   type        = string
-  default     = "256Mi"
+  default     = "512Mi"
 }
 
 variable "homepage_cpu_request" {
@@ -219,6 +219,40 @@ resource "kubernetes_cluster_role_binding" "homepage" {
 # -----------------------------------------------------------------------------
 
 locals {
+  # Per-service Traefik middleware chain (mirrors ingress.tf). Suffixed onto
+  # each tile's display name so the chain stays visible on the homepage UI
+  # without hover (description-only fields collapse into a tooltip when a
+  # widget is present). Keys must match the tile's display name exactly.
+  # Update both this map and ingress.tf when changing a route's middlewares.
+  homepage_middlewares = {
+    "Sonarr"         = ["crowdsec", "oauth"]
+    "Radarr"         = ["crowdsec", "oauth"]
+    "Bazarr"         = ["crowdsec", "oauth"]
+    "Prowlarr"       = ["crowdsec", "oauth"]
+    "Jackett"        = ["crowdsec", "oauth"]
+    "Cleanuparr"     = ["crowdsec", "oauth"]
+    "Notifiarr"      = ["crowdsec", "oauth"]
+    "qBittorrent"    = ["crowdsec", "oauth"]
+    "SABnzbd"        = ["crowdsec", "oauth"]
+    "Emby"           = ["crowdsec"]
+    "Grafana"        = ["crowdsec"]
+    "Prometheus"     = ["crowdsec", "oauth"]
+    "AlertManager"   = ["crowdsec", "oauth"]
+    "Ollama"         = ["crowdsec", "oauth"]
+    "Qdrant"         = ["crowdsec", "oauth"]
+    "ChromaDB"       = ["crowdsec", "oauth"]
+    "ComfyUI"        = ["crowdsec", "oauth"]
+    "ClaudeCluster"  = ["crowdsec", "oauth"]
+    "Traefik"        = ["crowdsec", "oauth"]
+    "Longhorn"       = ["crowdsec", "oauth"]
+    "Headlamp"       = ["crowdsec", "oauth"]
+    "BaGet"          = ["crowdsec"]
+    "n8n"            = ["crowdsec", "oauth"]
+    "Devtron"        = ["crowdsec", "oauth"]
+    "Planning Poker" = ["crowdsec"]
+  }
+  homepage_mw_label = { for k, v in local.homepage_middlewares : k => join(" + ", v) }
+
   # Per-service resource widgets: every entry that points to a single Deployment
   # also carries `namespace` + `app` (or `podSelector` for charts that label with
   # `app.kubernetes.io/name=...` instead of bare `app=`). Homepage's kubernetes
@@ -233,6 +267,7 @@ locals {
         description = "TV Shows"
         namespace   = "sonarr"
         app         = "sonarr"
+        podSelector = "app=sonarr"
         widget = {
           type = "sonarr"
           url  = "http://sonarr-service.sonarr.svc.cluster.local:80"
@@ -247,6 +282,7 @@ locals {
         description = "Movies"
         namespace   = "radarr"
         app         = "radarr"
+        podSelector = "app=radarr"
         widget = {
           type = "radarr"
           url  = "http://radarr-service.radarr.svc.cluster.local:80"
@@ -261,6 +297,7 @@ locals {
         description = "Subtitles"
         namespace   = "bazarr"
         app         = "bazarr"
+        podSelector = "app=bazarr"
         widget = {
           type = "bazarr"
           url  = "http://bazarr-service.bazarr.svc.cluster.local:80"
@@ -275,6 +312,7 @@ locals {
         description = "Indexers"
         namespace   = "prowlarr"
         app         = "prowlarr"
+        podSelector = "app=prowlarr"
         widget = {
           type = "prowlarr"
           url  = "http://prowlarr-service.prowlarr.svc.cluster.local:80"
@@ -289,6 +327,7 @@ locals {
         description = "Indexer Proxy"
         namespace   = "jackett"
         app         = "jackett"
+        podSelector = "app=jackett"
       }
     }] : [],
     var.cleanuparr_enabled ? [{
@@ -298,6 +337,7 @@ locals {
         description = "Library Cleanup"
         namespace   = "cleanuparr"
         app         = "cleanuparr"
+        podSelector = "app=cleanuparr"
       }
     }] : [],
     var.notifiarr_enabled ? [{
@@ -307,6 +347,7 @@ locals {
         description = "Notifications"
         namespace   = "notifiarr"
         app         = "notifiarr"
+        podSelector = "app=notifiarr"
       }
     }] : [],
   )
@@ -319,6 +360,7 @@ locals {
         description = "Torrents"
         namespace   = "qbittorrent"
         app         = "qbittorrent"
+        podSelector = "app=qbittorrent"
         widget = {
           type     = "qbittorrent"
           url      = "http://qbittorrent-service.qbittorrent.svc.cluster.local:80"
@@ -334,6 +376,7 @@ locals {
         description = "Usenet"
         namespace   = "sabnzbd"
         app         = "sabnzbd"
+        podSelector = "app=sabnzbd"
         widget = {
           type = "sabnzbd"
           url  = "http://sabnzbd-service.sabnzbd.svc.cluster.local:80"
@@ -351,6 +394,7 @@ locals {
         description = "Media Server"
         namespace   = "emby"
         app         = "emby"
+        podSelector = "app=emby"
         widget = {
           type = "emby"
           url  = "http://emby-service.emby.svc.cluster.local:80"
@@ -367,6 +411,7 @@ locals {
         icon        = "grafana"
         description = "Dashboards"
         namespace   = "monitoring"
+        app         = "grafana"
         podSelector = "app.kubernetes.io/name=grafana"
         widget = {
           type     = "grafana"
@@ -382,6 +427,7 @@ locals {
         icon        = "prometheus"
         description = "Metrics"
         namespace   = "monitoring"
+        app         = "prometheus"
         podSelector = "app.kubernetes.io/name=prometheus"
         widget = {
           type = "prometheus"
@@ -395,6 +441,7 @@ locals {
         icon        = "alertmanager"
         description = "Alerts"
         namespace   = "monitoring"
+        app         = "alertmanager"
         podSelector = "app.kubernetes.io/name=alertmanager"
       }
     }] : [],
@@ -408,6 +455,7 @@ locals {
         description = "LLM Inference"
         namespace   = "ollama"
         app         = "ollama"
+        podSelector = "app=ollama"
       }
     }] : [],
     var.qdrant_enabled ? [{
@@ -417,6 +465,7 @@ locals {
         description = "Vector Database"
         namespace   = "qdrant"
         app         = "qdrant"
+        podSelector = "app=qdrant"
       }
     }] : [],
     var.chromadb_enabled ? [{
@@ -426,6 +475,7 @@ locals {
         description = "Vector Database"
         namespace   = "chromadb"
         app         = "chromadb"
+        podSelector = "app=chromadb"
       }
     }] : [],
     var.comfyui_enabled ? [{
@@ -435,6 +485,7 @@ locals {
         description = "Image Generation"
         namespace   = "comfyui"
         app         = "comfyui"
+        podSelector = "app=comfyui"
       }
     }] : [],
     var.claudecluster_enabled ? [{
@@ -443,7 +494,8 @@ locals {
         icon        = "claude-ai"
         description = "Claude Code Sandboxes"
         namespace   = "claude-sandbox"
-        app         = "claudecluster-backend"
+        app         = "claudecluster"
+        podSelector = "app=claudecluster-backend"
       }
     }] : [],
   )
@@ -455,6 +507,7 @@ locals {
         icon        = "traefik"
         description = "Reverse Proxy"
         namespace   = "traefik"
+        app         = "traefik"
         podSelector = "app.kubernetes.io/name=traefik"
         widget = {
           type = "traefik"
@@ -469,6 +522,7 @@ locals {
         description = "Storage"
         namespace   = "longhorn-system"
         # The manager DaemonSet drives storage; ignore CSI / UI sidecars.
+        app         = "longhorn"
         podSelector = "app=longhorn-manager"
       }
     }],
@@ -478,6 +532,7 @@ locals {
         icon        = "headlamp"
         description = "K8s Dashboard"
         namespace   = "headlamp"
+        app         = "headlamp"
         podSelector = "app.kubernetes.io/name=headlamp"
       }
     }] : [],
@@ -488,6 +543,7 @@ locals {
         description = "NuGet Packages"
         namespace   = "baget"
         app         = "baget"
+        podSelector = "app=baget"
       }
     }] : [],
     var.n8n_enabled ? [{
@@ -497,27 +553,30 @@ locals {
         description = "Workflow Automation"
         namespace   = "n8n"
         app         = "n8n"
+        podSelector = "app=n8n"
       }
     }] : [],
     var.devtron_enabled ? [{
       "Devtron" = {
-        href        = "https://devtron.${var.traefik_domain}"
+        href = "https://devtron.${var.traefik_domain}"
         # No dedicated Devtron icon in dashboard-icons; fall back to generic K8s.
         icon        = "kubernetes"
         description = "K8s Dashboard"
         namespace   = "devtroncd"
         # Devtron has many components; track the dashboard pod as the headline.
-        app         = "dashboard"
+        app         = "devtron"
+        podSelector = "app=dashboard"
       }
     }] : [],
     var.poker_enabled ? [{
       "Planning Poker" = {
-        href        = "https://poker.${var.traefik_domain}"
+        href = "https://poker.${var.traefik_domain}"
         # No dedicated planning-poker icon; use Material Design playing cards.
         icon        = "mdi-cards-playing-outline"
         description = "Scrum Estimation"
         namespace   = "poker"
         app         = "poker"
+        podSelector = "app=poker"
       }
     }] : [],
   )
@@ -545,6 +604,7 @@ color: slate
 headerStyle: clean
 statusStyle: dot
 hideErrors: true
+showStats: true
 layout:
   Media Management:
     style: row
@@ -570,7 +630,7 @@ EOT
       length(local.homepage_media_services) > 0 ? join("\n", concat(
         ["- Media Management:"],
         flatten([for s in local.homepage_media_services : concat(
-          ["    - ${keys(s)[0]}:"],
+          ["    - \"${keys(s)[0]} (${local.homepage_mw_label[keys(s)[0]]})\":"],
           [for k, v in values(s)[0] : "        ${k}: ${v}" if k != "widget"],
           lookup(values(s)[0], "widget", null) != null ? concat(
             ["        widget:"],
@@ -581,7 +641,7 @@ EOT
       length(local.homepage_download_services) > 0 ? join("\n", concat(
         ["- Downloads:"],
         flatten([for s in local.homepage_download_services : concat(
-          ["    - ${keys(s)[0]}:"],
+          ["    - \"${keys(s)[0]} (${local.homepage_mw_label[keys(s)[0]]})\":"],
           [for k, v in values(s)[0] : "        ${k}: ${v}" if k != "widget"],
           lookup(values(s)[0], "widget", null) != null ? concat(
             ["        widget:"],
@@ -592,7 +652,7 @@ EOT
       length(local.homepage_streaming_services) > 0 ? join("\n", concat(
         ["- Media Streaming:"],
         flatten([for s in local.homepage_streaming_services : concat(
-          ["    - ${keys(s)[0]}:"],
+          ["    - \"${keys(s)[0]} (${local.homepage_mw_label[keys(s)[0]]})\":"],
           [for k, v in values(s)[0] : "        ${k}: ${v}" if k != "widget"],
           lookup(values(s)[0], "widget", null) != null ? concat(
             ["        widget:"],
@@ -603,7 +663,7 @@ EOT
       length(local.homepage_monitoring_services) > 0 ? join("\n", concat(
         ["- Monitoring:"],
         flatten([for s in local.homepage_monitoring_services : concat(
-          ["    - ${keys(s)[0]}:"],
+          ["    - \"${keys(s)[0]} (${local.homepage_mw_label[keys(s)[0]]})\":"],
           [for k, v in values(s)[0] : "        ${k}: ${v}" if k != "widget"],
           lookup(values(s)[0], "widget", null) != null ? concat(
             ["        widget:"],
@@ -614,7 +674,7 @@ EOT
       length(local.homepage_ai_services) > 0 ? join("\n", concat(
         ["- AI / ML:"],
         flatten([for s in local.homepage_ai_services : concat(
-          ["    - ${keys(s)[0]}:"],
+          ["    - \"${keys(s)[0]} (${local.homepage_mw_label[keys(s)[0]]})\":"],
           [for k, v in values(s)[0] : "        ${k}: ${v}" if k != "widget"],
           lookup(values(s)[0], "widget", null) != null ? concat(
             ["        widget:"],
@@ -625,7 +685,7 @@ EOT
       length(local.homepage_infra_services) > 0 ? join("\n", concat(
         ["- Infrastructure:"],
         flatten([for s in local.homepage_infra_services : concat(
-          ["    - ${keys(s)[0]}:"],
+          ["    - \"${keys(s)[0]} (${local.homepage_mw_label[keys(s)[0]]})\":"],
           [for k, v in values(s)[0] : "        ${k}: ${v}" if k != "widget"],
           lookup(values(s)[0], "widget", null) != null ? concat(
             ["        widget:"],
@@ -814,8 +874,8 @@ resource "kubernetes_deployment" "homepage" {
             }
             initial_delay_seconds = 15
             period_seconds        = 30
-            timeout_seconds       = 5
-            failure_threshold     = 3
+            timeout_seconds       = 10
+            failure_threshold     = 5
           }
 
           readiness_probe {
@@ -825,8 +885,8 @@ resource "kubernetes_deployment" "homepage" {
             }
             initial_delay_seconds = 10
             period_seconds        = 15
-            timeout_seconds       = 5
-            failure_threshold     = 3
+            timeout_seconds       = 10
+            failure_threshold     = 5
           }
         }
 

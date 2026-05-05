@@ -25,13 +25,13 @@ variable "baget_storage_size" {
 variable "baget_memory_request" {
   description = "Memory request for Baget container"
   type        = string
-  default     = "256Mi"
+  default     = "384Mi"
 }
 
 variable "baget_memory_limit" {
   description = "Memory limit for Baget container"
   type        = string
-  default     = "512Mi"
+  default     = "1Gi"
 }
 
 variable "baget_cpu_request" {
