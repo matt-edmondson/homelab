@@ -21,13 +21,13 @@ variable "sonarr_config_storage_size" {
 variable "sonarr_memory_request" {
   description = "Memory request for Sonarr container"
   type        = string
-  default     = "256Mi"
+  default     = "512Mi"
 }
 
 variable "sonarr_memory_limit" {
   description = "Memory limit for Sonarr container"
   type        = string
-  default     = "1Gi"
+  default     = "2Gi"
 }
 
 variable "sonarr_cpu_request" {
@@ -280,6 +280,8 @@ resource "kubernetes_deployment" "sonarr" {
             }
             initial_delay_seconds = 30
             period_seconds        = 10
+            timeout_seconds       = 10
+            failure_threshold     = 5
           }
 
           readiness_probe {
@@ -289,6 +291,8 @@ resource "kubernetes_deployment" "sonarr" {
             }
             initial_delay_seconds = 5
             period_seconds        = 5
+            timeout_seconds       = 10
+            failure_threshold     = 5
           }
         }
 
