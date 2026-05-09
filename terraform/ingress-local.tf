@@ -244,7 +244,9 @@ resource "kubernetes_manifest" "ingressroute_local" {
     apiVersion = "traefik.io/v1alpha1"
     kind       = "IngressRoute"
     metadata = {
-      name      = "local-${each.key}"
+      # K8s metadata names disallow underscores (RFC 1123). cams_web_toys
+      # uses keys like "cwt_poker" — translate to hyphens here.
+      name      = "local-${replace(each.key, "_", "-")}"
       namespace = kubernetes_namespace.traefik.metadata[0].name
       labels    = var.common_labels
     }
