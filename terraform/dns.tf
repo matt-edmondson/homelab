@@ -16,6 +16,12 @@ variable "external_ip" {
   type        = string
 }
 
+variable "traefik_local_ip" {
+  description = "LAN IP of the Traefik LoadBalancer service, used as the A-record target for *.local.ktsu.dev hostnames. Must match the loadBalancerIP set in traefik.tf."
+  type        = string
+  default     = "192.168.0.238"
+}
+
 variable "dns_ttl" {
   description = "TTL in seconds for DNS A records"
   type        = number
