@@ -775,7 +775,8 @@ plan-ingress: check-vars check-init ## Plan ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_devtron \
 		-target=kubernetes_manifest.ingressroute_static_site \
 		-target=kubernetes_manifest.ingressroute_poker \
-		-target=kubernetes_manifest.ingressroute_cams_web_toys
+		-target=kubernetes_manifest.ingressroute_cams_web_toys \
+		-target=kubernetes_manifest.ingressroute_local
 
 plan-debug-ingress: check-vars check-init ## Plan debug NodePort escape-hatch services (Headlamp, Devtron)
 	@echo "Planning debug escape-hatch ingress..."
@@ -787,7 +788,8 @@ plan-azure-dns: check-vars check-init ## Plan Azure DNS A records
 	@echo "Planning Azure DNS records..."
 	terraform plan \
 		-target=data.azurerm_dns_zone.main \
-		-target=azurerm_dns_a_record.services
+		-target=azurerm_dns_a_record.services \
+		-target=azurerm_dns_a_record.local_services
 
 # Component-specific Deployment
 apply-networking: check-vars check-init ## Deploy networking components (Flannel, kube-vip, CoreDNS, Metrics Server)
@@ -1157,7 +1159,8 @@ apply-ingress: check-vars check-init ## Deploy ingress routes and middleware
 		-target=kubernetes_manifest.ingressroute_devtron \
 		-target=kubernetes_manifest.ingressroute_static_site \
 		-target=kubernetes_manifest.ingressroute_poker \
-		-target=kubernetes_manifest.ingressroute_cams_web_toys
+		-target=kubernetes_manifest.ingressroute_cams_web_toys \
+		-target=kubernetes_manifest.ingressroute_local
 
 apply-debug-ingress: check-vars check-init ## Deploy debug NodePort escape-hatch services (Headlamp, Devtron)
 	@echo "Deploying debug escape-hatch ingress..."
@@ -1169,7 +1172,8 @@ apply-azure-dns: check-vars check-init ## Deploy Azure DNS A records
 	@echo "Deploying Azure DNS records..."
 	terraform apply -auto-approve \
 		-target=data.azurerm_dns_zone.main \
-		-target=azurerm_dns_a_record.services
+		-target=azurerm_dns_a_record.services \
+		-target=azurerm_dns_a_record.local_services
 
 # Kubernetes helpers
 k8s-status: ## Show Kubernetes cluster status
