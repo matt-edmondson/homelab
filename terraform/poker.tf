@@ -34,6 +34,13 @@ variable "poker_postgres_password" {
   sensitive   = true
 }
 
+variable "poker_admin_password" {
+  description = "Admin password for Planning Poker (/admin login). Leave empty to disable the admin page."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "poker_memory_request" {
   type    = string
   default = "128Mi"
@@ -236,12 +243,29 @@ resource "kubernetes_service" "poker_postgres" {
 
 # --- Application ---
 
+resource "kubernetes_secret" "poker_admin" {
+  count = var.poker_enabled && var.poker_admin_password != "" ? 1 : 0
+
+  metadata {
+    name      = "poker-admin"
+    namespace = kubernetes_namespace.poker[0].metadata[0].name
+    labels    = var.common_labels
+  }
+
+  data = {
+    ADMIN_PASSWORD = var.poker_admin_password
+  }
+
+  type = "Opaque"
+}
+
 resource "kubernetes_deployment" "poker" {
   count = var.poker_enabled ? 1 : 0
 
   depends_on = [
     kubernetes_service.poker_postgres,
     kubernetes_secret.poker_postgres,
+    kubernetes_secret.poker_admin,
   ]
 
   metadata {
@@ -309,6 +333,19 @@ resource "kubernetes_deployment" "poker" {
           env {
             name  = "PORT"
             value = "3000"
+          }
+
+          dynamic "env" {
+            for_each = var.poker_admin_password != "" ? [1] : []
+            content {
+              name = "ADMIN_PASSWORD"
+              value_from {
+                secret_key_ref {
+                  name = kubernetes_secret.poker_admin[0].metadata[0].name
+                  key  = "ADMIN_PASSWORD"
+                }
+              }
+            }
           }
 
           readiness_probe {

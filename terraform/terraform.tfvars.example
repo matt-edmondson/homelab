@@ -343,6 +343,7 @@
 # Planning Poker
 #poker_enabled            = true
 #poker_postgres_password  = "change-me-generate-a-secure-random-value"
+#poker_admin_password     = "change-me-generate-a-secure-random-value"  # Leave unset to disable /admin
 
 # Cams Web Toys (Cameron's Nuxt 3 SPA + socket.io fork — wheel/quizzifier/poker/standup/folio)
 # Master toggle creates the Deployment + Service. Per-toy *_enabled flags each

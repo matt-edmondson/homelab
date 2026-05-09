@@ -1606,6 +1606,7 @@ plan-poker: check-vars check-init ## Plan Planning Poker deployment
 	terraform plan \
 		-target=kubernetes_namespace.poker \
 		-target=kubernetes_secret.poker_postgres \
+		-target=kubernetes_secret.poker_admin \
 		-target=kubernetes_persistent_volume_claim.poker_postgres \
 		-target=kubernetes_deployment.poker_postgres \
 		-target=kubernetes_service.poker_postgres \
@@ -1619,6 +1620,7 @@ apply-poker: check-vars check-init ## Deploy Planning Poker
 	terraform apply -auto-approve \
 		-target=kubernetes_namespace.poker \
 		-target=kubernetes_secret.poker_postgres \
+		-target=kubernetes_secret.poker_admin \
 		-target=kubernetes_persistent_volume_claim.poker_postgres \
 		-target=kubernetes_deployment.poker_postgres \
 		-target=kubernetes_service.poker_postgres \
