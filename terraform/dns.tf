@@ -109,6 +109,22 @@ resource "azurerm_dns_a_record" "services" {
   tags = var.common_labels
 }
 
+# Local-only A records: <svc>.local.ktsu.dev -> Traefik LAN VIP.
+# Iterates the same dns_records map as the public records, so every public
+# service automatically gets a parallel local hostname. Bypass IngressRoutes
+# (no OAuth/CrowdSec middleware) live in ingress-local.tf.
+resource "azurerm_dns_a_record" "local_services" {
+  for_each = local.dns_records
+
+  name                = "${each.value}.local"
+  zone_name           = data.azurerm_dns_zone.main.name
+  resource_group_name = var.azure_dns_resource_group
+  ttl                 = var.dns_ttl
+  records             = [var.traefik_local_ip]
+
+  tags = var.common_labels
+}
+
 # --- Static Sites DNS ---
 
 # Create Azure DNS zone for each static site domain
@@ -140,6 +156,7 @@ output "dns_info" {
   value = {
     zone    = data.azurerm_dns_zone.main.name
     records = { for k, v in azurerm_dns_a_record.services : k => "${v.name}.${data.azurerm_dns_zone.main.name}" }
+    local_records = { for k, v in azurerm_dns_a_record.local_services : k => "${v.name}.${data.azurerm_dns_zone.main.name}" }
     ip      = var.external_ip
     ttl     = var.dns_ttl
 
