@@ -236,6 +236,20 @@
 #ollama_gpu_enabled         = false    # Set to true after NVIDIA device plugin is running
 #ollama_gpu_min_vram_gb     = 12      # Minimum GPU VRAM in GB (0 = no constraint)
 
+# Ollama server tuning (env vars) — empty / 0 leaves the var unset so Ollama uses its own defaults
+#ollama_keep_alive        = "5m"      # How long models stay loaded after last use ('-1' = forever, '0' = unload immediately)
+#ollama_num_parallel      = 4         # Max parallel requests per loaded model
+#ollama_max_loaded_models = 1         # Max models loaded simultaneously (per GPU)
+#ollama_max_queue         = 512       # Max queued requests before rejecting
+#ollama_flash_attention   = false     # Enable flash attention for memory-efficient inference
+#ollama_kv_cache_type     = ""        # KV cache quant: '', 'f16', 'q8_0', 'q4_0' (q8_0/q4_0 require flash_attention=true)
+#ollama_context_length    = 0         # Default context window in tokens (0 = Ollama default of 4096)
+#ollama_debug             = false     # Enable verbose debug logging
+#ollama_origins           = ""        # Comma-separated extra CORS origins (e.g. 'https://chat.example.com,app://obsidian.md')
+#ollama_load_timeout      = ""        # Model load timeout (e.g. '5m'); empty = Ollama default
+#ollama_gpu_overhead      = 0         # Bytes of VRAM left unused per GPU
+#ollama_sched_spread      = false     # Allow scheduling a single model across all GPUs
+
 # Qdrant Vector Database (Wave 5)
 #qdrant_enabled        = true    # Set to false to disable Qdrant
 #qdrant_storage_size   = "4Gi"
@@ -252,7 +266,7 @@
 
 # ComfyUI Image Generation (Wave 5)
 #comfyui_enabled             = true    # Set to false to disable ComfyUI
-#comfyui_config_storage_size = "1Gi"
+#comfyui_config_storage_size = "10Gi"
 #comfyui_memory_request      = "2Gi"
 #comfyui_memory_limit        = "8Gi"
 #comfyui_image_tag           = "latest"

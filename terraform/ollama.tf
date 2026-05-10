@@ -61,6 +61,104 @@ variable "ollama_gpu_min_vram_gb" {
   default     = 12
 }
 
+# Ollama server tuning — empty string / 0 means "use Ollama's default" (env var omitted)
+variable "ollama_keep_alive" {
+  description = "How long to keep models loaded after last use (e.g. '5m', '1h', '-1' for indefinite, '0' to unload immediately)"
+  type        = string
+  default     = ""
+}
+
+variable "ollama_num_parallel" {
+  description = "Maximum number of parallel requests per loaded model (0 = Ollama default)"
+  type        = number
+  default     = 0
+}
+
+variable "ollama_max_loaded_models" {
+  description = "Maximum number of models loaded simultaneously (0 = Ollama default)"
+  type        = number
+  default     = 0
+}
+
+variable "ollama_max_queue" {
+  description = "Maximum number of queued requests before rejecting (0 = Ollama default)"
+  type        = number
+  default     = 0
+}
+
+variable "ollama_flash_attention" {
+  description = "Enable flash attention for memory-efficient inference"
+  type        = bool
+  default     = false
+}
+
+variable "ollama_kv_cache_type" {
+  description = "KV cache quantization type: 'f16', 'q8_0', or 'q4_0' (requires ollama_flash_attention=true). Empty = Ollama default (f16)"
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = contains(["", "f16", "q8_0", "q4_0"], var.ollama_kv_cache_type)
+    error_message = "ollama_kv_cache_type must be one of: '', 'f16', 'q8_0', 'q4_0'."
+  }
+}
+
+variable "ollama_context_length" {
+  description = "Default context window length in tokens (0 = Ollama default of 4096)"
+  type        = number
+  default     = 0
+}
+
+variable "ollama_debug" {
+  description = "Enable verbose Ollama debug logging"
+  type        = bool
+  default     = false
+}
+
+variable "ollama_origins" {
+  description = "Comma-separated list of additional allowed CORS origins (empty = Ollama defaults)"
+  type        = string
+  default     = ""
+}
+
+variable "ollama_load_timeout" {
+  description = "Timeout for loading a model (e.g. '5m'). Empty = Ollama default"
+  type        = string
+  default     = ""
+}
+
+variable "ollama_gpu_overhead" {
+  description = "Reserved VRAM in bytes left unused per GPU (0 = Ollama default)"
+  type        = number
+  default     = 0
+}
+
+variable "ollama_sched_spread" {
+  description = "Allow Ollama to schedule a single model across all available GPUs"
+  type        = bool
+  default     = false
+}
+
+# Build the optional Ollama env var map; entries with empty values are filtered out
+# so Ollama falls back to its built-in defaults instead of receiving "0"/"".
+locals {
+  ollama_optional_env_raw = {
+    OLLAMA_KEEP_ALIVE        = var.ollama_keep_alive
+    OLLAMA_NUM_PARALLEL      = var.ollama_num_parallel > 0 ? tostring(var.ollama_num_parallel) : ""
+    OLLAMA_MAX_LOADED_MODELS = var.ollama_max_loaded_models > 0 ? tostring(var.ollama_max_loaded_models) : ""
+    OLLAMA_MAX_QUEUE         = var.ollama_max_queue > 0 ? tostring(var.ollama_max_queue) : ""
+    OLLAMA_FLASH_ATTENTION   = var.ollama_flash_attention ? "1" : ""
+    OLLAMA_KV_CACHE_TYPE     = var.ollama_kv_cache_type
+    OLLAMA_CONTEXT_LENGTH    = var.ollama_context_length > 0 ? tostring(var.ollama_context_length) : ""
+    OLLAMA_DEBUG             = var.ollama_debug ? "1" : ""
+    OLLAMA_ORIGINS           = var.ollama_origins
+    OLLAMA_LOAD_TIMEOUT      = var.ollama_load_timeout
+    OLLAMA_GPU_OVERHEAD      = var.ollama_gpu_overhead > 0 ? tostring(var.ollama_gpu_overhead) : ""
+    OLLAMA_SCHED_SPREAD      = var.ollama_sched_spread ? "1" : ""
+  }
+  ollama_optional_env = { for k, v in local.ollama_optional_env_raw : k => v if v != "" }
+}
+
 # Namespace
 resource "kubernetes_namespace" "ollama" {
   count = var.ollama_enabled ? 1 : 0
@@ -200,6 +298,14 @@ resource "kubernetes_deployment" "ollama" {
           env {
             name  = "OLLAMA_HOST"
             value = "0.0.0.0"
+          }
+
+          dynamic "env" {
+            for_each = local.ollama_optional_env
+            content {
+              name  = env.key
+              value = env.value
+            }
           }
 
           volume_mount {
