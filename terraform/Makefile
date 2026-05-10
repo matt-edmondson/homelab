@@ -39,7 +39,7 @@ TF_PARALLELISM ?= 1
 	plan-bazarr apply-bazarr plan-jackett apply-jackett \
 	plan-cleanuparr apply-cleanuparr plan-sabnzbd apply-sabnzbd plan-notifiarr apply-notifiarr \
 	plan-flaresolverr apply-flaresolverr \
-	plan-nvidia apply-nvidia plan-ollama apply-ollama plan-qdrant apply-qdrant \
+	plan-nvidia apply-nvidia plan-ollama apply-ollama plan-localai apply-localai plan-qdrant apply-qdrant \
 	plan-chromadb apply-chromadb plan-comfyui apply-comfyui \
 	plan-homepage apply-homepage \
 	plan-runners apply-runners debug-runners \
@@ -683,6 +683,16 @@ plan-ollama: check-vars check-init ## Plan Ollama LLM inference
 		-target=kubernetes_deployment.ollama \
 		-target=kubernetes_service.ollama
 
+plan-localai: check-vars check-init ## Plan LocalAI full-stack inference
+	@echo "Planning LocalAI components..."
+	terraform plan \
+		-target=kubernetes_namespace.localai \
+		-target=kubernetes_persistent_volume.localai_models \
+		-target=kubernetes_persistent_volume_claim.localai_models \
+		-target=kubernetes_persistent_volume.localai_output \
+		-target=kubernetes_persistent_volume_claim.localai_output \
+		-target=helm_release.localai
+
 plan-qdrant: check-vars check-init ## Plan Qdrant vector database
 	@echo "Planning Qdrant components..."
 	terraform plan \
@@ -1066,6 +1076,16 @@ apply-ollama: check-vars check-init ## Deploy Ollama LLM inference
 		-target=kubernetes_persistent_volume_claim.ollama_models \
 		-target=kubernetes_deployment.ollama \
 		-target=kubernetes_service.ollama
+
+apply-localai: check-vars check-init ## Deploy LocalAI full-stack inference
+	@echo "Deploying LocalAI..."
+	terraform apply -auto-approve \
+		-target=kubernetes_namespace.localai \
+		-target=kubernetes_persistent_volume.localai_models \
+		-target=kubernetes_persistent_volume_claim.localai_models \
+		-target=kubernetes_persistent_volume.localai_output \
+		-target=kubernetes_persistent_volume_claim.localai_output \
+		-target=helm_release.localai
 
 apply-qdrant: check-vars check-init ## Deploy Qdrant vector database
 	@echo "Deploying Qdrant..."
