@@ -154,11 +154,11 @@ resource "azurerm_dns_a_record" "static_sites" {
 output "dns_info" {
   description = "Azure DNS record information"
   value = {
-    zone    = data.azurerm_dns_zone.main.name
-    records = { for k, v in azurerm_dns_a_record.services : k => "${v.name}.${data.azurerm_dns_zone.main.name}" }
+    zone          = data.azurerm_dns_zone.main.name
+    records       = { for k, v in azurerm_dns_a_record.services : k => "${v.name}.${data.azurerm_dns_zone.main.name}" }
     local_records = { for k, v in azurerm_dns_a_record.local_services : k => "${v.name}.${data.azurerm_dns_zone.main.name}" }
-    ip      = var.external_ip
-    ttl     = var.dns_ttl
+    ip            = var.external_ip
+    ttl           = var.dns_ttl
 
     static_sites = { for k, v in azurerm_dns_zone.static_sites : k => {
       nameservers = v.name_servers
