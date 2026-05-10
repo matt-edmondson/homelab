@@ -250,6 +250,16 @@
 #ollama_gpu_overhead      = 0         # Bytes of VRAM left unused per GPU
 #ollama_sched_spread      = false     # Allow scheduling a single model across all GPUs
 
+# LocalAI Full-Stack Inference (Wave 5)
+#localai_enabled           = true    # Set to false to disable LocalAI
+#localai_image_tag         = "master-cublas-cuda12-ffmpeg"    # GPU+audio build; use "master-cpu" for CPU-only
+#localai_memory_request    = "4Gi"
+#localai_memory_limit      = "24Gi"
+#localai_cpu_request       = "1000m"
+#localai_cpu_limit         = "4000m"
+#localai_gpu_enabled       = true    # Set to false for CPU-only inference
+#localai_gpu_min_vram_gb   = 12      # Minimum GPU VRAM in GB (0 = no constraint)
+
 # Qdrant Vector Database (Wave 5)
 #qdrant_enabled        = true    # Set to false to disable Qdrant
 #qdrant_storage_size   = "4Gi"
