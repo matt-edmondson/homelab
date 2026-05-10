@@ -46,7 +46,7 @@ variable "localai_cpu_limit" {
 variable "localai_gpu_enabled" {
   description = "Request GPU resource for LocalAI (requires NVIDIA device plugin)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "localai_gpu_min_vram_gb" {
