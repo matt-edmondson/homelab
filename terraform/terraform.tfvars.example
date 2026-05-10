@@ -252,7 +252,7 @@
 
 # LocalAI Full-Stack Inference (Wave 5)
 #localai_enabled           = true    # Set to false to disable LocalAI
-#localai_image_tag         = "master-cublas-cuda12-ffmpeg"    # GPU+audio build; use "master-cpu" for CPU-only
+#localai_image_tag         = "latest-gpu-nvidia-cuda-13"    # GPU build; use "latest-cpu" for CPU-only
 #localai_memory_request    = "4Gi"
 #localai_memory_limit      = "24Gi"
 #localai_cpu_request       = "1000m"

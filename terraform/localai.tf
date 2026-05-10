@@ -18,9 +18,9 @@ variable "localai_enabled" {
 }
 
 variable "localai_image_tag" {
-  description = "LocalAI container image tag (e.g. master-cublas-cuda12-ffmpeg for GPU+audio, master-cpu for CPU-only)"
+  description = "LocalAI container image tag (e.g. latest-gpu-nvidia-cuda-13 for GPU, latest-cpu for CPU-only)"
   type        = string
-  default     = "master-cublas-cuda12-ffmpeg"
+  default     = "latest-gpu-nvidia-cuda-13"
 }
 
 variable "localai_memory_request" {
@@ -324,7 +324,7 @@ resource "kubernetes_deployment" "localai" {
       spec {
         container {
           name  = "localai"
-          image = "quay.io/go-skynet/local-ai:${var.localai_image_tag}"
+          image = "localai/localai:${var.localai_image_tag}"
 
           port {
             container_port = 8080
