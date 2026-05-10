@@ -22,13 +22,13 @@ variable "ollama_config_storage_size" {
 variable "ollama_memory_request" {
   description = "Memory request for Ollama container"
   type        = string
-  default     = "8Gi"
+  default     = "20Gi"
 }
 
 variable "ollama_memory_limit" {
   description = "Memory limit for Ollama container"
   type        = string
-  default     = "16Gi"
+  default     = "20Gi"
 }
 
 variable "ollama_cpu_request" {
