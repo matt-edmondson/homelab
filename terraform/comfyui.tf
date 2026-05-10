@@ -16,7 +16,7 @@ variable "comfyui_enabled" {
 variable "comfyui_config_storage_size" {
   description = "Storage size for ComfyUI config"
   type        = string
-  default     = "1Gi"
+  default     = "10Gi"
 }
 
 variable "comfyui_memory_request" {
