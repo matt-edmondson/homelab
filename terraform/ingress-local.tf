@@ -177,6 +177,14 @@ locals {
         service_port      = 80
       }
     } : {},
+    var.localai_enabled ? {
+      localai = {
+        host_prefix       = "localai"
+        service_name      = "localai"
+        service_namespace = kubernetes_namespace.localai[0].metadata[0].name
+        service_port      = 80
+      }
+    } : {},
     var.qdrant_enabled ? {
       qdrant = {
         host_prefix       = "qdrant"
