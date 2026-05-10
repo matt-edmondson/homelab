@@ -141,14 +141,25 @@ help: ## Show this help message
 init: ## Initialize Terraform
 	terraform init
 
-plan: check-vars check-init ## Plan Terraform deployment
-	terraform plan -parallelism=$(TF_PARALLELISM)
+plan: check-vars check-init ## Plan Terraform deployment (writes ./tfplan, prompts to apply)
+	terraform plan -parallelism=$(TF_PARALLELISM) -out=tfplan
+	@printf "Apply this plan? [y/N] "; read ans || ans=""; \
+	if [ "$$ans" = "y" ] || [ "$$ans" = "Y" ]; then \
+		$(MAKE) apply-plan; \
+	else \
+		echo "Plan saved to ./tfplan. Run 'make apply-plan' to apply, or 'rm tfplan' to discard."; \
+	fi
 
 check-init: ## Check if Terraform is initialized
 	@if [ ! -d ".terraform/providers" ]; then echo "Error: Terraform not initialized. Run 'make init' first."; exit 1; fi
 
 apply: check-vars check-init ## Apply Terraform configuration
 	terraform apply -auto-approve -parallelism=$(TF_PARALLELISM)
+
+apply-plan: check-init ## Apply the saved plan file (./tfplan) from `make plan`
+	@if [ ! -f tfplan ]; then echo "Error: ./tfplan not found. Run 'make plan' first."; exit 1; fi
+	terraform apply -parallelism=$(TF_PARALLELISM) tfplan
+	@rm -f tfplan
 
 destroy: check-vars check-init ## Destroy Terraform infrastructure
 	terraform destroy
