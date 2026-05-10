@@ -82,6 +82,7 @@ locals {
     var.notifiarr_enabled ? { notifiarr = "notifiarr" } : {},
     # AI/ML Stack
     var.ollama_enabled ? { ollama = "ollama" } : {},
+    var.localai_enabled ? { localai = "localai" } : {},
     var.qdrant_enabled ? { qdrant = "qdrant" } : {},
     var.chromadb_enabled ? { chromadb = "chromadb" } : {},
     var.comfyui_enabled ? { comfyui = "comfyui" } : {},
