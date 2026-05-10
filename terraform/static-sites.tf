@@ -119,7 +119,8 @@ resource "kubernetes_deployment" "static_sites" {
   }
 
   spec {
-    replicas = 1
+    replicas               = 1
+    revision_history_limit = 0
     selector {
       match_labels = {
         app = "static-sites"

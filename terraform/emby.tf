@@ -175,7 +175,8 @@ resource "kubernetes_deployment" "emby" {
   }
 
   spec {
-    replicas = 1
+    replicas               = 1
+    revision_history_limit = 0
 
     strategy {
       type = "Recreate"

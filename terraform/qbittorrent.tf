@@ -293,7 +293,8 @@ resource "kubernetes_deployment" "qbittorrent" {
   }
 
   spec {
-    replicas = 1
+    replicas               = 1
+    revision_history_limit = 0
 
     strategy {
       type = "Recreate"

@@ -122,7 +122,8 @@ resource "kubernetes_deployment" "oauth2_auth_bridge" {
   }
 
   spec {
-    replicas = 1
+    replicas               = 1
+    revision_history_limit = 0
 
     selector {
       match_labels = {
