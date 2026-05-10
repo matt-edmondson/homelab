@@ -2,8 +2,12 @@
 # LocalAI — Full-Stack Local AI Inference
 # =============================================================================
 # OpenAI-compatible API for LLM, embeddings, image generation, and audio.
-# go-skynet/local-ai Helm chart with chart persistence disabled.
-# Two NFS mounts: /models (weights + YAML configs) and /tmp/generated (output).
+# Raw Kubernetes deployment (no Helm) with five NFS mounts:
+#   /models         — model weights + YAML configs
+#   /backends       — LocalAI backend binaries
+#   /configuration  — runtime settings
+#   /data           — assets, collections, skills
+#   /tmp/generated  — generated output (images, audio)
 # =============================================================================
 
 # Variables
@@ -55,22 +59,6 @@ variable "localai_gpu_min_vram_gb" {
   default     = 12
 }
 
-variable "localai_chart_version" {
-  description = "go-skynet/local-ai Helm chart version (empty = latest)"
-  type        = string
-  default     = ""
-}
-
-locals {
-  localai_resource_limits = merge(
-    {
-      memory = var.localai_memory_limit
-      cpu    = var.localai_cpu_limit
-    },
-    var.localai_gpu_enabled ? { "nvidia.com/gpu" = "1" } : {}
-  )
-}
-
 # Namespace
 resource "kubernetes_namespace" "localai" {
   count = var.localai_enabled ? 1 : 0
@@ -83,7 +71,10 @@ resource "kubernetes_namespace" "localai" {
   }
 }
 
-# Persistent Volume — NFS Models (weights + YAML model configs)
+# =============================================================================
+# NFS Persistent Volumes
+# =============================================================================
+
 resource "kubernetes_persistent_volume" "localai_models" {
   count = var.localai_enabled ? 1 : 0
 
@@ -93,13 +84,10 @@ resource "kubernetes_persistent_volume" "localai_models" {
   }
 
   spec {
-    capacity = {
-      storage = "1Ti"
-    }
+    capacity                         = { storage = "1Ti" }
     access_modes                     = ["ReadWriteMany"]
     persistent_volume_reclaim_policy = "Retain"
     storage_class_name               = "nfs-media"
-
     persistent_volume_source {
       nfs {
         server = var.nfs_server
@@ -124,15 +112,133 @@ resource "kubernetes_persistent_volume_claim" "localai_models" {
     access_modes       = ["ReadWriteMany"]
     storage_class_name = "nfs-media"
     volume_name        = kubernetes_persistent_volume.localai_models[0].metadata[0].name
-    resources {
-      requests = {
-        storage = "1Ti"
-      }
-    }
+    resources { requests = { storage = "1Ti" } }
   }
 }
 
-# Persistent Volume — NFS Output (generated images, audio, etc.)
+resource "kubernetes_persistent_volume" "localai_backends" {
+  count = var.localai_enabled ? 1 : 0
+
+  metadata {
+    name   = "localai-backends-pv"
+    labels = var.common_labels
+  }
+
+  spec {
+    capacity                         = { storage = "50Gi" }
+    access_modes                     = ["ReadWriteMany"]
+    persistent_volume_reclaim_policy = "Retain"
+    storage_class_name               = "nfs-media"
+    persistent_volume_source {
+      nfs {
+        server = var.nfs_server
+        path   = "${var.nfs_media_share}/ai-models/localai/backends"
+      }
+    }
+  }
+
+  depends_on = [kubernetes_storage_class.nfs_media]
+}
+
+resource "kubernetes_persistent_volume_claim" "localai_backends" {
+  count = var.localai_enabled ? 1 : 0
+
+  metadata {
+    name      = "localai-backends"
+    namespace = kubernetes_namespace.localai[0].metadata[0].name
+    labels    = var.common_labels
+  }
+
+  spec {
+    access_modes       = ["ReadWriteMany"]
+    storage_class_name = "nfs-media"
+    volume_name        = kubernetes_persistent_volume.localai_backends[0].metadata[0].name
+    resources { requests = { storage = "50Gi" } }
+  }
+}
+
+resource "kubernetes_persistent_volume" "localai_configuration" {
+  count = var.localai_enabled ? 1 : 0
+
+  metadata {
+    name   = "localai-configuration-pv"
+    labels = var.common_labels
+  }
+
+  spec {
+    capacity                         = { storage = "1Gi" }
+    access_modes                     = ["ReadWriteMany"]
+    persistent_volume_reclaim_policy = "Retain"
+    storage_class_name               = "nfs-media"
+    persistent_volume_source {
+      nfs {
+        server = var.nfs_server
+        path   = "${var.nfs_media_share}/ai-models/localai/configuration"
+      }
+    }
+  }
+
+  depends_on = [kubernetes_storage_class.nfs_media]
+}
+
+resource "kubernetes_persistent_volume_claim" "localai_configuration" {
+  count = var.localai_enabled ? 1 : 0
+
+  metadata {
+    name      = "localai-configuration"
+    namespace = kubernetes_namespace.localai[0].metadata[0].name
+    labels    = var.common_labels
+  }
+
+  spec {
+    access_modes       = ["ReadWriteMany"]
+    storage_class_name = "nfs-media"
+    volume_name        = kubernetes_persistent_volume.localai_configuration[0].metadata[0].name
+    resources { requests = { storage = "1Gi" } }
+  }
+}
+
+resource "kubernetes_persistent_volume" "localai_data" {
+  count = var.localai_enabled ? 1 : 0
+
+  metadata {
+    name   = "localai-data-pv"
+    labels = var.common_labels
+  }
+
+  spec {
+    capacity                         = { storage = "10Gi" }
+    access_modes                     = ["ReadWriteMany"]
+    persistent_volume_reclaim_policy = "Retain"
+    storage_class_name               = "nfs-media"
+    persistent_volume_source {
+      nfs {
+        server = var.nfs_server
+        path   = "${var.nfs_media_share}/ai-models/localai/data"
+      }
+    }
+  }
+
+  depends_on = [kubernetes_storage_class.nfs_media]
+}
+
+resource "kubernetes_persistent_volume_claim" "localai_data" {
+  count = var.localai_enabled ? 1 : 0
+
+  metadata {
+    name      = "localai-data"
+    namespace = kubernetes_namespace.localai[0].metadata[0].name
+    labels    = var.common_labels
+  }
+
+  spec {
+    access_modes       = ["ReadWriteMany"]
+    storage_class_name = "nfs-media"
+    volume_name        = kubernetes_persistent_volume.localai_data[0].metadata[0].name
+    resources { requests = { storage = "10Gi" } }
+  }
+}
+
 resource "kubernetes_persistent_volume" "localai_output" {
   count = var.localai_enabled ? 1 : 0
 
@@ -142,13 +248,10 @@ resource "kubernetes_persistent_volume" "localai_output" {
   }
 
   spec {
-    capacity = {
-      storage = "100Gi"
-    }
+    capacity                         = { storage = "100Gi" }
     access_modes                     = ["ReadWriteMany"]
     persistent_volume_reclaim_policy = "Retain"
     storage_class_name               = "nfs-media"
-
     persistent_volume_source {
       nfs {
         server = var.nfs_server
@@ -173,96 +276,201 @@ resource "kubernetes_persistent_volume_claim" "localai_output" {
     access_modes       = ["ReadWriteMany"]
     storage_class_name = "nfs-media"
     volume_name        = kubernetes_persistent_volume.localai_output[0].metadata[0].name
-    resources {
-      requests = {
-        storage = "100Gi"
+    resources { requests = { storage = "100Gi" } }
+  }
+}
+
+# =============================================================================
+# Deployment
+# =============================================================================
+
+resource "kubernetes_deployment" "localai" {
+  count = var.localai_enabled ? 1 : 0
+
+  depends_on = [
+    kubernetes_persistent_volume_claim.localai_models,
+    kubernetes_persistent_volume_claim.localai_backends,
+    kubernetes_persistent_volume_claim.localai_configuration,
+    kubernetes_persistent_volume_claim.localai_data,
+    kubernetes_persistent_volume_claim.localai_output,
+    helm_release.longhorn,
+  ]
+
+  metadata {
+    name      = "localai"
+    namespace = kubernetes_namespace.localai[0].metadata[0].name
+    labels = merge(var.common_labels, {
+      "app.kubernetes.io/name" = "localai"
+    })
+  }
+
+  spec {
+    replicas               = 1
+    revision_history_limit = 0
+
+    strategy {
+      type = "Recreate"
+    }
+
+    selector {
+      match_labels = { app = "localai" }
+    }
+
+    template {
+      metadata {
+        labels = merge(var.common_labels, { app = "localai" })
+      }
+
+      spec {
+        container {
+          name  = "localai"
+          image = "quay.io/go-skynet/local-ai:${var.localai_image_tag}"
+
+          port {
+            container_port = 8080
+            name           = "http"
+          }
+
+          resources {
+            requests = {
+              memory = var.localai_memory_request
+              cpu    = var.localai_cpu_request
+            }
+            limits = merge(
+              {
+                memory = var.localai_memory_limit
+                cpu    = var.localai_cpu_limit
+              },
+              var.localai_gpu_enabled ? { "nvidia.com/gpu" = "1" } : {}
+            )
+          }
+
+          volume_mount {
+            name       = "models"
+            mount_path = "/models"
+          }
+
+          volume_mount {
+            name       = "backends"
+            mount_path = "/backends"
+          }
+
+          volume_mount {
+            name       = "configuration"
+            mount_path = "/configuration"
+          }
+
+          volume_mount {
+            name       = "data"
+            mount_path = "/data"
+          }
+
+          volume_mount {
+            name       = "output"
+            mount_path = "/tmp/generated"
+          }
+
+          liveness_probe {
+            http_get {
+              path = "/readyz"
+              port = 8080
+            }
+            initial_delay_seconds = 60
+            period_seconds        = 15
+            failure_threshold     = 10
+          }
+
+          readiness_probe {
+            http_get {
+              path = "/readyz"
+              port = 8080
+            }
+            initial_delay_seconds = 30
+            period_seconds        = 10
+          }
+        }
+
+        node_selector = var.localai_gpu_enabled ? merge(
+          { "nvidia.com/gpu.present" = "true" },
+          var.localai_gpu_min_vram_gb > 0 ? { "gpu-vram-${var.localai_gpu_min_vram_gb}gb" = "true" } : {}
+        ) : {}
+
+        volume {
+          name = "models"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim.localai_models[0].metadata[0].name
+          }
+        }
+
+        volume {
+          name = "backends"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim.localai_backends[0].metadata[0].name
+          }
+        }
+
+        volume {
+          name = "configuration"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim.localai_configuration[0].metadata[0].name
+          }
+        }
+
+        volume {
+          name = "data"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim.localai_data[0].metadata[0].name
+          }
+        }
+
+        volume {
+          name = "output"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim.localai_output[0].metadata[0].name
+          }
+        }
       }
     }
   }
 }
 
-# Helm Release — LocalAI
-resource "helm_release" "localai" {
+# =============================================================================
+# Service
+# =============================================================================
+
+resource "kubernetes_service" "localai" {
   count = var.localai_enabled ? 1 : 0
 
-  name       = "localai"
-  repository = "https://go-skynet.github.io/helm-charts/"
-  chart      = "local-ai"
-  version    = var.localai_chart_version != "" ? var.localai_chart_version : null
-  namespace  = kubernetes_namespace.localai[0].metadata[0].name
+  depends_on = [kubernetes_deployment.localai]
 
-  timeout = 600
-  wait    = true
-
-  values = [
-    yamlencode({
-      fullnameOverride = "localai"
-      replicaCount     = 1
-
-      image = {
-        tag = var.localai_image_tag
-      }
-
-      # Disable chart-managed persistence; NFS PVCs injected via extraVolumes
-      persistence = {
-        models = { enabled = false }
-        output = { enabled = false }
-      }
-
-      resources = {
-        requests = {
-          memory = var.localai_memory_request
-          cpu    = var.localai_cpu_request
-        }
-        limits = local.localai_resource_limits
-      }
-
-      nodeSelector = var.localai_gpu_enabled ? merge(
-        { "nvidia.com/gpu.present" = "true" },
-        var.localai_gpu_min_vram_gb > 0 ? { "gpu-vram-${var.localai_gpu_min_vram_gb}gb" = "true" } : {}
-      ) : {}
-
-      extraVolumes = [
-        {
-          name = "localai-models"
-          persistentVolumeClaim = {
-            claimName = kubernetes_persistent_volume_claim.localai_models[0].metadata[0].name
-          }
-        },
-        {
-          name = "localai-output"
-          persistentVolumeClaim = {
-            claimName = kubernetes_persistent_volume_claim.localai_output[0].metadata[0].name
-          }
-        },
-      ]
-
-      extraVolumeMounts = [
-        {
-          name      = "localai-models"
-          mountPath = "/models"
-        },
-        {
-          name      = "localai-output"
-          mountPath = "/tmp/generated"
-        },
-      ]
+  metadata {
+    name      = "localai"
+    namespace = kubernetes_namespace.localai[0].metadata[0].name
+    labels = merge(var.common_labels, {
+      "app.kubernetes.io/name" = "localai"
     })
-  ]
+  }
 
-  depends_on = [
-    kubernetes_namespace.localai,
-    kubernetes_persistent_volume_claim.localai_models,
-    kubernetes_persistent_volume_claim.localai_output,
-  ]
+  spec {
+    type     = "ClusterIP"
+    selector = { app = "localai" }
+
+    port {
+      protocol    = "TCP"
+      port        = 80
+      target_port = 8080
+    }
+  }
 }
 
+# =============================================================================
 # Output
+# =============================================================================
+
 output "localai_info" {
   description = "LocalAI inference information"
   value = var.localai_enabled ? {
     namespace   = kubernetes_namespace.localai[0].metadata[0].name
-    chart       = "go-skynet/local-ai"
     gpu_enabled = var.localai_gpu_enabled
 
     access = {
@@ -272,14 +480,17 @@ output "localai_info" {
     }
 
     nfs_mounts = {
-      models = "${var.nfs_server}:${var.nfs_media_share}/ai-models/localai/models"
-      output = "${var.nfs_server}:${var.nfs_media_share}/ai-models/localai/output"
+      models        = "${var.nfs_server}:${var.nfs_media_share}/ai-models/localai/models"
+      backends      = "${var.nfs_server}:${var.nfs_media_share}/ai-models/localai/backends"
+      configuration = "${var.nfs_server}:${var.nfs_media_share}/ai-models/localai/configuration"
+      data          = "${var.nfs_server}:${var.nfs_media_share}/ai-models/localai/data"
+      output        = "${var.nfs_server}:${var.nfs_media_share}/ai-models/localai/output"
     }
 
     commands = {
       check_pods = "kubectl get pods -n ${kubernetes_namespace.localai[0].metadata[0].name}"
       check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.localai[0].metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.localai[0].metadata[0].name} -l app.kubernetes.io/name=localai -f"
+      logs       = "kubectl logs -n ${kubernetes_namespace.localai[0].metadata[0].name} -l app=localai -f"
       api_models = "kubectl exec -n ${kubernetes_namespace.localai[0].metadata[0].name} deploy/localai -- curl -s http://localhost:8080/v1/models"
     }
   } : null

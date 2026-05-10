@@ -1325,7 +1325,7 @@ resource "kubernetes_manifest" "ingressroute_localai" {
 
   depends_on = [
     helm_release.traefik,
-    helm_release.localai,
+    kubernetes_service.localai,
     kubernetes_manifest.middleware_crowdsec_bouncer,
     kubernetes_manifest.middleware_oauth_forward_auth,
   ]

@@ -689,9 +689,16 @@ plan-localai: check-vars check-init ## Plan LocalAI full-stack inference
 		-target=kubernetes_namespace.localai \
 		-target=kubernetes_persistent_volume.localai_models \
 		-target=kubernetes_persistent_volume_claim.localai_models \
+		-target=kubernetes_persistent_volume.localai_backends \
+		-target=kubernetes_persistent_volume_claim.localai_backends \
+		-target=kubernetes_persistent_volume.localai_configuration \
+		-target=kubernetes_persistent_volume_claim.localai_configuration \
+		-target=kubernetes_persistent_volume.localai_data \
+		-target=kubernetes_persistent_volume_claim.localai_data \
 		-target=kubernetes_persistent_volume.localai_output \
 		-target=kubernetes_persistent_volume_claim.localai_output \
-		-target=helm_release.localai
+		-target=kubernetes_deployment.localai \
+		-target=kubernetes_service.localai
 
 plan-qdrant: check-vars check-init ## Plan Qdrant vector database
 	@echo "Planning Qdrant components..."
@@ -1083,9 +1090,16 @@ apply-localai: check-vars check-init ## Deploy LocalAI full-stack inference
 		-target=kubernetes_namespace.localai \
 		-target=kubernetes_persistent_volume.localai_models \
 		-target=kubernetes_persistent_volume_claim.localai_models \
+		-target=kubernetes_persistent_volume.localai_backends \
+		-target=kubernetes_persistent_volume_claim.localai_backends \
+		-target=kubernetes_persistent_volume.localai_configuration \
+		-target=kubernetes_persistent_volume_claim.localai_configuration \
+		-target=kubernetes_persistent_volume.localai_data \
+		-target=kubernetes_persistent_volume_claim.localai_data \
 		-target=kubernetes_persistent_volume.localai_output \
 		-target=kubernetes_persistent_volume_claim.localai_output \
-		-target=helm_release.localai
+		-target=kubernetes_deployment.localai \
+		-target=kubernetes_service.localai
 
 apply-qdrant: check-vars check-init ## Deploy Qdrant vector database
 	@echo "Deploying Qdrant..."
