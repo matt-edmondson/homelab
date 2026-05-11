@@ -59,6 +59,12 @@ variable "localai_gpu_min_vram_gb" {
   default     = 12
 }
 
+variable "localai_p2p_token" {
+  description = "Shared P2P token for LocalAI swarm (controller + workers)"
+  type        = string
+  sensitive   = true
+}
+
 # Namespace
 resource "kubernetes_namespace" "localai" {
   count = var.localai_enabled ? 1 : 0
@@ -69,6 +75,23 @@ resource "kubernetes_namespace" "localai" {
       "app.kubernetes.io/name" = "localai"
     })
   }
+}
+
+# P2P Swarm Secret
+resource "kubernetes_secret" "localai_p2p" {
+  count = var.localai_enabled ? 1 : 0
+
+  metadata {
+    name      = "localai-p2p"
+    namespace = kubernetes_namespace.localai[0].metadata[0].name
+    labels    = var.common_labels
+  }
+
+  data = {
+    token = var.localai_p2p_token
+  }
+
+  type = "Opaque"
 }
 
 # =============================================================================
