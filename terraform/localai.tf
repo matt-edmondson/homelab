@@ -63,6 +63,7 @@ variable "localai_p2p_token" {
   description = "Shared P2P token for LocalAI swarm (controller + workers)"
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 # Namespace
@@ -696,8 +697,9 @@ output "localai_info" {
     commands = {
       check_pods = "kubectl get pods -n ${kubernetes_namespace.localai[0].metadata[0].name}"
       check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.localai[0].metadata[0].name}"
-      logs       = "kubectl logs -n ${kubernetes_namespace.localai[0].metadata[0].name} -l app=localai -f"
-      api_models = "kubectl exec -n ${kubernetes_namespace.localai[0].metadata[0].name} deploy/localai -- curl -s http://localhost:8080/v1/models"
+      logs        = "kubectl logs -n ${kubernetes_namespace.localai[0].metadata[0].name} -l app=localai -f"
+      worker_logs = "kubectl logs -n ${kubernetes_namespace.localai[0].metadata[0].name} -l app=localai-worker -f"
+      api_models  = "kubectl exec -n ${kubernetes_namespace.localai[0].metadata[0].name} deploy/localai -- curl -s http://localhost:8080/v1/models"
     }
   } : null
 
