@@ -406,6 +406,18 @@ resource "kubernetes_deployment" "localai" {
             mount_path = "/tmp/generated"
           }
 
+          volume_mount {
+            name       = "ollama-blobs"
+            mount_path = "/ollama-blobs"
+            read_only  = true
+          }
+
+          volume_mount {
+            name       = "comfyui-models"
+            mount_path = "/comfyui-models"
+            read_only  = true
+          }
+
           liveness_probe {
             http_get {
               path = "/readyz"
@@ -460,6 +472,167 @@ resource "kubernetes_deployment" "localai" {
           name = "output"
           persistent_volume_claim {
             claim_name = kubernetes_persistent_volume_claim.localai_output[0].metadata[0].name
+          }
+        }
+
+        volume {
+          name = "ollama-blobs"
+          nfs {
+            server    = var.nfs_server
+            path      = "${var.nfs_media_share}/ai-models/ollama/blobs"
+            read_only = true
+          }
+        }
+
+        volume {
+          name = "comfyui-models"
+          nfs {
+            server    = var.nfs_server
+            path      = "${var.nfs_media_share}/ai-models/comfyui/models"
+            read_only = true
+          }
+        }
+      }
+    }
+  }
+}
+
+# =============================================================================
+# Worker DaemonSet — one GPU worker per GPU node
+# =============================================================================
+
+resource "kubernetes_daemonset" "localai_worker" {
+  count = var.localai_enabled ? 1 : 0
+
+  depends_on = [
+    kubernetes_secret.localai_p2p,
+    kubernetes_persistent_volume_claim.localai_models,
+    kubernetes_persistent_volume_claim.localai_backends,
+    kubernetes_persistent_volume_claim.localai_configuration,
+    helm_release.longhorn,
+  ]
+
+  metadata {
+    name      = "localai-worker"
+    namespace = kubernetes_namespace.localai[0].metadata[0].name
+    labels = merge(var.common_labels, {
+      "app.kubernetes.io/name" = "localai-worker"
+    })
+  }
+
+  spec {
+    selector {
+      match_labels = { app = "localai-worker" }
+    }
+
+    template {
+      metadata {
+        labels = merge(var.common_labels, { app = "localai-worker" })
+      }
+
+      spec {
+        container {
+          name  = "localai-worker"
+          image = "localai/localai:${var.localai_image_tag}"
+
+          env {
+            name  = "LOCALAI_WORKER"
+            value = "true"
+          }
+
+          env {
+            name = "LOCALAI_P2P_TOKEN"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret.localai_p2p[0].metadata[0].name
+                key  = "token"
+              }
+            }
+          }
+
+          resources {
+            requests = {
+              memory = var.localai_memory_request
+              cpu    = var.localai_cpu_request
+            }
+            limits = merge(
+              {
+                memory = var.localai_memory_limit
+                cpu    = var.localai_cpu_limit
+              },
+              var.localai_gpu_enabled ? { "nvidia.com/gpu" = "1" } : {}
+            )
+          }
+
+          volume_mount {
+            name       = "models"
+            mount_path = "/models"
+          }
+
+          volume_mount {
+            name       = "backends"
+            mount_path = "/backends"
+          }
+
+          volume_mount {
+            name       = "configuration"
+            mount_path = "/configuration"
+          }
+
+          volume_mount {
+            name       = "ollama-blobs"
+            mount_path = "/ollama-blobs"
+            read_only  = true
+          }
+
+          volume_mount {
+            name       = "comfyui-models"
+            mount_path = "/comfyui-models"
+            read_only  = true
+          }
+        }
+
+        node_selector = var.localai_gpu_enabled ? merge(
+          { "nvidia.com/gpu.present" = "true" },
+          var.localai_gpu_min_vram_gb > 0 ? { "gpu-vram-${var.localai_gpu_min_vram_gb}gb" = "true" } : {}
+        ) : {}
+
+        volume {
+          name = "models"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim.localai_models[0].metadata[0].name
+          }
+        }
+
+        volume {
+          name = "backends"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim.localai_backends[0].metadata[0].name
+          }
+        }
+
+        volume {
+          name = "configuration"
+          persistent_volume_claim {
+            claim_name = kubernetes_persistent_volume_claim.localai_configuration[0].metadata[0].name
+          }
+        }
+
+        volume {
+          name = "ollama-blobs"
+          nfs {
+            server    = var.nfs_server
+            path      = "${var.nfs_media_share}/ai-models/ollama/blobs"
+            read_only = true
+          }
+        }
+
+        volume {
+          name = "comfyui-models"
+          nfs {
+            server    = var.nfs_server
+            path      = "${var.nfs_media_share}/ai-models/comfyui/models"
+            read_only = true
           }
         }
       }
