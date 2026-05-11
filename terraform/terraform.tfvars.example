@@ -257,9 +257,9 @@
 #localai_memory_limit      = "24Gi"
 #localai_cpu_request       = "1000m"
 #localai_cpu_limit         = "4000m"
-#localai_gpu_enabled       = true    # Set to false for CPU-only inference
-#localai_gpu_min_vram_gb   = 12      # Minimum GPU VRAM in GB (0 = no constraint)
-#localai_p2p_token         = "change-me"  # Shared P2P swarm token — set in terraform.tfvars (gitignored)
+#localai_gpu_enabled       = true    # Enable GPU on worker DaemonSet pods (set to false for CPU-only workers)
+#localai_gpu_min_vram_gb   = 12      # Minimum GPU VRAM in GB required for worker nodes (0 = no constraint)
+#localai_p2p_token         = "change-me"  # Shared P2P swarm token for controller + workers (generate with: openssl rand -hex 32)
 
 # Qdrant Vector Database (Wave 5)
 #qdrant_enabled        = true    # Set to false to disable Qdrant
