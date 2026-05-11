@@ -317,6 +317,7 @@ resource "kubernetes_deployment" "localai" {
     kubernetes_persistent_volume_claim.localai_data,
     kubernetes_persistent_volume_claim.localai_output,
     helm_release.longhorn,
+    kubernetes_secret.localai_p2p,
   ]
 
   metadata {
@@ -354,18 +355,30 @@ resource "kubernetes_deployment" "localai" {
             name           = "http"
           }
 
+          env {
+            name  = "LOCALAI_P2P"
+            value = "true"
+          }
+
+          env {
+            name = "LOCALAI_P2P_TOKEN"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret.localai_p2p[0].metadata[0].name
+                key  = "token"
+              }
+            }
+          }
+
           resources {
             requests = {
               memory = var.localai_memory_request
               cpu    = var.localai_cpu_request
             }
-            limits = merge(
-              {
-                memory = var.localai_memory_limit
-                cpu    = var.localai_cpu_limit
-              },
-              var.localai_gpu_enabled ? { "nvidia.com/gpu" = "1" } : {}
-            )
+            limits = {
+              memory = var.localai_memory_limit
+              cpu    = var.localai_cpu_limit
+            }
           }
 
           volume_mount {
@@ -413,10 +426,7 @@ resource "kubernetes_deployment" "localai" {
           }
         }
 
-        node_selector = var.localai_gpu_enabled ? merge(
-          { "nvidia.com/gpu.present" = "true" },
-          var.localai_gpu_min_vram_gb > 0 ? { "gpu-vram-${var.localai_gpu_min_vram_gb}gb" = "true" } : {}
-        ) : {}
+        node_selector = {}
 
         volume {
           name = "models"
