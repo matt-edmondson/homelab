@@ -5,17 +5,24 @@
 
 ## Goal
 
-Run one LocalAI worker pod per GPU on nodes that have multiple GPUs. A 1-GPU node gets 1 worker; a 2-GPU node gets 2 workers; etc.
+Run one LocalAI worker pod per GPU node, where each worker claims **all GPUs on that node**. Nodes with 2 GPUs run one worker requesting 2 GPUs; nodes with 1 GPU run one worker requesting 1 GPU. LocalAI's SmartRouter handles VRAM-aware routing — large models are automatically directed to workers with enough capacity, and the P2P weight-sharing mode can split a model's weights across multiple workers proportionally.
+
+## Why one worker per node (not one per GPU)
+
+LocalAI's SmartRouter already handles routing intelligence — it knows each worker's VRAM and routes accordingly. A single multi-GPU worker pod gives llama.cpp access to all GPUs on the node simultaneously (CUDA handles the within-node split). This is simpler and more effective than multiple single-GPU workers for large models.
 
 ## Architecture
 
 ```
-node-a (1 GPU)       node-b (2 GPUs)
-  localai-worker-0     localai-worker-0   ← gpu-count-1=true on all GPU nodes
-                       localai-worker-1   ← gpu-count-2=true only on 2+ GPU nodes
-```
+node-a (1x 12GB GPU)    node-b (2x 24GB GPUs)    node-c (1x 24GB GPU)
+  localai-worker-1gpu      localai-worker-2gpu       localai-worker-1gpu
+  requests 1 GPU           requests 2 GPUs           requests 1 GPU
+  ~12GB VRAM               ~48GB VRAM                ~24GB VRAM
 
-Each worker pod requests `nvidia.com/gpu=1`. The NVIDIA device plugin assigns a specific physical GPU to each pod automatically — no `NVIDIA_VISIBLE_DEVICES` override needed.
+SmartRouter routes:
+  small model (8GB)  → any available worker
+  large model (40GB) → worker-2gpu only
+```
 
 ## Changes
 
@@ -24,42 +31,65 @@ Each worker pod requests `nvidia.com/gpu=1`. The NVIDIA device plugin assigns a 
 **New variable:**
 ```hcl
 variable "gpu_counts" {
-  description = "Map of GPU node hostname to number of GPUs"
+  description = "Map of GPU node hostname to number of GPUs (e.g. { \"node-b.home\" = 2 }). Nodes absent from this map default to 1 GPU."
   type        = map(number)
   default     = {}
 }
 ```
 
-**New locals:**
-- `gpu_count_tiers` — range 1–8 (supports up to 8 GPUs per node)
-- `gpu_count_labels` — cumulative per-node labels: a node with 2 GPUs gets `gpu-count-1=true` and `gpu-count-2=true`
-- `max_gpus_per_node` — `max(values(var.gpu_counts)...)`, defaults to 1 when `gpu_counts` is empty
+**New local — exact GPU count labels:**
+```hcl
+gpu_count_exact_labels = {
+  for node, vram in var.gpu_nodes : node => {
+    "gpu-count-exact-${lookup(var.gpu_counts, node, 1)}" = "true"
+  }
+}
+```
 
-**Updated `kubernetes_labels.gpu_node_vram`:** merge `gpu_count_labels[node]` into each node's labels (alongside existing VRAM tier labels). Only nodes present in both `gpu_nodes` and `gpu_counts` get count labels; nodes absent from `gpu_counts` are unaffected.
+Each node in `gpu_nodes` gets a `gpu-count-exact-N` label where N comes from `gpu_counts` or defaults to 1. Using an exact (non-cumulative) label so each DaemonSet targets precisely the right tier of nodes.
+
+**Updated `kubernetes_labels.gpu_node_vram`:** merge `gpu_count_exact_labels[node]` into each node's labels alongside existing VRAM tier labels.
 
 ### localai.tf
 
-**DaemonSet count:** `count = var.localai_enabled && var.localai_gpu_enabled ? local.max_gpus_per_node : 0`
-
-**Name:** `localai-worker-${count.index}` (was `localai-worker`)
-
-**nodeSelector per instance:**
+**New local:**
 ```hcl
-node_selector = merge(
-  { "gpu-count-${count.index + 1}" = "true" },
-  var.localai_gpu_min_vram_gb > 0 ? { "gpu-vram-${var.localai_gpu_min_vram_gb}gb" = "true" } : {}
-)
+localai_worker_gpu_tiers = toset([
+  for node in keys(var.gpu_nodes) : tostring(lookup(var.gpu_counts, node, 1))
+])
 ```
-(The outer `var.localai_gpu_enabled` gate is no longer needed on the selector — the count being 0 when disabled already prevents any pods from deploying.)
+
+Derives unique GPU count values across all GPU nodes. Empty when `gpu_nodes` is unset.
+
+**DaemonSet change — `count` → `for_each`:**
+
+Replace the single `count`-based DaemonSet with a `for_each` over `localai_worker_gpu_tiers`:
+
+```hcl
+resource "kubernetes_daemonset" "localai_worker" {
+  for_each = var.localai_enabled && var.localai_gpu_enabled ? local.localai_worker_gpu_tiers : toset([])
+```
+
+Per-instance differences:
+- **Name:** `localai-worker-${each.key}gpu`
+- **GPU limit:** `"nvidia.com/gpu" = each.key`
+- **nodeSelector:** `{ "gpu-count-exact-${each.key}" = "true" }` merged with optional VRAM tier constraint (`localai_gpu_min_vram_gb`)
+
+Everything else (image, env vars, NFS mounts, P2P token, depends_on) is identical across instances.
 
 ### terraform.tfvars.example
 
-Add `gpu_counts` placeholder in the NVIDIA section, alongside `gpu_nodes`.
-
-## Migration note
-
-The existing `localai-worker` DaemonSet is renamed to `localai-worker-0` on next apply. Terraform will destroy and recreate the DaemonSet object (pod restarts), but NFS-backed volumes are unaffected.
+Add `gpu_counts` in the NVIDIA section, adjacent to the existing `gpu_nodes` entry.
 
 ## Backward compatibility
 
-If `gpu_counts` is not set (empty map, the default), `max_gpus_per_node` = 1 and behaviour is identical to the current single-DaemonSet setup.
+- If `gpu_counts` is unset (default `{}`), all nodes in `gpu_nodes` default to 1 GPU → `localai_worker_gpu_tiers = ["1"]` → single DaemonSet named `localai-worker-1gpu` requesting 1 GPU with nodeSelector `gpu-count-exact-1=true`.
+- The existing `localai-worker` DaemonSet (from the P2P swarm commit) will be destroyed and replaced by `localai-worker-1gpu`. Pods restart; NFS-backed volumes are unaffected.
+
+## Migration note
+
+Changing from `count` to `for_each` means Terraform addresses change:
+- Before: `kubernetes_daemonset.localai_worker[0]`
+- After: `kubernetes_daemonset.localai_worker["1"]`, `["2"]`, etc.
+
+Terraform will destroy the old resource and create new ones. This is expected and acceptable.
