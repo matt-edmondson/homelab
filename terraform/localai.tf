@@ -498,12 +498,21 @@ resource "kubernetes_deployment" "localai" {
   }
 }
 
+locals {
+  localai_worker_gpu_tiers = toset([
+    for node in keys(var.gpu_nodes) : tostring(lookup(var.gpu_counts, node, 1))
+  ])
+}
+
 # =============================================================================
-# Worker DaemonSet — one GPU worker per GPU node
+# Worker DaemonSet — one GPU worker per GPU-count tier
 # =============================================================================
+# One DaemonSet per unique GPU count value (e.g. "1", "2"). Each DaemonSet
+# targets nodes labelled gpu-count-exact-N and requests N GPUs, letting
+# llama.cpp use all GPUs on the node for large-model inference.
 
 resource "kubernetes_daemonset" "localai_worker" {
-  count = var.localai_enabled ? 1 : 0
+  for_each = var.localai_enabled && var.localai_gpu_enabled ? local.localai_worker_gpu_tiers : toset([])
 
   depends_on = [
     kubernetes_secret.localai_p2p,
@@ -514,7 +523,7 @@ resource "kubernetes_daemonset" "localai_worker" {
   ]
 
   metadata {
-    name      = "localai-worker"
+    name      = "localai-worker-${each.key}gpu"
     namespace = kubernetes_namespace.localai[0].metadata[0].name
     labels = merge(var.common_labels, {
       "app.kubernetes.io/name" = "localai-worker"
@@ -523,12 +532,15 @@ resource "kubernetes_daemonset" "localai_worker" {
 
   spec {
     selector {
-      match_labels = { app = "localai-worker" }
+      match_labels = { app = "localai-worker-${each.key}gpu" }
     }
 
     template {
       metadata {
-        labels = merge(var.common_labels, { app = "localai-worker" })
+        labels = merge(var.common_labels, {
+          app  = "localai-worker-${each.key}gpu"
+          role = "localai-worker"
+        })
       }
 
       spec {
@@ -556,13 +568,11 @@ resource "kubernetes_daemonset" "localai_worker" {
               memory = var.localai_memory_request
               cpu    = var.localai_cpu_request
             }
-            limits = merge(
-              {
-                memory = var.localai_memory_limit
-                cpu    = var.localai_cpu_limit
-              },
-              var.localai_gpu_enabled ? { "nvidia.com/gpu" = "1" } : {}
-            )
+            limits = {
+              memory           = var.localai_memory_limit
+              cpu              = var.localai_cpu_limit
+              "nvidia.com/gpu" = each.key
+            }
           }
 
           volume_mount {
@@ -593,10 +603,10 @@ resource "kubernetes_daemonset" "localai_worker" {
           }
         }
 
-        node_selector = var.localai_gpu_enabled ? merge(
-          { "nvidia.com/gpu.present" = "true" },
+        node_selector = merge(
+          { "gpu-count-exact-${each.key}" = "true" },
           var.localai_gpu_min_vram_gb > 0 ? { "gpu-vram-${var.localai_gpu_min_vram_gb}gb" = "true" } : {}
-        ) : {}
+        )
 
         volume {
           name = "models"
@@ -698,7 +708,7 @@ output "localai_info" {
       check_pods = "kubectl get pods -n ${kubernetes_namespace.localai[0].metadata[0].name}"
       check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.localai[0].metadata[0].name}"
       logs        = "kubectl logs -n ${kubernetes_namespace.localai[0].metadata[0].name} -l app=localai -f"
-      worker_logs = "kubectl logs -n ${kubernetes_namespace.localai[0].metadata[0].name} -l app=localai-worker -f"
+      worker_logs = "kubectl logs -n ${kubernetes_namespace.localai[0].metadata[0].name} -l role=localai-worker -f"
       api_models  = "kubectl exec -n ${kubernetes_namespace.localai[0].metadata[0].name} deploy/localai -- curl -s http://localhost:8080/v1/models"
     }
   } : null
