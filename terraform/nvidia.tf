@@ -36,6 +36,12 @@ variable "gpu_nodes" {
   default     = {}
 }
 
+variable "gpu_counts" {
+  description = "Map of GPU node hostname to number of GPUs (e.g. { \"node.home\" = 2 }). Nodes absent from this map default to 1 GPU."
+  type        = map(number)
+  default     = {}
+}
+
 # Locals — VRAM tier labels
 locals {
   vram_tiers = [4, 6, 8, 10, 12, 16, 24, 48]
@@ -46,6 +52,14 @@ locals {
       for tier in local.vram_tiers :
       "gpu-vram-${tier}gb" => "true"
       if tier <= vram
+    }
+  }
+
+  # For each GPU node, generate an exact GPU count label (a node with 2 GPUs gets gpu-count-exact-2)
+  # Nodes absent from gpu_counts default to 1 GPU
+  gpu_count_exact_labels = {
+    for node, vram in var.gpu_nodes : node => {
+      "gpu-count-exact-${lookup(var.gpu_counts, node, 1)}" = "true"
     }
   }
 }
@@ -63,7 +77,8 @@ resource "kubernetes_labels" "gpu_node_vram" {
 
   labels = merge(
     { "nvidia.com/gpu.present" = "true" },
-    local.gpu_node_labels[each.key]
+    local.gpu_node_labels[each.key],
+    local.gpu_count_exact_labels[each.key]
   )
 }
 
@@ -99,7 +114,9 @@ output "nvidia_device_plugin_info" {
     enabled       = var.nvidia_device_plugin_enabled
     chart_version = var.nvidia_device_plugin_chart_version
     gpu_nodes     = var.gpu_nodes
+    gpu_counts    = var.gpu_counts
     vram_labels   = local.gpu_node_labels
+    count_labels  = local.gpu_count_exact_labels
 
     prerequisites = {
       step_1 = "Run scripts/x86-k8s-worker.sh --gpu on the node (installs drivers + toolkit)"
@@ -111,7 +128,7 @@ output "nvidia_device_plugin_info" {
     commands = {
       check_plugin = "kubectl get pods -n kube-system -l app.kubernetes.io/name=nvidia-device-plugin"
       check_gpu    = "kubectl describe node <gpu-node> | grep nvidia.com/gpu"
-      check_labels = "kubectl get nodes --show-labels | grep gpu-vram"
+      check_labels = "kubectl get nodes --show-labels | grep -E 'gpu-vram|gpu-count'"
       test_gpu     = "kubectl run gpu-test --rm -it --image=nvidia/cuda:12.4.0-base-ubuntu22.04 --limits=nvidia.com/gpu=1 -- nvidia-smi"
     }
   }

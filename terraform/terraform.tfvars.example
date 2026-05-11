@@ -227,6 +227,12 @@
 #  "celery.home"  = 12
 #}
 
+# GPU Node Count Map — maps node hostname to number of GPUs (omit nodes with 1 GPU, that is the default)
+# Used to generate gpu-count-exact-N labels; LocalAI workers use these to request all GPUs on a node
+#gpu_counts = {
+#  "rainbow.home" = 2
+#}
+
 # Ollama LLM Inference (Wave 5)
 #ollama_enabled             = true    # Set to false to disable Ollama
 #ollama_config_storage_size = "1Gi"
