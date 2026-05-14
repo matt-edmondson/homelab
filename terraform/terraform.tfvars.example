@@ -258,14 +258,18 @@
 
 # LocalAI Full-Stack Inference (Wave 5)
 #localai_enabled           = true    # Set to false to disable LocalAI
-#localai_image_tag         = "latest-gpu-nvidia-cuda-13"    # GPU build; use "latest-cpu" for CPU-only
 #localai_memory_request    = "4Gi"
 #localai_memory_limit      = "24Gi"
 #localai_cpu_request       = "1000m"
 #localai_cpu_limit         = "4000m"
 #localai_gpu_enabled       = true    # Enable GPU on worker DaemonSet pods (set to false for CPU-only workers)
 #localai_gpu_min_vram_gb   = 12      # Minimum GPU VRAM in GB required for worker nodes (0 = no constraint)
-#localai_p2p_token         = "change-me"  # Shared P2P swarm token for controller + workers (generate with: openssl rand -hex 32)
+#localai_registration_token        = "..."  # Shared token workers present to the frontend. Generate with: openssl rand -hex 32
+#localai_postgres_password         = "..."  # Bundled LocalAI Postgres password. Generate with: openssl rand -hex 32
+#localai_postgres_storage_size     = "20Gi"
+#localai_nats_storage_size         = "5Gi"
+#localai_agent_pool_embedding_model = "granite-embedding-107m-multilingual"
+#localai_image_version              = "v4.2.4"
 
 # Qdrant Vector Database (Wave 5)
 #qdrant_enabled        = true    # Set to false to disable Qdrant

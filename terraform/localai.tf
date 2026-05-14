@@ -17,10 +17,10 @@ variable "localai_enabled" {
   default     = true
 }
 
-variable "localai_image_tag" {
-  description = "LocalAI container image tag (e.g. latest-gpu-nvidia-cuda-13 for GPU, latest-cpu for CPU-only)"
+variable "localai_image_version" {
+  description = "LocalAI version tag (e.g. v4.2.4). Frontend and agent-worker use the plain tag (CPU build); workers append -gpu-nvidia-cuda-13. Note: -aio-cpu variants were dropped after v3.12.1, and -gpu-nvidia-cuda-13 variants skipped v4.2.1-3."
   type        = string
-  default     = "latest-gpu-nvidia-cuda-13"
+  default     = "v4.2.4"
 }
 
 variable "localai_memory_request" {
@@ -48,22 +48,55 @@ variable "localai_cpu_limit" {
 }
 
 variable "localai_gpu_enabled" {
-  description = "Request GPU resource for LocalAI (requires NVIDIA device plugin)"
+  description = "Request GPU resource for LocalAI worker DaemonSet (requires NVIDIA device plugin)"
   type        = bool
   default     = true
 }
 
 variable "localai_gpu_min_vram_gb" {
-  description = "Minimum GPU VRAM in GB required for LocalAI (0 = no VRAM constraint)"
+  description = "Minimum GPU VRAM in GB required for LocalAI workers (0 = no VRAM constraint)"
   type        = number
   default     = 12
 }
 
-variable "localai_p2p_token" {
-  description = "Shared P2P token for LocalAI swarm (controller + workers)"
+variable "localai_registration_token" {
+  description = "Shared registration token: workers and agent-worker present this to the frontend at startup. Generate with: openssl rand -hex 32"
   type        = string
   sensitive   = true
   default     = ""
+}
+
+variable "localai_postgres_password" {
+  description = "Password for the bundled LocalAI Postgres (used by the frontend for auth + agent-pool vector tables)"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "localai_postgres_storage_size" {
+  description = "Longhorn PVC size for the bundled LocalAI Postgres"
+  type        = string
+  default     = "20Gi"
+}
+
+variable "localai_nats_storage_size" {
+  description = "Longhorn PVC size for NATS JetStream data"
+  type        = string
+  default     = "5Gi"
+}
+
+variable "localai_agent_pool_embedding_model" {
+  description = "Embedding model name advertised via LOCALAI_AGENT_POOL_EMBEDDING_MODEL"
+  type        = string
+  default     = "granite-embedding-107m-multilingual"
+}
+
+# Migration: rename of the registration secret resource.
+# The Kubernetes object name itself also changes (localai-p2p -> localai-registration),
+# which terraform handles as destroy/create. The token value (the string) is identical.
+moved {
+  from = kubernetes_secret.localai_p2p
+  to   = kubernetes_secret.localai_registration
 }
 
 # Namespace
@@ -78,18 +111,18 @@ resource "kubernetes_namespace" "localai" {
   }
 }
 
-# P2P Swarm Secret
-resource "kubernetes_secret" "localai_p2p" {
+# Registration token: workers and agent-worker present this to the frontend at startup.
+resource "kubernetes_secret" "localai_registration" {
   count = var.localai_enabled ? 1 : 0
 
   metadata {
-    name      = "localai-p2p"
+    name      = "localai-registration"
     namespace = kubernetes_namespace.localai[0].metadata[0].name
     labels    = var.common_labels
   }
 
   data = {
-    token = var.localai_p2p_token
+    token = var.localai_registration_token
   }
 
   type = "Opaque"
@@ -318,7 +351,10 @@ resource "kubernetes_deployment" "localai" {
     kubernetes_persistent_volume_claim.localai_data,
     kubernetes_persistent_volume_claim.localai_output,
     helm_release.longhorn,
-    kubernetes_secret.localai_p2p,
+    kubernetes_secret.localai_registration,
+    kubernetes_secret.localai_postgres,
+    kubernetes_deployment.localai_postgres,
+    kubernetes_deployment.localai_nats,
   ]
 
   metadata {
@@ -349,7 +385,7 @@ resource "kubernetes_deployment" "localai" {
       spec {
         container {
           name  = "localai"
-          image = "localai/localai:${var.localai_image_tag}"
+          image = "localai/localai:${var.localai_image_version}"
 
           port {
             container_port = 8080
@@ -357,18 +393,68 @@ resource "kubernetes_deployment" "localai" {
           }
 
           env {
-            name  = "LOCALAI_P2P"
+            name  = "LOCALAI_DISTRIBUTED"
             value = "true"
           }
 
           env {
-            name = "LOCALAI_P2P_TOKEN"
+            name  = "LOCALAI_NATS_URL"
+            value = "nats://localai-nats.localai.svc:4222"
+          }
+
+          env {
+            name = "LOCALAI_REGISTRATION_TOKEN"
             value_from {
               secret_key_ref {
-                name = kubernetes_secret.localai_p2p[0].metadata[0].name
+                name = kubernetes_secret.localai_registration[0].metadata[0].name
                 key  = "token"
               }
             }
+          }
+
+          env {
+            name  = "LOCALAI_AGENT_POOL_EMBEDDING_MODEL"
+            value = var.localai_agent_pool_embedding_model
+          }
+
+          env {
+            name  = "LOCALAI_AGENT_POOL_VECTOR_ENGINE"
+            value = "postgres"
+          }
+
+          env {
+            name = "LOCALAI_AGENT_POOL_DATABASE_URL"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret.localai_postgres[0].metadata[0].name
+                key  = "DATABASE_URL"
+              }
+            }
+          }
+
+          env {
+            name  = "LOCALAI_AUTH"
+            value = "true"
+          }
+
+          env {
+            name = "LOCALAI_AUTH_DATABASE_URL"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret.localai_postgres[0].metadata[0].name
+                key  = "DATABASE_URL"
+              }
+            }
+          }
+
+          env {
+            name  = "GODEBUG"
+            value = "netdns=go"
+          }
+
+          env {
+            name  = "MODELS_PATH"
+            value = "/models"
           }
 
           resources {
@@ -515,11 +601,13 @@ resource "kubernetes_daemonset" "localai_worker" {
   for_each = var.localai_enabled && var.localai_gpu_enabled ? local.localai_worker_gpu_tiers : toset([])
 
   depends_on = [
-    kubernetes_secret.localai_p2p,
+    kubernetes_secret.localai_registration,
     kubernetes_persistent_volume_claim.localai_models,
     kubernetes_persistent_volume_claim.localai_backends,
     kubernetes_persistent_volume_claim.localai_configuration,
     helm_release.longhorn,
+    kubernetes_deployment.localai,
+    kubernetes_deployment.localai_nats,
   ]
 
   metadata {
@@ -546,21 +634,91 @@ resource "kubernetes_daemonset" "localai_worker" {
       spec {
         container {
           name  = "localai-worker"
-          image = "localai/localai:${var.localai_image_tag}"
+          image = "localai/localai:${var.localai_image_version}-gpu-nvidia-cuda-13"
+          args  = ["worker"]
 
+          # Downward API: node identity for advertise addrs
           env {
-            name  = "LOCALAI_WORKER"
-            value = "true"
+            name = "NODE_IP"
+            value_from {
+              field_ref {
+                field_path = "status.hostIP"
+              }
+            }
           }
 
           env {
-            name = "LOCALAI_P2P_TOKEN"
+            name = "NODE_NAME"
+            value_from {
+              field_ref {
+                field_path = "spec.nodeName"
+              }
+            }
+          }
+
+          # Registration with the LocalAI frontend.
+          # The localai Service exposes port 80 -> targetPort 8080, so we hit :80 here.
+          env {
+            name  = "LOCALAI_REGISTER_TO"
+            value = "http://localai.localai.svc:80"
+          }
+
+          env {
+            name = "LOCALAI_REGISTRATION_TOKEN"
             value_from {
               secret_key_ref {
-                name = kubernetes_secret.localai_p2p[0].metadata[0].name
+                name = kubernetes_secret.localai_registration[0].metadata[0].name
                 key  = "token"
               }
             }
+          }
+
+          env {
+            name  = "LOCALAI_NATS_URL"
+            value = "nats://localai-nats.localai.svc:4222"
+          }
+
+          # Worker serves gRPC backend on 50051 and HTTP file-transfer on 50050.
+          env {
+            name  = "LOCALAI_SERVE_ADDR"
+            value = "0.0.0.0:50051"
+          }
+
+          env {
+            name  = "LOCALAI_ADVERTISE_ADDR"
+            value = "$(NODE_IP):50051"
+          }
+
+          env {
+            name  = "LOCALAI_ADVERTISE_HTTP_ADDR"
+            value = "$(NODE_IP):50050"
+          }
+
+          env {
+            name  = "LOCALAI_NODE_NAME"
+            value = "$(NODE_NAME)-${each.key}gpu"
+          }
+
+          env {
+            name  = "LOCALAI_HEARTBEAT_INTERVAL"
+            value = "10s"
+          }
+
+          # Image-baked HEALTHCHECK targets :8080/readyz which the worker
+          # doesn't serve. Override to the file-transfer endpoint on 50050.
+          env {
+            name  = "HEALTHCHECK_ENDPOINT"
+            value = "http://localhost:50050/readyz"
+          }
+
+          env {
+            name  = "GODEBUG"
+            value = "netdns=go"
+          }
+
+          env {
+            name  = "MODELS_PATH"
+            value = "/models"
           }
 
           resources {
@@ -573,6 +731,30 @@ resource "kubernetes_daemonset" "localai_worker" {
               cpu              = var.localai_cpu_limit
               "nvidia.com/gpu" = each.key
             }
+          }
+
+          port {
+            container_port = 50050
+            host_port      = 50050
+            protocol       = "TCP"
+            name           = "http"
+          }
+
+          port {
+            container_port = 50051
+            host_port      = 50051
+            protocol       = "TCP"
+            name           = "grpc"
+          }
+
+          readiness_probe {
+            http_get {
+              path = "/readyz"
+              port = 50050
+            }
+            initial_delay_seconds = 30
+            period_seconds        = 10
+            failure_threshold     = 6
           }
 
           volume_mount {
@@ -652,6 +834,101 @@ resource "kubernetes_daemonset" "localai_worker" {
 }
 
 # =============================================================================
+# Agent Worker — NATS-driven agent chat / MCP / skills executor
+# =============================================================================
+# Stateless CPU worker that receives agent jobs from NATS, runs LLM calls
+# back through the LocalAI API, and publishes results via NATS for SSE
+# delivery. No HTTP server, no probes, no GPU, no Docker socket (HTTP/SSE
+# MCPs only).
+
+resource "kubernetes_deployment" "localai_agent_worker" {
+  count = var.localai_enabled ? 1 : 0
+
+  depends_on = [
+    kubernetes_secret.localai_registration,
+    kubernetes_deployment.localai,
+    kubernetes_deployment.localai_nats,
+  ]
+
+  metadata {
+    name      = "localai-agent-worker"
+    namespace = kubernetes_namespace.localai[0].metadata[0].name
+    labels = merge(var.common_labels, {
+      "app.kubernetes.io/name" = "localai-agent-worker"
+    })
+  }
+
+  spec {
+    replicas               = 1
+    revision_history_limit = 0
+
+    strategy {
+      type = "Recreate"
+    }
+
+    selector {
+      match_labels = { app = "localai-agent-worker" }
+    }
+
+    template {
+      metadata {
+        labels = merge(var.common_labels, { app = "localai-agent-worker" })
+      }
+
+      spec {
+        container {
+          name  = "localai-agent-worker"
+          image = "localai/localai:${var.localai_image_version}"
+          args  = ["agent-worker"]
+
+          env {
+            name  = "LOCALAI_NATS_URL"
+            value = "nats://localai-nats.localai.svc:4222"
+          }
+
+          # The localai Service exposes port 80 -> targetPort 8080, so we hit :80 here.
+          env {
+            name  = "LOCALAI_REGISTER_TO"
+            value = "http://localai.localai.svc:80"
+          }
+
+          env {
+            name = "LOCALAI_REGISTRATION_TOKEN"
+            value_from {
+              secret_key_ref {
+                name = kubernetes_secret.localai_registration[0].metadata[0].name
+                key  = "token"
+              }
+            }
+          }
+
+          env {
+            name  = "LOCALAI_NODE_NAME"
+            value = "agent-worker"
+          }
+
+          env {
+            name  = "GODEBUG"
+            value = "netdns=go"
+          }
+
+          resources {
+            requests = {
+              memory = "256Mi"
+              cpu    = "100m"
+            }
+            limits = {
+              memory = "1Gi"
+              cpu    = "500m"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+# =============================================================================
 # Service
 # =============================================================================
 
@@ -705,8 +982,8 @@ output "localai_info" {
     }
 
     commands = {
-      check_pods = "kubectl get pods -n ${kubernetes_namespace.localai[0].metadata[0].name}"
-      check_pvc  = "kubectl get pvc -n ${kubernetes_namespace.localai[0].metadata[0].name}"
+      check_pods  = "kubectl get pods -n ${kubernetes_namespace.localai[0].metadata[0].name}"
+      check_pvc   = "kubectl get pvc -n ${kubernetes_namespace.localai[0].metadata[0].name}"
       logs        = "kubectl logs -n ${kubernetes_namespace.localai[0].metadata[0].name} -l app=localai -f"
       worker_logs = "kubectl logs -n ${kubernetes_namespace.localai[0].metadata[0].name} -l role=localai-worker -f"
       api_models  = "kubectl exec -n ${kubernetes_namespace.localai[0].metadata[0].name} deploy/localai -- curl -s http://localhost:8080/v1/models"
